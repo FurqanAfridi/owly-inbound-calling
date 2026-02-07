@@ -134,3 +134,132 @@ export async function getUserSubscriptionPackage(userId: string): Promise<Packag
     return null;
   }
 }
+
+/**
+ * Create a paid subscription for a user
+ * This creates a subscription record and prepares for payment processing
+ */
+export async function createPaidSubscription(
+  userId: string,
+  packageId: string,
+  billingCycle: 'monthly' | 'yearly',
+  couponCode?: string,
+  discountAmount?: number
+): Promise<{ success: boolean; subscriptionId?: string; error?: string }> {
+  try {
+    // Get package details
+    const packageDetails = await fetchPackageById(packageId);
+    if (!packageDetails) {
+      return { success: false, error: 'Package not found' };
+    }
+
+    // Check if user already has an active subscription
+    const { data: existingSubscription } = await supabase
+      .from('user_subscriptions')
+      .select('id, package_id, status')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    // Calculate period dates
+    const now = new Date();
+    const periodEnd = new Date(now);
+    if (billingCycle === 'monthly') {
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+    } else {
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    }
+
+    // If user has existing subscription, cancel it first (upgrade/downgrade)
+    if (existingSubscription) {
+      await supabase
+        .from('user_subscriptions')
+        .update({
+          status: 'canceled',
+          canceled_at: now.toISOString(),
+          cancel_at_period_end: true,
+        })
+        .eq('id', existingSubscription.id);
+    }
+
+    // Create new subscription with status 'pending' (will be activated after payment)
+    const { data: newSubscription, error: subscriptionError } = await supabase
+      .from('user_subscriptions')
+      .insert({
+        user_id: userId,
+        package_id: packageId,
+        status: 'pending', // Will be set to 'active' after successful payment
+        billing_cycle: billingCycle,
+        current_period_start: now.toISOString(),
+        current_period_end: periodEnd.toISOString(),
+        auto_renew: true,
+        metadata: {
+          coupon_code: couponCode || null,
+          discount_amount: discountAmount || 0,
+          created_at: now.toISOString(),
+        },
+      })
+      .select()
+      .single();
+
+    if (subscriptionError) {
+      console.error('Error creating subscription:', subscriptionError);
+      return { success: false, error: subscriptionError.message };
+    }
+
+    return { success: true, subscriptionId: newSubscription.id };
+  } catch (error: any) {
+    console.error('Error creating paid subscription:', error);
+    return { success: false, error: error.message || 'Failed to create subscription' };
+  }
+}
+
+/**
+ * Activate subscription after successful payment
+ */
+export async function activateSubscription(
+  subscriptionId: string,
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Update subscription status to active
+    const { error: updateError } = await supabase
+      .from('user_subscriptions')
+      .update({
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', subscriptionId)
+      .eq('user_id', userId);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    // Get subscription to add credits
+    const { data: subscription } = await supabase
+      .from('user_subscriptions')
+      .select('*, package:packages(*)')
+      .eq('id', subscriptionId)
+      .single();
+
+    if (subscription?.package && (subscription.package as any).credits_included > 0) {
+      const { error: creditsError } = await supabase.rpc('add_credits', {
+        p_user_id: userId,
+        p_amount: (subscription.package as any).credits_included,
+        p_transaction_type: 'subscription_credit',
+        p_purchase_id: null,
+      });
+
+      if (creditsError) {
+        console.error('Error adding subscription credits:', creditsError);
+        // Don't fail the whole process if credits fail
+      }
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error activating subscription:', error);
+    return { success: false, error: error.message || 'Failed to activate subscription' };
+  }
+}

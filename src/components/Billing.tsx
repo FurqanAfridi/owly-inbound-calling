@@ -49,6 +49,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { createCheckoutSession, redirectToCheckout, processPaymentSuccess } from '../services/paymentService';
+import { createPaidSubscription, activateSubscription } from '../services/subscriptionService';
 import { useSearchParams } from 'react-router-dom';
 import { CREDIT_RATES } from '../services/creditService';
 import { fetchPackages, fetchPackageById, renderFeatureTemplate, PackageWithDetails } from '../services/packageService';
@@ -130,6 +131,10 @@ const Billing: React.FC = () => {
   const [showTopupDialog, setShowTopupDialog] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showPackageDialog, setShowPackageDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [selectedPackage, setSelectedPackage] = useState<PackageWithDetails | null>(null);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [couponCode, setCouponCode] = useState('');
@@ -156,13 +161,23 @@ const Billing: React.FC = () => {
     const canceled = searchParams.get('canceled');
     
     if (canceled === 'true') {
-      setError('Payment was canceled. You can try again when ready.');
+      const subscriptionId = searchParams.get('subscription_id');
+      if (subscriptionId) {
+        // Cancel the pending subscription if payment was canceled
+        supabase
+          .from('user_subscriptions')
+          .update({ status: 'canceled', canceled_at: new Date().toISOString() })
+          .eq('id', subscriptionId);
+      }
+      setErrorMessage('Payment was canceled. You can try again when ready.');
+      setShowErrorDialog(true);
       setSearchParams({});
       return;
     }
     
     if (sessionId && purchaseId && user) {
-      handlePaymentSuccess(sessionId, purchaseId);
+      const subscriptionId = searchParams.get('subscription_id');
+      handlePaymentSuccess(sessionId, purchaseId, subscriptionId || undefined);
       // Clean up URL params
       setSearchParams({});
     }
@@ -323,7 +338,7 @@ const Billing: React.FC = () => {
     }
   };
 
-  const handlePaymentSuccess = async (sessionId: string, purchaseId: string) => {
+  const handlePaymentSuccess = async (sessionId: string, purchaseId: string, subscriptionId?: string) => {
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -343,41 +358,53 @@ const Billing: React.FC = () => {
           })
           .eq('id', purchaseId);
 
-        // Get purchase details to add credits
+        // If this is a subscription purchase, activate the subscription
+        if (subscriptionId) {
+          const activationResult = await activateSubscription(subscriptionId, user!.id);
+          if (!activationResult.success) {
+            console.error('Failed to activate subscription:', activationResult.error);
+          }
+        }
+
+        // Get purchase details
         const { data: purchase } = await supabase
           .from('purchases')
-          .select('credits_amount')
+          .select('credits_amount, purchase_type, metadata')
           .eq('id', purchaseId)
           .single();
 
         if (purchase) {
-          // Add credits using the function
-          const { error: creditsError } = await supabase.rpc('add_credits', {
-            p_user_id: user!.id,
-            p_amount: purchase.credits_amount,
-            p_transaction_type: 'purchase',
-            p_purchase_id: purchaseId,
-          });
+          // Add credits if this is a credit purchase (not subscription)
+          if (purchase.purchase_type === 'credits' && purchase.credits_amount > 0) {
+            const { error: creditsError } = await supabase.rpc('add_credits', {
+              p_user_id: user!.id,
+              p_amount: purchase.credits_amount,
+              p_transaction_type: 'purchase',
+              p_purchase_id: purchaseId,
+            });
 
-          if (creditsError) throw creditsError;
+            if (creditsError) throw creditsError;
 
-          // Generate invoice (with coupon info if available)
-          // Note: For credit purchases, coupon would be handled in the purchase flow
-          await generateInvoice(purchaseId);
+            setSuccessMessage(`Successfully purchased ${purchase.credits_amount.toFixed(0)} credits!`);
+          } else if (purchase.purchase_type === 'subscription') {
+            setSuccessMessage(`Subscription activated successfully! Your package is now active.`);
+          }
 
-          setSuccess(`Successfully purchased ${purchase.credits_amount.toFixed(0)} credits!`);
+          // Generate invoice
+          await generateInvoice(purchaseId, subscriptionId);
+
+          setShowSuccessDialog(true);
           setShowPurchaseDialog(false);
           setPurchaseAmount(10);
           await fetchBillingData();
-          
-          setTimeout(() => setSuccess(null), 5000);
         }
       } else {
         throw new Error(result.error || 'Payment verification failed');
       }
     } catch (err: any) {
       console.error('Error processing payment success:', err);
-      setError(err.message || 'Failed to process payment. Please contact support.');
+      setErrorMessage(err.message || 'Failed to process payment. Please contact support.');
+      setShowErrorDialog(true);
     } finally {
       setLoading(false);
     }
@@ -822,14 +849,16 @@ const Billing: React.FC = () => {
                         <Card
                           key={pkg.id}
                           sx={{
-                            flex: '1 1 300px',
-                            maxWidth: '400px',
+                            flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)', md: '1 1 calc(33.333% - 16px)', lg: '1 1 300px' },
+                            maxWidth: { xs: '100%', lg: '400px' },
                             border: pkg.is_featured ? '2px solid' : '1px solid',
                             borderColor: pkg.is_featured ? 'primary.main' : 'divider',
                             position: 'relative',
                             opacity: isCurrentPackage ? 0.7 : 1,
+                            transition: 'all 0.3s ease',
                             '&:hover': {
                               boxShadow: isCurrentPackage ? 0 : 4,
+                              transform: isCurrentPackage ? 'none' : 'translateY(-4px)',
                             },
                           }}
                         >
@@ -1473,7 +1502,8 @@ const Billing: React.FC = () => {
                   if (selectedPackage.tier === 'free') {
                     // Check if user already has any subscription
                     if (subscription) {
-                      setError('You already have an active subscription. Cannot subscribe to free package.');
+                      setErrorMessage('You already have an active subscription. Cannot subscribe to free package.');
+                      setShowErrorDialog(true);
                       setProcessingPayment(false);
                       return;
                     }
@@ -1482,34 +1512,112 @@ const Billing: React.FC = () => {
                     const result = await assignFreePackageToUser(user.id);
                     
                     if (result.success) {
-                      setSuccess('Free package activated successfully! Credits have been added to your balance.');
+                      setSuccessMessage('Free package activated successfully! Credits have been added to your balance.');
+                      setShowSuccessDialog(true);
                       setShowPackageDialog(false);
                       await fetchBillingData();
                     } else {
-                      setError(result.error || 'Failed to activate free package');
+                      setErrorMessage(result.error || 'Failed to activate free package');
+                      setShowErrorDialog(true);
                     }
                     setProcessingPayment(false);
                     return;
                   }
 
-                  // TODO: Implement paid package subscription purchase flow
-                  // This would create a subscription, apply coupon if valid, and redirect to payment
-                  setSuccess(`Subscription to ${selectedPackage.name} initiated!`);
-                  setShowPackageDialog(false);
-                  
-                  // Record coupon usage if applied
+                  // Paid package subscription flow
+                  // Step 1: Create subscription record
+                  const subscriptionResult = await createPaidSubscription(
+                    user.id,
+                    selectedPackage.id,
+                    billingPeriod,
+                    couponValidation?.valid ? couponCode : undefined,
+                    discount
+                  );
+
+                  if (!subscriptionResult.success || !subscriptionResult.subscriptionId) {
+                    setErrorMessage(subscriptionResult.error || 'Failed to create subscription');
+                    setShowErrorDialog(true);
+                    setProcessingPayment(false);
+                    return;
+                  }
+
+                  // Step 2: Record coupon usage if applied
                   if (couponValidation?.valid && couponValidation.coupon) {
                     await recordCouponUsage(
                       couponValidation.coupon.id,
                       user.id,
                       discount,
                       undefined,
-                      undefined
+                      subscriptionResult.subscriptionId
                     );
                   }
+
+                  // Step 3: Create purchase record for payment tracking
+                  const { data: purchase, error: purchaseError } = await supabase
+                    .from('purchases')
+                    .insert({
+                      user_id: user.id,
+                      purchase_type: 'subscription',
+                      amount: total,
+                      credits_amount: selectedPackage.credits_included || 0,
+                      credits_rate: 0,
+                      subtotal: basePrice,
+                      discount_amount: discount,
+                      total_amount: total,
+                      payment_status: 'pending',
+                      metadata: {
+                        subscription_id: subscriptionResult.subscriptionId,
+                        package_id: selectedPackage.id,
+                        billing_cycle: billingPeriod,
+                        coupon_code: couponValidation?.valid ? couponCode : null,
+                      },
+                    })
+                    .select()
+                    .single();
+
+                  if (purchaseError) {
+                    setErrorMessage('Failed to create purchase record. Please try again.');
+                    setShowErrorDialog(true);
+                    setProcessingPayment(false);
+                    return;
+                  }
+
+                  // Step 4: Create Stripe Checkout session
+                  const successUrl = `${window.location.origin}/billing?session_id={CHECKOUT_SESSION_ID}&purchase_id=${purchase.id}&subscription_id=${subscriptionResult.subscriptionId}`;
+                  const cancelUrl = `${window.location.origin}/billing?canceled=true&subscription_id=${subscriptionResult.subscriptionId}`;
+
+                  try {
+                    const { sessionId, url } = await createCheckoutSession({
+                      userId: user.id,
+                      amount: total,
+                      creditsAmount: selectedPackage.credits_included || 0,
+                      purchaseId: purchase.id,
+                      successUrl,
+                      cancelUrl,
+                    });
+
+                    // Store session ID in purchase record
+                    await supabase
+                      .from('purchases')
+                      .update({
+                        payment_provider_id: sessionId,
+                        metadata: {
+                          ...purchase.metadata,
+                          checkout_session_id: sessionId,
+                        },
+                      })
+                      .eq('id', purchase.id);
+
+                    // Redirect to Stripe Checkout
+                    await redirectToCheckout(url);
+                  } catch (checkoutError: any) {
+                    setErrorMessage(checkoutError.message || 'Failed to initiate payment. Please try again.');
+                    setShowErrorDialog(true);
+                    setProcessingPayment(false);
+                  }
                 } catch (error: any) {
-                  setError(error.message || 'Failed to process subscription');
-                } finally {
+                  setErrorMessage(error.message || 'Failed to process subscription');
+                  setShowErrorDialog(true);
                   setProcessingPayment(false);
                 }
               }}
@@ -1520,6 +1628,67 @@ const Billing: React.FC = () => {
                 : selectedPackage?.tier === 'free'
                 ? 'Activate Free Package'
                 : 'Subscribe'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Success Dialog */}
+        <Dialog
+          open={showSuccessDialog}
+          onClose={() => {
+            setShowSuccessDialog(false);
+            setSuccessMessage('');
+          }}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <CheckCircleIcon color="success" />
+            Success!
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body1">{successMessage}</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              variant="contained"
+              onClick={() => {
+                setShowSuccessDialog(false);
+                setSuccessMessage('');
+              }}
+            >
+              OK
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Error Dialog */}
+        <Dialog
+          open={showErrorDialog}
+          onClose={() => {
+            setShowErrorDialog(false);
+            setErrorMessage('');
+          }}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <WarningIcon color="error" />
+            Error
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body1">{errorMessage}</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={() => {
+                setShowErrorDialog(false);
+                setErrorMessage('');
+              }}
+            >
+              Close
             </Button>
           </DialogActions>
         </Dialog>
