@@ -807,8 +807,9 @@ const Billing: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Packages Section */}
-          {newPackages.length > 0 && (
+          {/* Packages Section - Only show upgrade options when user has free package or no subscription */}
+          {newPackages.length > 0 && 
+           (!subscription || subscription.package?.package_code === 'free') && (
             <Card
               sx={{
                 borderRadius: 2,
@@ -818,136 +819,175 @@ const Billing: React.FC = () => {
             >
               <CardContent>
                 <Typography variant="h6" fontWeight={600} gutterBottom>
-                  Subscription Packages
+                  {subscription?.package?.package_code === 'free' 
+                    ? 'Upgrade Your Package' 
+                    : 'Subscription Packages'}
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mt: 2 }}>
-                  {newPackages.map((pkg) => (
-                    <Card
-                      key={pkg.id}
-                      sx={{
-                        flex: '1 1 300px',
-                        maxWidth: '400px',
-                        border: pkg.is_featured ? '2px solid' : '1px solid',
-                        borderColor: pkg.is_featured ? 'primary.main' : 'divider',
-                        position: 'relative',
-                        '&:hover': {
-                          boxShadow: 4,
-                        },
-                      }}
-                    >
-                      {pkg.is_featured && (
-                        <Chip
-                          label="Featured"
-                          color="primary"
-                          size="small"
+                  {newPackages
+                    .filter((pkg) => {
+                      // Only show non-free packages if user has free package
+                      // Show all packages if user has no subscription
+                      if (!subscription) return true;
+                      if (subscription.package?.package_code === 'free') {
+                        return pkg.tier !== 'free'; // Only show upgrade packages
+                      }
+                      return false;
+                    })
+                    .map((pkg) => {
+                      // Check if this package matches the user's current subscription
+                      // Match by tier name (packages.tier) vs subscription_packages.package_code
+                      const isCurrentPackage = subscription && 
+                        ((pkg.tier === 'free' && subscription.package?.package_code === 'free') ||
+                         (pkg.tier === 'pro' && subscription.package?.package_code === 'pro') ||
+                         (pkg.tier === 'premium' && subscription.package?.package_code === 'premium') ||
+                         (pkg.tier === 'enterprise' && subscription.package?.package_code === 'enterprise') ||
+                         // Also try matching by name
+                         (subscription.package?.package_name?.toLowerCase() === pkg.name.toLowerCase()));
+                      
+                      return (
+                        <Card
+                          key={pkg.id}
                           sx={{
-                            position: 'absolute',
-                            top: 16,
-                            right: 16,
+                            flex: '1 1 300px',
+                            maxWidth: '400px',
+                            border: pkg.is_featured ? '2px solid' : '1px solid',
+                            borderColor: pkg.is_featured ? 'primary.main' : 'divider',
+                            position: 'relative',
+                            opacity: isCurrentPackage ? 0.7 : 1,
+                            '&:hover': {
+                              boxShadow: isCurrentPackage ? 0 : 4,
+                            },
                           }}
-                        />
-                      )}
-                      <CardContent>
-                        <Typography variant="h5" fontWeight={600} gutterBottom>
-                          {pkg.name}
-                        </Typography>
-                        {pkg.description && (
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            {pkg.description}
-                          </Typography>
-                        )}
-                        <Box sx={{ mb: 2 }}>
-                          <Typography variant="h4" fontWeight={700} color="primary">
-                            {billingPeriod === 'monthly'
-                              ? `$${pkg.price_monthly?.toFixed(2) || '0.00'}`
-                              : pkg.price_yearly
-                              ? `$${pkg.price_yearly.toFixed(2)}`
-                              : `$${((pkg.price_monthly || 0) * 12).toFixed(2)}`}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            /{billingPeriod === 'monthly' ? 'month' : 'year'}
-                            {billingPeriod === 'yearly' && pkg.price_yearly && (
-                              <span style={{ color: 'green' }}>
-                                {' '}
-                                (Save ${((pkg.price_monthly || 0) * 12 - pkg.price_yearly).toFixed(2)})
-                              </span>
-                            )}
-                          </Typography>
-                        </Box>
-                        {pkg.credits_included !== null && (
-                          <Typography variant="body2" sx={{ mb: 2, fontWeight: 600 }}>
-                            Credits: {pkg.credits_included}
-                          </Typography>
-                        )}
-                        <Divider sx={{ my: 2 }} />
-                        <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-                          Features:
-                        </Typography>
-                        <Stack spacing={1}>
-                          {pkg.features
-                            .sort((a, b) => a.display_order - b.display_order)
-                            .map((feature) => {
-                              const rendered = renderFeatureTemplate(
-                                feature.feature_template,
-                                pkg.variables
-                              );
-                              return (
-                                <Box
-                                  key={feature.id}
-                                  sx={{
-                                    display: 'flex',
-                                    alignItems: 'flex-start',
-                                    gap: 1,
-                                  }}
-                                >
-                                  <CheckCircleIcon
-                                    sx={{
-                                      fontSize: 18,
-                                      color: 'success.main',
-                                      mt: 0.5,
-                                    }}
-                                  />
-                                  <Typography
-                                    variant="body2"
-                                    sx={{
-                                      fontWeight: feature.is_highlighted ? 600 : 400,
-                                    }}
-                                  >
-                                    {rendered}
-                                    {feature.is_highlighted && (
-                                      <Chip
-                                        label="Featured"
-                                        size="small"
-                                        color="primary"
-                                        sx={{ ml: 1, height: 18 }}
-                                      />
-                                    )}
-                                  </Typography>
-                                </Box>
-                              );
-                            })}
-                        </Stack>
-                        <Button
-                          variant={pkg.is_featured ? 'contained' : 'outlined'}
-                          fullWidth
-                          sx={{ mt: 3 }}
-                          onClick={() => {
-                            setSelectedPackage(pkg);
-                            setShowPackageDialog(true);
-                            setCouponCode('');
-                            setCouponValidation(null);
-                          }}
-                          disabled={pkg.tier === 'free' && subscription !== null}
                         >
-                          {pkg.tier === 'free' && subscription !== null
-                            ? 'Already Subscribed'
-                            : pkg.tier === 'free'
-                            ? 'Get Started'
-                            : 'Subscribe'}
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
+                          {pkg.is_featured && (
+                            <Chip
+                              label="Featured"
+                              color="primary"
+                              size="small"
+                              sx={{
+                                position: 'absolute',
+                                top: 16,
+                                right: 16,
+                              }}
+                            />
+                          )}
+                          {isCurrentPackage && (
+                            <Chip
+                              label="Current Package"
+                              color="success"
+                              size="small"
+                              sx={{
+                                position: 'absolute',
+                                top: 16,
+                                left: 16,
+                              }}
+                            />
+                          )}
+                          <CardContent>
+                            <Typography variant="h5" fontWeight={600} gutterBottom>
+                              {pkg.name}
+                            </Typography>
+                            {pkg.description && (
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                {pkg.description}
+                              </Typography>
+                            )}
+                            <Box sx={{ mb: 2 }}>
+                              <Typography variant="h4" fontWeight={700} color="primary">
+                                {billingPeriod === 'monthly'
+                                  ? `$${pkg.price_monthly?.toFixed(2) || '0.00'}`
+                                  : pkg.price_yearly
+                                  ? `$${pkg.price_yearly.toFixed(2)}`
+                                  : `$${((pkg.price_monthly || 0) * 12).toFixed(2)}`}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                /{billingPeriod === 'monthly' ? 'month' : 'year'}
+                                {billingPeriod === 'yearly' && pkg.price_yearly && (
+                                  <span style={{ color: 'green' }}>
+                                    {' '}
+                                    (Save ${((pkg.price_monthly || 0) * 12 - pkg.price_yearly).toFixed(2)})
+                                  </span>
+                                )}
+                              </Typography>
+                            </Box>
+                            {pkg.credits_included !== null && (
+                              <Typography variant="body2" sx={{ mb: 2, fontWeight: 600 }}>
+                                Credits: {pkg.credits_included}
+                              </Typography>
+                            )}
+                            <Divider sx={{ my: 2 }} />
+                            <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+                              Features:
+                            </Typography>
+                            <Stack spacing={1}>
+                              {pkg.features
+                                .sort((a, b) => a.display_order - b.display_order)
+                                .map((feature) => {
+                                  const rendered = renderFeatureTemplate(
+                                    feature.feature_template,
+                                    pkg.variables
+                                  );
+                                  return (
+                                    <Box
+                                      key={feature.id}
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        gap: 1,
+                                      }}
+                                    >
+                                      <CheckCircleIcon
+                                        sx={{
+                                          fontSize: 18,
+                                          color: 'success.main',
+                                          mt: 0.5,
+                                        }}
+                                      />
+                                      <Typography
+                                        variant="body2"
+                                        sx={{
+                                          fontWeight: feature.is_highlighted ? 600 : 400,
+                                        }}
+                                      >
+                                        {rendered}
+                                        {feature.is_highlighted && (
+                                          <Chip
+                                            label="Featured"
+                                            size="small"
+                                            color="primary"
+                                            sx={{ ml: 1, height: 18 }}
+                                          />
+                                        )}
+                                      </Typography>
+                                    </Box>
+                                  );
+                                })}
+                            </Stack>
+                            <Button
+                              variant={pkg.is_featured ? 'contained' : 'outlined'}
+                              fullWidth
+                              sx={{ mt: 3 }}
+                              onClick={() => {
+                                setSelectedPackage(pkg);
+                                setShowPackageDialog(true);
+                                setCouponCode('');
+                                setCouponValidation(null);
+                              }}
+                              disabled={isCurrentPackage || (pkg.tier === 'free' && subscription !== null)}
+                            >
+                              {isCurrentPackage
+                                ? 'Current Package'
+                                : pkg.tier === 'free' && subscription !== null
+                                ? 'Already Subscribed'
+                                : pkg.tier === 'free'
+                                ? 'Get Started'
+                                : 'Subscribe'}
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                 </Box>
               </CardContent>
             </Card>
