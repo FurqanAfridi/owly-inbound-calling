@@ -107,18 +107,19 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
       if (!user) return;
 
       try {
-        // Fetch active subscription with package details from subscription_packages
+        // Fetch active subscription with package details from packages table
+        // user_subscriptions.package_id references packages(id)
         const { data: subscription } = await supabase
           .from('user_subscriptions')
-          .select('*, package:subscription_packages(package_name)')
+          .select('*, package:packages(name)')
           .eq('user_id', user.id)
           .eq('status', 'active')
           .order('created_at', { ascending: false })
           .limit(1)
           .single();
 
-        if (subscription?.package?.package_name) {
-          setPackageName(subscription.package.package_name);
+        if (subscription?.package?.name) {
+          setPackageName(subscription.package.name);
         } else {
           setPackageName(null);
         }

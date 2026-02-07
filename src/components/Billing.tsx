@@ -66,18 +66,6 @@ interface UserCredits {
   services_paused: boolean;
 }
 
-interface SubscriptionPackage {
-  id: string;
-  package_name: string;
-  package_code: string;
-  description: string;
-  monthly_price: number;
-  max_agents: number;
-  max_inbound_numbers: number;
-  monthly_call_minutes: number;
-  monthly_credits: number;
-}
-
 interface UserSubscription {
   id: string;
   package_id: string;
@@ -86,7 +74,7 @@ interface UserSubscription {
   current_period_end: string;
   auto_renew: boolean;
   billing_cycle?: 'monthly' | 'yearly';
-  package?: SubscriptionPackage; // From subscription_packages table
+  package?: PackageWithDetails; // From packages table (user_subscriptions.package_id references packages.id)
 }
 
 interface CreditTransaction {
@@ -131,7 +119,7 @@ const Billing: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [credits, setCredits] = useState<UserCredits | null>(null);
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
-  const [packages, setPackages] = useState<SubscriptionPackage[]>([]);
+  const [packages, setPackages] = useState<any[]>([]); // Legacy subscription_packages (kept for backward compatibility)
   const [newPackages, setNewPackages] = useState<PackageWithDetails[]>([]);
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -216,10 +204,10 @@ const Billing: React.FC = () => {
         setAutoTopupThreshold(creditsData.auto_topup_threshold || 10);
       }
 
-      // Fetch subscription - user_subscriptions.package_id references subscription_packages(id)
+      // Fetch subscription - user_subscriptions.package_id references packages(id)
       const { data: subscriptionData } = await supabase
         .from('user_subscriptions')
-        .select('*, package:subscription_packages(*)')
+        .select('*, package:packages(*)')
         .eq('user_id', user.id)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
@@ -809,7 +797,7 @@ const Billing: React.FC = () => {
 
           {/* Packages Section - Only show upgrade options when user has free package or no subscription */}
           {newPackages.length > 0 && 
-           (!subscription || subscription.package?.package_code === 'free') && (
+           (!subscription || subscription.package?.tier === 'free') && (
             <Card
               sx={{
                 borderRadius: 2,
@@ -819,7 +807,7 @@ const Billing: React.FC = () => {
             >
               <CardContent>
                 <Typography variant="h6" fontWeight={600} gutterBottom>
-                  {subscription?.package?.package_code === 'free' 
+                  {subscription?.package?.tier === 'free' 
                     ? 'Upgrade Your Package' 
                     : 'Subscription Packages'}
                 </Typography>
@@ -829,21 +817,16 @@ const Billing: React.FC = () => {
                       // Only show non-free packages if user has free package
                       // Show all packages if user has no subscription
                       if (!subscription) return true;
-                      if (subscription.package?.package_code === 'free') {
+                      if (subscription.package?.tier === 'free') {
                         return pkg.tier !== 'free'; // Only show upgrade packages
                       }
                       return false;
                     })
                     .map((pkg) => {
                       // Check if this package matches the user's current subscription
-                      // Match by tier name (packages.tier) vs subscription_packages.package_code
+                      // user_subscriptions.package_id references packages(id), so match by ID
                       const isCurrentPackage = subscription && 
-                        ((pkg.tier === 'free' && subscription.package?.package_code === 'free') ||
-                         (pkg.tier === 'pro' && subscription.package?.package_code === 'pro') ||
-                         (pkg.tier === 'premium' && subscription.package?.package_code === 'premium') ||
-                         (pkg.tier === 'enterprise' && subscription.package?.package_code === 'enterprise') ||
-                         // Also try matching by name
-                         (subscription.package?.package_name?.toLowerCase() === pkg.name.toLowerCase()));
+                        subscription.package_id === pkg.id;
                       
                       return (
                         <Card
@@ -1007,7 +990,7 @@ const Billing: React.FC = () => {
                 <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={2} mb={2}>
                   <Box>
                     <Typography variant="h5" fontWeight={600} gutterBottom>
-                      {subscription.package?.package_name || 'Current Subscription'}
+                      {subscription.package?.name || 'Current Subscription'}
                     </Typography>
                     {subscription.package?.description && (
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -1016,9 +999,11 @@ const Billing: React.FC = () => {
                     )}
                     <Typography variant="h6" fontWeight={600} color="primary" sx={{ mt: 1 }}>
                       {subscription.billing_cycle === 'yearly'
-                        ? `$${((subscription.package?.monthly_price || 0) * 12).toFixed(2)}/year`
-                        : subscription.package?.monthly_price
-                        ? `$${subscription.package.monthly_price.toFixed(2)}/month`
+                        ? subscription.package?.price_yearly
+                          ? `$${subscription.package.price_yearly.toFixed(2)}/year`
+                          : `$${((subscription.package?.price_monthly || 0) * 12).toFixed(2)}/year`
+                        : subscription.package?.price_monthly
+                        ? `$${subscription.package.price_monthly.toFixed(2)}/month`
                         : 'N/A'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
@@ -1035,7 +1020,7 @@ const Billing: React.FC = () => {
                   <Chip label={subscription.status} color="success" size="medium" />
                 </Box>
 
-                {/* Package Info from subscription_packages */}
+                {/* Package Info from packages table */}
                 {subscription.package && (
                   <>
                     <Divider sx={{ my: 2 }} />
@@ -1043,38 +1028,20 @@ const Billing: React.FC = () => {
                       Package Details:
                     </Typography>
                     <Stack spacing={1} sx={{ mt: 1 }}>
-                      {subscription.package.max_agents > 0 && (
+                      {subscription.package.credits_included !== null && subscription.package.credits_included > 0 && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <CheckCircleIcon sx={{ fontSize: 18, color: 'success.main' }} />
                           <Typography variant="body2">
-                            Up to {subscription.package.max_agents} voice agent{subscription.package.max_agents > 1 ? 's' : ''}
+                            {subscription.package.credits_included} credits included
                           </Typography>
                         </Box>
                       )}
-                      {subscription.package.max_inbound_numbers > 0 && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <CheckCircleIcon sx={{ fontSize: 18, color: 'success.main' }} />
-                          <Typography variant="body2">
-                            Up to {subscription.package.max_inbound_numbers} inbound number{subscription.package.max_inbound_numbers > 1 ? 's' : ''}
-                          </Typography>
-                        </Box>
-                      )}
-                      {subscription.package.monthly_credits > 0 && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <CheckCircleIcon sx={{ fontSize: 18, color: 'success.main' }} />
-                          <Typography variant="body2">
-                            {subscription.package.monthly_credits} credits per month
-                          </Typography>
-                        </Box>
-                      )}
-                      {subscription.package.monthly_call_minutes > 0 && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <CheckCircleIcon sx={{ fontSize: 18, color: 'success.main' }} />
-                          <Typography variant="body2">
-                            {subscription.package.monthly_call_minutes} call minutes per month
-                          </Typography>
-                        </Box>
-                      )}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CheckCircleIcon sx={{ fontSize: 18, color: 'success.main' }} />
+                        <Typography variant="body2">
+                          Tier: {subscription.package.tier || 'N/A'}
+                        </Typography>
+                      </Box>
                     </Stack>
                   </>
                 )}

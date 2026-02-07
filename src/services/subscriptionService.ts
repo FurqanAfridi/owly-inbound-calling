@@ -20,34 +20,17 @@ export async function assignFreePackageToUser(userId: string): Promise<{ success
       return { success: false, error: 'You already have an active subscription. Cannot subscribe to free package.' };
     }
 
-    // Find free package from subscription_packages (since user_subscriptions references subscription_packages)
-    // First try to find a free package in subscription_packages
-    const { data: freePackageFromSub, error: _subPackageError } = await supabase
-      .from('subscription_packages')
+    // Find free package from packages table (since user_subscriptions.package_id references packages(id))
+    const { data: freePackage, error: packageError } = await supabase
+      .from('packages')
       .select('*')
-      .eq('package_code', 'free')
+      .eq('tier', 'free')
       .eq('is_active', true)
       .single();
 
-    // If not found in subscription_packages, try packages table (for backward compatibility)
-    let freePackage = freePackageFromSub;
-    
-    if (!freePackageFromSub) {
-      const { data: freePackageFromNew, error: packageError } = await supabase
-        .from('packages')
-        .select('*')
-        .eq('tier', 'free')
-        .eq('is_active', true)
-        .single();
-
-      if (packageError || !freePackageFromNew) {
-        console.error('Free package not found:', packageError);
-        return { success: false, error: 'Free package not found' };
-      }
-      
-      // If found in packages table, we need to find or create corresponding subscription_package
-      // For now, return error if free package only exists in packages table
-      return { success: false, error: 'Free package must be configured in subscription_packages table' };
+    if (packageError || !freePackage) {
+      console.error('Free package not found:', packageError);
+      return { success: false, error: 'Free package not found' };
     }
 
     // Calculate period dates
@@ -79,11 +62,11 @@ export async function assignFreePackageToUser(userId: string): Promise<{ success
       return { success: false, error: subscriptionError.message };
     }
 
-    // Add credits from subscription_packages.monthly_credits
-    if (freePackage.monthly_credits && freePackage.monthly_credits > 0) {
+    // Add credits from packages.credits_included
+    if (freePackage.credits_included && freePackage.credits_included > 0) {
       const { error: creditsError } = await supabase.rpc('add_credits', {
         p_user_id: userId,
-        p_amount: freePackage.monthly_credits,
+        p_amount: freePackage.credits_included,
         p_transaction_type: 'subscription_credit',
         p_purchase_id: null,
       });
