@@ -112,7 +112,14 @@ const SignUp: React.FC = () => {
 
         // Assign free package to new user
         try {
-          await assignFreePackageToUser(signUpData.user.id);
+          const packageResult = await assignFreePackageToUser(signUpData.user.id);
+          if (!packageResult.success) {
+            console.error('Error assigning free package:', packageResult.error);
+            // Log error but don't block signup - user can still verify email and use the app
+            // The package can be assigned later if needed
+          } else {
+            console.log('Free package assigned successfully to new user');
+          }
         } catch (packageError) {
           console.error('Error assigning free package:', packageError);
           // Don't block signup if package assignment fails

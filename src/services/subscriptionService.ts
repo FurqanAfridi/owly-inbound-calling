@@ -7,13 +7,14 @@ import { fetchPackageById, PackageWithDetails } from './packageService';
  */
 export async function assignFreePackageToUser(userId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    // Check if user already has ANY active subscription (from subscription_packages)
+    // Check if user already has ANY active subscription
+    // Use maybeSingle() to handle case where no subscription exists (new user)
     const { data: existingSubscription } = await supabase
       .from('user_subscriptions')
       .select('id, package_id, status')
       .eq('user_id', userId)
       .eq('status', 'active')
-      .single();
+      .maybeSingle();
 
     // If user already has an active subscription, prevent free package subscription
     if (existingSubscription) {
