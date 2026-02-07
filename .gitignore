@@ -1,30 +1,5 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
-
-# production
-/build
-
-# misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.production
-.env
-
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # ===========================================
 # Dependencies
 # ===========================================
@@ -113,7 +88,6 @@ out/
 .vim/
 
 # Emacs
-*~
 \#*\#
 /.emacs.desktop
 /.emacs.desktop.lock
@@ -121,6 +95,10 @@ out/
 auto-save-list
 tramp
 .\#*
+
+# Cursor IDE
+.cursor/
+.cursorrules
 
 # ===========================================
 # OS Files
@@ -165,6 +143,8 @@ $RECYCLE.BIN/
 .directory
 .Trash-*
 .nfs*
+.dmrc
+.ICEauthority
 
 # ===========================================
 # Cache & Temporary Files
@@ -190,12 +170,6 @@ temp/
 .tsbuildinfo
 
 # ===========================================
-# React / Create React App
-# ===========================================
-# Source maps (optional - uncomment if you don't want to commit source maps)
-# *.map
-
-# ===========================================
 # Package Managers
 # ===========================================
 # npm
@@ -219,16 +193,6 @@ npm-debug.log*
 .supabase/
 
 # ===========================================
-# Misc
-# ===========================================
-# Optional: Uncomment if you use these
-# .vercel
-# .netlify
-# .firebase/
-# firebase-debug.log
-# firestore-debug.log
-
-# ===========================================
 # Security & Secrets
 # ===========================================
 # API Keys, tokens, credentials
@@ -240,45 +204,6 @@ secrets/
 .secrets/
 credentials.json
 service-account.json
-
-# ===========================================
-# Database
-# ===========================================
-*.db
-*.sqlite
-*.sqlite3
-*.db-journal
-
-# ===========================================
-# Backup Files
-# ===========================================
-*.backup
-*.bak
-*.old
-*.orig
-
-# ===========================================
-# Production & Deployment (Ubuntu Server)
-# ===========================================
-# Nginx configuration files (may contain sensitive paths)
-nginx.conf
-nginx.conf.backup
-*.nginx.conf
-/etc/nginx/sites-enabled/*
-/etc/nginx/sites-available/*
-
-# Systemd service files (may contain paths and secrets)
-*.service
-systemd/
-/etc/systemd/system/*
-
-# PM2 ecosystem and process files
-ecosystem.config.js
-ecosystem.config.json
-.pm2/
-pm2.log
-pm2-error.log
-pm2-out.log
 
 # SSL Certificates & Keys (CRITICAL - Never commit!)
 *.pem
@@ -295,37 +220,34 @@ certificates/
 *.csr
 *.csr.pem
 
-# Server configuration files
-server.config.js
-server.config.json
-production.config.js
-production.config.json
-deploy.config.js
-deploy.config.json
+# ===========================================
+# Database
+# ===========================================
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
 
-# Deployment scripts with secrets (but allow template deployment scripts)
-# deploy.sh - Allow main deployment script
-# nginx.conf - Allow nginx configuration template
-deploy-prod.sh
-deploy-staging.sh
-setup-server.sh
-*.deploy.sh
-deployment/
-
-# Ubuntu/Server specific
-.htaccess
-.htpasswd
-robots.txt.production
+# ===========================================
+# Backup Files
+# ===========================================
+*.backup
+*.bak
+*.old
+*.orig
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.gz
+*.bz2
+*.xz
 
 # ===========================================
 # Build Artifacts & Compiled Files
 # ===========================================
-# React build output
-/build
-/dist
-/.next
-/out
-
 # Source maps (expose source code - should be ignored in production)
 *.map
 *.map.js
@@ -358,82 +280,6 @@ yarn.lock.backup
 .pids/
 
 # ===========================================
-# Monitoring & Analytics
-# ===========================================
-# Application monitoring
-.newrelic
-newrelic.js
-newrelic_agent.log
-
-# Analytics and tracking
-.analytics/
-analytics.json
-
-# ===========================================
-# Docker & Containerization
-# ===========================================
-# Docker files (if using Docker)
-docker-compose.override.yml
-docker-compose.prod.yml
-docker-compose.local.yml
-.dockerignore.backup
-Dockerfile.prod
-Dockerfile.local
-
-# Container volumes
-docker-volumes/
-.docker/
-
-# ===========================================
-# CI/CD & Automation
-# ===========================================
-# GitHub Actions secrets (if any local copies)
-.github/secrets/
-.github/workflows/*.secret.yml
-
-# GitLab CI
-.gitlab-ci-local/
-
-# Jenkins
-.jenkins/
-jenkins/
-
-# CircleCI
-.circleci/local/
-
-# ===========================================
-# Database Dumps & Migrations
-# ===========================================
-# Database dumps (may contain sensitive data)
-*.sql.dump
-*.sql.gz
-*.sql.backup
-database-dumps/
-db-backups/
-*.dump
-
-# Migration backups
-migrations/backup/
-migrations/*.backup
-
-# ===========================================
-# API Keys & Configuration
-# ===========================================
-# API configuration files
-api-keys.json
-api-config.json
-config.production.json
-config.local.json
-config.secret.json
-
-# Third-party service configs
-stripe-config.json
-supabase-config.json
-firebase-config.json
-aws-config.json
-gcp-config.json
-
-# ===========================================
 # Session & Authentication Files
 # ===========================================
 # Session storage
@@ -450,34 +296,9 @@ jwt-public.pem
 oauth-tokens.json
 
 # ===========================================
-# Logs & Monitoring Data
-# ===========================================
-# Application logs
-logs/
-*.log
-*.log.*
-log/
-*.log.gz
-*.log.zip
-
-# Error logs
-error.log
-error-*.log
-errors/
-
-# Access logs
-access.log
-access-*.log
-
-# Server logs
-server.log
-server-*.log
-
-# ===========================================
 # Temporary & Cache Directories
 # ===========================================
 # Application cache
-.cache/
 cache/
 *.cache
 
@@ -531,119 +352,16 @@ local-*.js
 local-*.json
 
 # ===========================================
-# Package Manager Locks (Optional)
+# React / Create React App
 # ===========================================
-# Uncomment if you want to ignore lock files
-# package-lock.json
-# yarn.lock
-# pnpm-lock.yaml
-
-# ===========================================
-# Editor & IDE Specific
-# ===========================================
-# Cursor IDE
-.cursor/
-.cursorrules
-
-# JetBrains IDEs
-.idea/
-*.iml
-*.iws
-*.ipr
-
-# VS Code (keep settings but ignore workspace state)
-.vscode/launch.json
-.vscode/tasks.json
-.vscode/*.code-workspace
-.vscode/settings.json
-
-# ===========================================
-# OS Generated Files
-# ===========================================
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-Icon
-._*
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
-
-# Windows
-Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-*.stackdump
-[Dd]esktop.ini
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
-
-# Linux (Ubuntu)
-*~
-.fuse_hidden*
-.directory
-.Trash-*
-.nfs*
-.dmrc
-.ICEauthority
-
-# ===========================================
-# Backup & Archive Files
-# ===========================================
-*.zip
-*.tar
-*.tar.gz
-*.tgz
-*.rar
-*.7z
-*.gz
-*.bz2
-*.xz
+# Allow public/index.html (required for React builds)
+!public/index.html
 
 # ===========================================
 # Miscellaneous
 # ===========================================
-# MacOS
-.AppleDouble
-.LSOverride
-
-# Thumbnails
-Thumbs.db
-
-# Files that might appear on filesystem
-.directory
-.Trash-*
-
 # Optional npm cache directory
 .npm
-
-# Optional eslint cache
-.eslintcache
-
-# Optional stylelint cache
-.stylelintcache
-
-# Microbundle cache
-.rpt2_cache/
-.rts2_cache_cjs/
-.rts2_cache_es/
-.rts2_cache_umd/
 
 # Optional REPL history
 .node_repl_history
@@ -667,9 +385,6 @@ dist/
 
 # Gatsby files
 .cache/
-# Allow public/index.html (required for React builds)
-!public/index.html
-public/
 
 # Storybook build outputs
 .out
@@ -679,20 +394,3 @@ storybook-static
 # Temporary folders
 tmp/
 temp/
-
-# ===========================================
-# Production Environment Specific
-# ===========================================
-# Production overrides
-.production
-production.env
-production.json
-
-# Server-specific configs
-server/
-servers/
-production-server/
-
-# Load balancer configs
-haproxy.cfg
-nginx-proxy.conf
