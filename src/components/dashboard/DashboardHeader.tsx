@@ -1,4 +1,4 @@
-import { Search, Bell, Settings, Sparkles, User, LogOut, CreditCard, Sun, Moon, Coins, AlertCircle } from 'lucide-react';
+import { Search, Bell, Settings, User, LogOut, CreditCard, Sun, Moon, Coins, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeMode } from '@/contexts/ThemeContext';
@@ -15,7 +15,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';

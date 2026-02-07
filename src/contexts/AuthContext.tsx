@@ -63,8 +63,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Log session end before signing out
     if (user && session) {
       try {
-        const sessionId = session.access_token;
-        
         // Find and update the login activity record for this session
         const { data: activities } = await supabase
           .from('login_activity')

@@ -40,32 +40,33 @@ class EmailService {
       };
     }
 
-    const emailData = {
-      personalizations: [
-        {
-          to: [{ email: options.to }],
-          subject: options.subject,
-        },
-      ],
-      from: {
-        email: options.from || this.fromEmail,
-        name: 'DNAi',
-      },
-      content: [
-        {
-          type: 'text/html',
-          value: options.html,
-        },
-        ...(options.text
-          ? [
-              {
-                type: 'text/plain',
-                value: options.text,
-              },
-            ]
-          : []),
-      ],
-    };
+    // Email data structure (commented out as it's not currently used)
+    // const emailData = {
+    //   personalizations: [
+    //     {
+    //       to: [{ email: options.to }],
+    //       subject: options.subject,
+    //     },
+    //   ],
+    //   from: {
+    //     email: options.from || this.fromEmail,
+    //     name: 'DNAi',
+    //   },
+    //   content: [
+    //     {
+    //       type: 'text/html',
+    //       value: options.html,
+    //     },
+    //     ...(options.text
+    //       ? [
+    //           {
+    //             type: 'text/plain',
+    //             value: options.text,
+    //           },
+    //         ]
+    //       : []),
+    //   ],
+    // };
 
     try {
       // In production, call your backend API endpoint instead

@@ -22,7 +22,7 @@ export async function assignFreePackageToUser(userId: string): Promise<{ success
 
     // Find free package from subscription_packages (since user_subscriptions references subscription_packages)
     // First try to find a free package in subscription_packages
-    const { data: freePackageFromSub, error: subPackageError } = await supabase
+    const { data: freePackageFromSub, error: _subPackageError } = await supabase
       .from('subscription_packages')
       .select('*')
       .eq('package_code', 'free')
@@ -56,7 +56,7 @@ export async function assignFreePackageToUser(userId: string): Promise<{ success
     periodEnd.setFullYear(periodEnd.getFullYear() + 1); // Free package is typically long-term
 
     // Create subscription with status 'active'
-    const { data: newSubscription, error: subscriptionError } = await supabase
+    const { data: _newSubscription, error: subscriptionError } = await supabase
       .from('user_subscriptions')
       .insert({
         user_id: userId,
