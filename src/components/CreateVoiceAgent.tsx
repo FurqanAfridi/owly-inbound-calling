@@ -66,8 +66,8 @@ const CreateVoiceAgent: React.FC = () => {
 
   const [formData, setFormData] = useState({
     agentName: '',
-    companyName: '',
-    websiteUrl: '',
+    companyName: 'DNAI', // Default company name
+    websiteUrl: 'https://duhanashrah.ai', // Default website URL
     goal: '',
     backgroundContext: '',
     welcomeMessage: '',
@@ -84,6 +84,7 @@ const CreateVoiceAgent: React.FC = () => {
     callAvailabilityDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
   });
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
 
   // Helper function to format phone number display (avoid duplicate country code)
   // phone_number in database already includes country_code, so we just display phone_number
@@ -113,6 +114,16 @@ const CreateVoiceAgent: React.FC = () => {
       }
     };
     initialize();
+    
+    // Cleanup: stop any playing audio when component unmounts
+    return () => {
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+        currentAudio.onended = null;
+        currentAudio.onerror = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, agentId, isEditMode]);
 
@@ -222,8 +233,8 @@ const CreateVoiceAgent: React.FC = () => {
         // Populate form with agent data
         setFormData({
           agentName: data.name || '',
-          companyName: data.company_name || '',
-          websiteUrl: data.website_url || '',
+          companyName: data.company_name || 'DNAI', // Default to DNAI if not set
+          websiteUrl: data.website_url || 'https://duhanashrah.ai', // Default to duhanashrah.ai if not set
           goal: data.goal || '',
           backgroundContext: data.background || '',
           welcomeMessage: data.welcome_message || '',
@@ -311,21 +322,43 @@ const CreateVoiceAgent: React.FC = () => {
   };
 
   const handlePlayAudio = (audioUrl: string, voiceValue: string) => {
-    if (playingAudio === voiceValue) {
+    // If the same voice is playing, stop it
+    if (playingAudio === voiceValue && currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
       setPlayingAudio(null);
+      setCurrentAudio(null);
       return;
     }
 
+    // Stop any currently playing audio before starting a new one
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      currentAudio.onended = null;
+      currentAudio.onerror = null;
+    }
+
+    // Create and play new audio
     const audio = new Audio(audioUrl);
-    audio.play();
+    setCurrentAudio(audio);
     setPlayingAudio(voiceValue);
+
+    audio.play().catch((error) => {
+      console.error('Error playing audio:', error);
+      setPlayingAudio(null);
+      setCurrentAudio(null);
+    });
 
     audio.onended = () => {
       setPlayingAudio(null);
+      setCurrentAudio(null);
     };
 
     audio.onerror = () => {
+      console.error('Audio playback error');
       setPlayingAudio(null);
+      setCurrentAudio(null);
     };
   };
 
@@ -691,10 +724,19 @@ const CreateVoiceAgent: React.FC = () => {
   };
 
   const resetForm = () => {
+    // Stop any currently playing audio
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      currentAudio.onended = null;
+      currentAudio.onerror = null;
+      setCurrentAudio(null);
+    }
+    
     setFormData({
       agentName: '',
-      companyName: '',
-      websiteUrl: '',
+      companyName: 'DNAI', // Default company name
+      websiteUrl: 'https://duhanashrah.ai', // Default website URL
       goal: '',
       backgroundContext: '',
       welcomeMessage: '',
