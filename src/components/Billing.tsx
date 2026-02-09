@@ -828,7 +828,13 @@ const Billing: React.FC = () => {
                     ? 'Upgrade Your Package' 
                     : 'Subscription Packages'}
                 </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mt: 2 }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  flexWrap: 'wrap', 
+                  gap: { xs: 2, sm: 2, md: 2, lg: 3 }, 
+                  mt: 2,
+                  justifyContent: { xs: 'center', sm: 'flex-start' }
+                }}>
                   {newPackages
                     .filter((pkg) => {
                       // Only show non-free packages if user has free package
@@ -849,8 +855,15 @@ const Billing: React.FC = () => {
                         <Card
                           key={pkg.id}
                           sx={{
-                            flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)', md: '1 1 calc(33.333% - 16px)', lg: '1 1 300px' },
-                            maxWidth: { xs: '100%', lg: '400px' },
+                            flex: { 
+                              xs: '1 1 100%', 
+                              sm: '1 1 calc(50% - 8px)', 
+                              md: '1 1 calc(33.333% - 11px)', 
+                              lg: '1 1 calc(33.333% - 16px)',
+                              xl: '1 1 300px'
+                            },
+                            minWidth: { xs: '100%', sm: '280px', md: '250px' },
+                            maxWidth: { xs: '100%', sm: '100%', md: '100%', lg: '400px' },
                             border: pkg.is_featured ? '2px solid' : '1px solid',
                             borderColor: pkg.is_featured ? 'primary.main' : 'divider',
                             position: 'relative',
@@ -886,24 +899,24 @@ const Billing: React.FC = () => {
                               }}
                             />
                           )}
-                          <CardContent>
-                            <Typography variant="h5" fontWeight={600} gutterBottom>
+                          <CardContent sx={{ p: { xs: 2, sm: 2.5, md: 3 } }}>
+                            <Typography variant="h5" fontWeight={600} gutterBottom sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
                               {pkg.name}
                             </Typography>
                             {pkg.description && (
-                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                                 {pkg.description}
                               </Typography>
                             )}
                             <Box sx={{ mb: 2 }}>
-                              <Typography variant="h4" fontWeight={700} color="primary">
+                              <Typography variant="h4" fontWeight={700} color="primary" sx={{ fontSize: { xs: '1.75rem', sm: '2rem', md: '2.125rem' } }}>
                                 {billingPeriod === 'monthly'
                                   ? `$${pkg.price_monthly?.toFixed(2) || '0.00'}`
                                   : pkg.price_yearly
                                   ? `$${pkg.price_yearly.toFixed(2)}`
                                   : `$${((pkg.price_monthly || 0) * 12).toFixed(2)}`}
                               </Typography>
-                              <Typography variant="body2" color="text.secondary">
+                              <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                                 /{billingPeriod === 'monthly' ? 'month' : 'year'}
                                 {billingPeriod === 'yearly' && pkg.price_yearly && (
                                   <span style={{ color: 'green' }}>

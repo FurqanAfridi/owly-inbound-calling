@@ -180,8 +180,8 @@ const VerifyEmail: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-8">
-      <div className="w-full max-w-6xl flex items-center gap-12">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 sm:p-6 md:p-8">
+      <div className="w-full max-w-6xl flex flex-col lg:flex-row items-center gap-6 lg:gap-12">
         {/* Left Side - Image */}
         <div className="hidden lg:flex lg:w-1/2 justify-center items-center">
           <img src={characterImage} alt="Character" className="max-w-md w-full h-auto" />
@@ -189,7 +189,7 @@ const VerifyEmail: React.FC = () => {
 
         {/* Right Side - Form */}
         <div className="w-full lg:w-1/2 flex justify-center">
-          <Card className="w-full max-w-md">
+          <Card className="w-full max-w-md mx-auto">
             <CardHeader className="text-center">
               <CardTitle className="text-3xl font-bold text-foreground">Verify Your Email</CardTitle>
               <CardDescription className="text-muted-foreground">
@@ -198,7 +198,7 @@ const VerifyEmail: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                <div className="flex justify-center gap-3" onPaste={handlePaste}>
+                <div className="flex justify-center gap-1 sm:gap-2 md:gap-3 flex-wrap px-2" onPaste={handlePaste}>
                   {otp.map((digit, index) => (
                     <Input
                       key={index}
@@ -210,7 +210,7 @@ const VerifyEmail: React.FC = () => {
                       onChange={(e) => handleChange(index, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(index, e)}
                       placeholder="-"
-                      className="w-14 h-14 text-center text-2xl font-bold bg-background text-foreground border-border"
+                      className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 text-lg sm:text-xl md:text-2xl font-bold text-center bg-background text-foreground border-border flex-shrink-0"
                     />
                   ))}
                 </div>
