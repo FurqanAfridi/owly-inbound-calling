@@ -16,12 +16,73 @@ const SetNewPassword: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [initializing, setInitializing] = useState<boolean>(true);
 
   useEffect(() => {
-    if (!location.state?.email) {
-      navigate('/reset-password');
-    }
-  }, [location, navigate]);
+    // Handle password reset link redirect from Supabase
+    const handlePasswordReset = async () => {
+      try {
+        // Check for hash fragments in URL (Supabase password reset link format)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const type = hashParams.get('type');
+
+        // If we have a recovery token in the URL, exchange it for a session
+        if (accessToken && type === 'recovery') {
+          const { data, error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: hashParams.get('refresh_token') || '',
+          });
+
+          if (sessionError) {
+            setError('Invalid or expired reset link. Please request a new one.');
+            setInitializing(false);
+            setTimeout(() => {
+              navigate('/reset-password');
+            }, 3000);
+            return;
+          }
+
+          // Clear the hash from URL
+          window.history.replaceState(null, '', window.location.pathname);
+          setInitializing(false);
+          return;
+        }
+
+        // If no hash params, check if email was passed via state (from OTP flow)
+        if (location.state?.email) {
+          // Check if user has a valid session
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            setError('Session expired. Please request a new password reset.');
+            setInitializing(false);
+            setTimeout(() => {
+              navigate('/reset-password');
+            }, 3000);
+            return;
+          }
+          setInitializing(false);
+          return;
+        }
+
+        // No valid reset token or email, redirect to reset password page
+        setError('Invalid reset link. Please request a new password reset.');
+        setInitializing(false);
+        setTimeout(() => {
+          navigate('/reset-password');
+        }, 3000);
+      } catch (err: any) {
+        console.error('Error handling password reset:', err);
+        setError('An error occurred. Please try again.');
+        setInitializing(false);
+        setTimeout(() => {
+          navigate('/reset-password');
+        }, 3000);
+      }
+    };
+
+    handlePasswordReset();
+  }, [navigate, location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,6 +145,20 @@ const SetNewPassword: React.FC = () => {
       setLoading(false);
     }
   };
+
+  if (initializing) {
+    return (
+      <div className="centered-container">
+        <div className="centered-content">
+          <div className="centered-form">
+            <div style={{ textAlign: 'center', padding: '2rem' }}>
+              <p>Verifying reset link...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="centered-container">

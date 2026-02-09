@@ -32,20 +32,17 @@ const ResetPassword: React.FC = () => {
     setLoading(true);
 
     try {
-      // Use Supabase's resetPasswordForEmail which will send OTP automatically
+      // Use Supabase's resetPasswordForEmail which will send a reset link
       const { error: resetError } = await resetPassword(email);
 
       if (resetError) {
-        setError(resetError.message || 'Failed to send password reset OTP. Please try again.');
+        setError(resetError.message || 'Failed to send password reset link. Please try again.');
         setLoading(false);
         return;
       }
 
-      // Supabase will automatically send 8-digit OTP email
+      // Supabase will automatically send password reset link email
       setSuccess(true);
-      setTimeout(() => {
-        navigate('/verify-email', { state: { email, purpose: 'password_reset' } });
-      }, 2000);
     } catch (err: any) {
       setError(err.message || 'An error occurred');
       setLoading(false);
@@ -66,7 +63,7 @@ const ResetPassword: React.FC = () => {
             <CardHeader className="text-center">
               <CardTitle className="text-3xl font-bold text-foreground">Reset Your Password</CardTitle>
               <CardDescription className="text-muted-foreground">
-                Enter your email address, and we'll send you an OTP to create a new password.
+                Enter your email address, and we'll send you a link to reset your password.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -94,7 +91,9 @@ const ResetPassword: React.FC = () => {
 
                 {success && (
                   <Alert variant="success">
-                    <AlertDescription>Reset link sent! Redirecting...</AlertDescription>
+                    <AlertDescription>
+                      Password reset link sent! Please check your email and click the link to reset your password.
+                    </AlertDescription>
                   </Alert>
                 )}
 
