@@ -64,6 +64,8 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
 }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [webhookLoading, setWebhookLoading] = useState(false);
+  const [webhookMessage, setWebhookMessage] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
   const [error, setError] = useState<string | null>(null);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [existingRecord, setExistingRecord] = useState<InboundNumber | null>(null);
@@ -263,30 +265,64 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
         throw new Error('Phone number webhook URL is not configured');
       }
 
+      // Show webhook loading state
+      setWebhookLoading(true);
+      setWebhookMessage({ type: null, message: '' });
+      setError(null);
+
       console.log('Calling phone number webhook:', phoneWebhookUrl);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-      const webhookResponse = await fetch(phoneWebhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(webhookPayload),
-        signal: controller.signal,
-      });
+      let webhookResponse;
+      let webhookResult;
 
-      clearTimeout(timeoutId);
+      try {
+        webhookResponse = await fetch(phoneWebhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(webhookPayload),
+          signal: controller.signal,
+        });
 
-      if (!webhookResponse.ok) {
-        const errorText = await webhookResponse.text().catch(() => 'No error details');
-        throw new Error(`Webhook failed: ${webhookResponse.status} - ${errorText}`);
+        clearTimeout(timeoutId);
+
+        if (!webhookResponse.ok) {
+          const errorText = await webhookResponse.text().catch(() => 'No error details');
+          const errorMessage = `Webhook failed: ${webhookResponse.status} - ${errorText}`;
+          setWebhookMessage({ type: 'error', message: errorMessage });
+          setWebhookLoading(false);
+          throw new Error(errorMessage);
+        }
+
+        webhookResult = await webhookResponse.json().catch(() => ({}));
+        
+        // Show success message
+        const successMessage = webhookResult.message || 'Phone number successfully added via webhook';
+        setWebhookMessage({ type: 'success', message: successMessage });
+        setWebhookLoading(false);
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        setWebhookLoading(false);
+        if (fetchError.name === 'AbortError') {
+          const timeoutMessage = 'Webhook request timed out after 30 seconds';
+          setWebhookMessage({ type: 'error', message: timeoutMessage });
+          throw new Error(timeoutMessage);
+        }
+        // Error message already set above if it was a response error
+        if (!webhookMessage.message) {
+          setWebhookMessage({ type: 'error', message: fetchError.message || 'Failed to connect to webhook' });
+        }
+        throw fetchError;
       }
 
-      const webhookResult = await webhookResponse.json().catch(() => ({}));
-
       // Prepare database record - use the same UUID generated for webhook
+      // Update webhook_status based on webhook response
+      const webhookStatus = webhookResult?.status || (webhookResponse?.ok ? 'active' : 'error');
+      
       const dbRecord: any = {
         id: inboundNumberId, // Use the same UUID generated for webhook
         user_id: user.id,
@@ -297,7 +333,9 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
         provider,
         status: formData.status,
         health_status: 'unknown',
-        webhook_status: 'unknown',
+        webhook_status: webhookStatus,
+        last_webhook_test: new Date().toISOString(),
+        webhook_test_result: webhookResult || {},
       };
 
       // Add provider-specific fields
@@ -413,6 +451,11 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
         throw new Error('Phone number webhook URL is not configured');
       }
 
+      // Show webhook loading state
+      setWebhookLoading(true);
+      setWebhookMessage({ type: null, message: '' });
+      setError(null);
+
       console.log('Calling phone number webhook for update:', phoneWebhookUrl);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
@@ -424,22 +467,53 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
         is_update: true, // Flag to indicate this is an update
       };
 
-      const webhookResponse = await fetch(phoneWebhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(updateWebhookPayload),
-        signal: controller.signal,
-      });
+      let webhookResponse;
+      let webhookResult;
 
-      clearTimeout(timeoutId);
+      try {
+        webhookResponse = await fetch(phoneWebhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(updateWebhookPayload),
+          signal: controller.signal,
+        });
 
-      if (!webhookResponse.ok) {
-        const errorText = await webhookResponse.text().catch(() => 'No error details');
-        throw new Error(`Webhook failed: ${webhookResponse.status} - ${errorText}`);
+        clearTimeout(timeoutId);
+
+        if (!webhookResponse.ok) {
+          const errorText = await webhookResponse.text().catch(() => 'No error details');
+          const errorMessage = `Webhook failed: ${webhookResponse.status} - ${errorText}`;
+          setWebhookMessage({ type: 'error', message: errorMessage });
+          setWebhookLoading(false);
+          throw new Error(errorMessage);
+        }
+
+        webhookResult = await webhookResponse.json().catch(() => ({}));
+        
+        // Show success message
+        const successMessage = webhookResult.message || 'Phone number successfully updated via webhook';
+        setWebhookMessage({ type: 'success', message: successMessage });
+        setWebhookLoading(false);
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        setWebhookLoading(false);
+        if (fetchError.name === 'AbortError') {
+          const timeoutMessage = 'Webhook request timed out after 30 seconds';
+          setWebhookMessage({ type: 'error', message: timeoutMessage });
+          throw new Error(timeoutMessage);
+        }
+        // Error message already set above if it was a response error
+        if (!webhookMessage.message) {
+          setWebhookMessage({ type: 'error', message: fetchError.message || 'Failed to connect to webhook' });
+        }
+        throw fetchError;
       }
+
+      // Update webhook_status based on webhook response
+      const webhookStatus = webhookResult?.status || (webhookResponse?.ok ? 'active' : 'error');
 
       // Update existing record instead of inserting
       // Remove id from pendingDbRecord to avoid overwriting the existing ID
@@ -448,6 +522,9 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
         .from('inbound_numbers')
         .update({
           ...updateData,
+          webhook_status: webhookStatus,
+          last_webhook_test: new Date().toISOString(),
+          webhook_test_result: webhookResult || {},
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingRecord.id);

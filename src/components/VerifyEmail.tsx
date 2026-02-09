@@ -102,7 +102,7 @@ const VerifyEmail: React.FC = () => {
           });
           verifyError = emailResult.error;
           verifyData = emailResult.data;
-        } else {
+      } else {
           verifyError = signupResult.error;
           verifyData = signupResult.data;
         }
@@ -156,20 +156,20 @@ const VerifyEmail: React.FC = () => {
           setError(resendError.message || 'Failed to resend OTP');
         } else {
           setError('OTP resent! Please check your email.');
-        }
+      }
       } else {
         // Resend email verification OTP via Supabase by calling signInWithOtp
         const { error: resendError } = await (supabase.auth as any).signInWithOtp({
-          email: email,
+            email: email,
           options: {
             shouldCreateUser: false, // Don't create new user, just resend OTP
           },
-        });
+          });
 
         if (resendError) {
           setError(resendError.message || 'Failed to resend OTP');
         } else {
-          setError('OTP resent! Please check your email.');
+        setError('OTP resent! Please check your email.');
         }
       }
     } catch (err: any) {
