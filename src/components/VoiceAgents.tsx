@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, Phone, Users, Play, Pause } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import CallStatusSummary from './dashboard/CallStatusSummary';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
@@ -44,14 +43,6 @@ const VoiceAgents: React.FC = () => {
   const [inboundNumbers, setInboundNumbers] = useState<InboundNumber[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
-  const [selectedNumberId, setSelectedNumberId] = useState<string>('all');
-  const [callStatusStats, setCallStatusStats] = useState({
-    totalCalls: 0,
-    completed: 0,
-    failed: 0,
-    inProgress: 0,
-  });
 
   useEffect(() => {
     if (!user) return;
@@ -59,13 +50,6 @@ const VoiceAgents: React.FC = () => {
     loadInboundNumbers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
-
-  useEffect(() => {
-    if (user) {
-      loadCallStats();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agents, selectedAgentId, selectedNumberId]);
 
   const loadAgents = async () => {
     if (!user) return;
@@ -118,73 +102,6 @@ const VoiceAgents: React.FC = () => {
     }
   };
 
-  const loadCallStats = async () => {
-    if (!user) return;
-
-    try {
-      // If no agents exist, set stats to zero
-      if (agents.length === 0) {
-        setCallStatusStats({ totalCalls: 0, completed: 0, failed: 0, inProgress: 0 });
-        return;
-      }
-
-      // Build query to fetch from call_history table
-      let query = supabase
-        .from('call_history')
-        .select('call_status, call_end_time, agent_id, called_number')
-        .eq('user_id', user.id)
-        .is('deleted_at', null);
-
-      // Apply agent filter
-      if (selectedAgentId !== 'all') {
-        query = query.eq('agent_id', selectedAgentId);
-      } else {
-        // If "all" is selected, filter by all user's agents
-        const agentIds = agents.map(agent => agent.id);
-        if (agentIds.length > 0) {
-          query = query.in('agent_id', agentIds);
-        }
-      }
-
-      // Apply number filter
-      if (selectedNumberId !== 'all') {
-        const selectedNumber = inboundNumbers.find(n => n.id === selectedNumberId);
-        if (selectedNumber) {
-          query = query.eq('called_number', selectedNumber.phone_number);
-        }
-      }
-
-      const { data: callsData, error: callsError } = await query;
-
-      if (callsError) {
-        console.error('Error fetching call stats:', callsError);
-        setCallStatusStats({ totalCalls: 0, completed: 0, failed: 0, inProgress: 0 });
-        return;
-      }
-
-      const allCalls = callsData || [];
-      const totalCalls = allCalls.length;
-      const completed = allCalls.filter(
-        (c: any) => c.call_status === 'answered'
-      ).length;
-      const failed = allCalls.filter(
-        (c: any) => c.call_status === 'failed' || c.call_status === 'busy' || c.call_status === 'no-answer' || c.call_status === 'canceled'
-      ).length;
-      const inProgress = allCalls.filter(
-        (c: any) => c.call_status === 'answered' && !c.call_end_time
-      ).length;
-
-      setCallStatusStats({
-        totalCalls,
-        completed,
-        failed,
-        inProgress,
-      });
-    } catch (err: any) {
-      console.error('Error loading call stats:', err);
-      setCallStatusStats({ totalCalls: 0, completed: 0, failed: 0, inProgress: 0 });
-    }
-  };
 
   const handleDelete = async (agentId: string, agentName: string) => {
     if (!window.confirm(`Are you sure you want to delete "${agentName}"? This action cannot be undone.`)) {
@@ -271,12 +188,13 @@ const VoiceAgents: React.FC = () => {
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-6" style={{ fontFamily: "'Manrope', sans-serif" }}>
         {/* Action Button */}
         <div className="flex justify-end">
           <Button
             onClick={() => navigate('/create-agent')}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground text-[16px] font-medium"
+            style={{ fontFamily: "'Manrope', sans-serif" }}
           >
             <Plus className="w-4 h-4 mr-2" />
             Create Agent
@@ -289,39 +207,24 @@ const VoiceAgents: React.FC = () => {
           </Alert>
         )}
 
-        {/* Call Status Summary */}
-        {agents.length > 0 && (
-          <CallStatusSummary
-            totalCalls={callStatusStats.totalCalls}
-            completed={callStatusStats.completed}
-            failed={callStatusStats.failed}
-            inProgress={callStatusStats.inProgress}
-            voiceAgents={agents.map(agent => ({ id: agent.id, name: agent.name, phone_number: agent.phone_number, status: agent.status }))}
-            inboundNumbers={inboundNumbers}
-            selectedAgentId={selectedAgentId}
-            selectedNumberId={selectedNumberId}
-            onAgentChange={setSelectedAgentId}
-            onNumberChange={setSelectedNumberId}
-          />
-        )}
-
         {agents.length === 0 ? (
-          <Card>
+          <Card className="rounded-[14px]">
             <CardContent className="py-12">
-              <div className="flex flex-col items-center gap-4 text-center">
+              <div className="flex flex-col items-center gap-4 text-center" style={{ fontFamily: "'Manrope', sans-serif" }}>
                 <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
                   <Phone className="w-10 h-10 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-foreground mb-2">No Voice Agents</h3>
-                  <p className="text-muted-foreground max-w-md">
-                    You haven't created any DNAI voice agents yet. Create your first agent to get started.
+                  <h3 className="text-[24px] font-bold text-[#27272b] mb-2" style={{ fontFamily: "'Manrope', sans-serif" }}>No Voice Agents</h3>
+                  <p className="text-[16px] text-[#737373] max-w-md" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    You haven't created any Owly voice agents yet. Create your first agent to get started.
                   </p>
                 </div>
                 <Button
                   onClick={() => navigate('/create-agent')}
-                  className="mt-4 bg-primary hover:bg-primary/90 text-primary-foreground"
+                  className="mt-4 bg-primary hover:bg-primary/90 text-primary-foreground text-[16px] font-medium"
                   size="lg"
+                  style={{ fontFamily: "'Manrope', sans-serif" }}
                 >
                   <Plus className="w-5 h-5 mr-2" />
                   Create Your First Agent
@@ -330,50 +233,55 @@ const VoiceAgents: React.FC = () => {
             </CardContent>
           </Card>
         ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-foreground">Your Agents ({agents.length})</CardTitle>
+          <Card className="rounded-[14px]">
+            <CardHeader className="px-5 pt-5 pb-0">
+              <CardTitle className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Your Agents ({agents.length})</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-5 py-5">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-foreground">Name</TableHead>
-                      <TableHead className="text-foreground">Company</TableHead>
-                      <TableHead className="text-foreground">Phone Number</TableHead>
-                      <TableHead className="text-foreground">Provider</TableHead>
-                      <TableHead className="text-foreground">Type</TableHead>
-                      <TableHead className="text-foreground">Status</TableHead>
-                      <TableHead className="text-foreground">Created</TableHead>
-                      <TableHead className="text-right text-foreground">Actions</TableHead>
+                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Name</TableHead>
+                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Company</TableHead>
+                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Phone Number</TableHead>
+                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Provider</TableHead>
+                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Type</TableHead>
+                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Status</TableHead>
+                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Created</TableHead>
+                      <TableHead className="text-right text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {agents.map((agent) => (
                       <TableRow key={agent.id}>
-                        <TableCell className="font-semibold text-foreground">
-                          {agent.name}
+                        <TableCell className="text-[16px] font-medium text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          <button
+                            onClick={() => navigate(`/edit-agent/${agent.id}`)}
+                            className="hover:text-primary hover:underline cursor-pointer text-left"
+                          >
+                            {agent.name}
+                          </button>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="text-[16px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {agent.company_name || '-'}
                         </TableCell>
                         <TableCell>
-                          <div>
-                            <p className="text-foreground">{agent.phone_number}</p>
+                          <div style={{ fontFamily: "'Manrope', sans-serif" }}>
+                            <p className="text-[16px] text-[#27272b]">{agent.phone_number}</p>
                             {agent.phone_label && (
-                              <p className="text-xs text-muted-foreground">{agent.phone_label}</p>
+                              <p className="text-[14px] text-[#737373]">{agent.phone_label}</p>
                             )}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{agent.phone_provider || 'N/A'}</Badge>
+                          <Badge variant="outline" className="text-[14px]" style={{ fontFamily: "'Manrope', sans-serif" }}>{agent.phone_provider || 'N/A'}</Badge>
                         </TableCell>
                         <TableCell>
-                          <div>
-                            <p className="text-muted-foreground">{agent.agent_type || '-'}</p>
+                          <div style={{ fontFamily: "'Manrope', sans-serif" }}>
+                            <p className="text-[16px] text-[#737373]">{agent.agent_type || '-'}</p>
                             {agent.tool && (
-                              <p className="text-xs text-muted-foreground">{agent.tool}</p>
+                              <p className="text-[14px] text-[#737373]">{agent.tool}</p>
                             )}
                           </div>
                         </TableCell>
@@ -395,7 +303,7 @@ const VoiceAgents: React.FC = () => {
                             </Button>
                           </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="text-[16px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {formatDate(agent.created_at)}
                         </TableCell>
                         <TableCell className="text-right">
@@ -404,7 +312,7 @@ const VoiceAgents: React.FC = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => navigate(`/edit-agent/${agent.id}`)}
-                              title="Edit Agent"
+                              title="View/Edit Agent"
                             >
                               <Edit className="w-4 h-4" />
                             </Button>

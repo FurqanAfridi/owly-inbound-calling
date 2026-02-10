@@ -381,16 +381,20 @@ const KnowledgeBases: React.FC = () => {
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-6" style={{ fontFamily: "'Manrope', sans-serif" }}>
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Knowledge Bases</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-[28px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Knowledge Bases</h1>
+            <p className="text-[18px] text-[#737373] mt-1" style={{ fontFamily: "'Manrope', sans-serif" }}>
               Create and manage reusable knowledge bases for your agents
             </p>
           </div>
-          <Button onClick={() => setShowCreateDialog(true)}>
+          <Button 
+            onClick={() => setShowCreateDialog(true)}
+            className="text-[16px] font-medium"
+            style={{ fontFamily: "'Manrope', sans-serif" }}
+          >
             <Plus className="w-4 h-4 mr-2" />
             Create Knowledge Base
           </Button>
@@ -404,30 +408,35 @@ const KnowledgeBases: React.FC = () => {
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#737373]" />
           <Input
             placeholder="Search knowledge bases..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 bg-background text-foreground border-border"
+            className="pl-10 bg-background text-[#27272b] border-[#e5e5e5] text-[16px]"
+            style={{ fontFamily: "'Manrope', sans-serif" }}
           />
         </div>
 
         {/* Knowledge Bases List */}
         {filteredBases.length === 0 ? (
-          <Card>
+          <Card className="rounded-[14px]">
             <CardContent className="py-12">
-              <div className="flex flex-col items-center gap-4 text-center">
+              <div className="flex flex-col items-center gap-4 text-center" style={{ fontFamily: "'Manrope', sans-serif" }}>
                 <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
                   <BookOpen className="w-10 h-10 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-foreground mb-2">No Knowledge Bases</h3>
-                  <p className="text-muted-foreground max-w-md">
+                  <h3 className="text-[24px] font-bold text-[#27272b] mb-2" style={{ fontFamily: "'Manrope', sans-serif" }}>No Knowledge Bases</h3>
+                  <p className="text-[16px] text-[#737373] max-w-md" style={{ fontFamily: "'Manrope', sans-serif" }}>
                     Create your first knowledge base to store FAQs and documents for your agents.
                   </p>
                 </div>
-                <Button onClick={() => setShowCreateDialog(true)}>
+                <Button 
+                  onClick={() => setShowCreateDialog(true)}
+                  className="text-[16px] font-medium"
+                  style={{ fontFamily: "'Manrope', sans-serif" }}
+                >
                   <Plus className="w-5 h-5 mr-2" />
                   Create Your First Knowledge Base
                 </Button>
@@ -435,45 +444,45 @@ const KnowledgeBases: React.FC = () => {
             </CardContent>
           </Card>
         ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-foreground">Your Knowledge Bases ({filteredBases.length})</CardTitle>
+          <Card className="rounded-[14px]">
+            <CardHeader className="px-5 pt-5 pb-0">
+              <CardTitle className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Your Knowledge Bases ({filteredBases.length})</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-5 py-5">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-foreground">Name</TableHead>
-                      <TableHead className="text-foreground">Description</TableHead>
-                      <TableHead className="text-foreground">FAQs</TableHead>
-                      <TableHead className="text-foreground">Documents</TableHead>
-                      <TableHead className="text-foreground">Status</TableHead>
-                      <TableHead className="text-foreground">Created</TableHead>
-                      <TableHead className="text-right text-foreground">Actions</TableHead>
+                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Name</TableHead>
+                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Description</TableHead>
+                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>FAQs</TableHead>
+                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Documents</TableHead>
+                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Status</TableHead>
+                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Created</TableHead>
+                      <TableHead className="text-right text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredBases.map((kb) => (
                       <TableRow key={kb.id}>
-                        <TableCell className="font-semibold text-foreground">
+                        <TableCell className="text-[16px] font-medium text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {kb.name}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="text-[16px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {kb.description || '-'}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{kb.faq_count || 0} FAQs</Badge>
+                          <Badge variant="outline" className="text-[14px]" style={{ fontFamily: "'Manrope', sans-serif" }}>{kb.faq_count || 0} FAQs</Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{kb.document_count || 0} Docs</Badge>
+                          <Badge variant="outline" className="text-[14px]" style={{ fontFamily: "'Manrope', sans-serif" }}>{kb.document_count || 0} Docs</Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={kb.status === 'active' ? 'success' : 'default'}>
+                          <Badge variant={kb.status === 'active' ? 'success' : 'default'} className="text-[14px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                             {kb.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="text-[16px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {new Date(kb.created_at).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-right">
@@ -564,7 +573,7 @@ const KnowledgeBases: React.FC = () => {
             {/* FAQs Section */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-foreground">FAQs ({faqs.length})</h3>
+                <h3 className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>FAQs ({faqs.length})</h3>
                 <Button onClick={() => {
                   setEditingFAQ(null);
                   setFaqForm({ question: '', answer: '', category: '', priority: 0 });
@@ -629,7 +638,7 @@ const KnowledgeBases: React.FC = () => {
             {/* Documents Section */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-foreground">Documents ({documents.length})</h3>
+                <h3 className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Documents ({documents.length})</h3>
                 <div className="relative">
                   <input
                     type="file"

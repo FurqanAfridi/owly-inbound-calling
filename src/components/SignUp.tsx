@@ -1,16 +1,22 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, User, Phone } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import CountryCodeSelector from './CountryCodeSelector';
-import { emailService } from '../services/emailService';
 import { assignFreePackageToUser } from '../services/subscriptionService';
 import { validatePassword } from '../utils/passwordValidation';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import characterImage from '../assest/signup.png';
+
+// Import assets
+import characterImage from '../assest/Gemini_Generated_Image_ppyqz2ppyqz2ppyq (1) 1.png';
+import logoImage from '../assest/DNAI-Logo 1.png';
+import googleIcon from '../assest/google.svg';
+import appleIcon from '../assest/Apple.svg';
+import facebookIcon from '../assest/Symbol.png.png';
+import viewOffIcon from '../assest/view-off.svg';
+import vector10Icon from '../assest/Vector 10.svg';
+import rectangle1281Image from '../assest/Rectangle 1281.png';
 
 interface FormData {
   firstName: string;
@@ -76,12 +82,12 @@ const SignUp: React.FC = () => {
     setLoading(true);
 
     try {
-      // Sign up with Supabase - This will automatically send OTP via Supabase
+      // Sign up with Supabase
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
-          emailRedirectTo: null, // Disable automatic email confirmation link
+          emailRedirectTo: null,
           data: {
             first_name: formData.firstName,
             last_name: formData.lastName,
@@ -92,7 +98,6 @@ const SignUp: React.FC = () => {
       });
 
       if (signUpError) {
-        // Handle existing user error properly
         if (signUpError.message?.includes('already registered') || 
             signUpError.message?.includes('User already registered') ||
             signUpError.message?.includes('email address is already registered')) {
@@ -105,7 +110,6 @@ const SignUp: React.FC = () => {
       }
 
       if (signUpData.user) {
-        // Ensure user ID exists
         if (!signUpData.user.id) {
           console.error('User ID is missing from signup data');
           setError('Failed to create user account. Please try again.');
@@ -113,8 +117,6 @@ const SignUp: React.FC = () => {
           return;
         }
 
-        // Create user profile - ensure it's saved properly with all required fields
-        // Format phone number correctly (ensure country code is included)
         const phoneNumber = formData.phone.startsWith(countryCode) 
           ? formData.phone 
           : `${countryCode}${formData.phone}`;
@@ -127,25 +129,18 @@ const SignUp: React.FC = () => {
           country_code: countryCode || '+1',
           email_verified: false,
           phone_verified: false,
-          account_status: 'active', // Explicitly set account status
-          kyc_status: 'pending', // Set default KYC status
-          metadata: {}, // Initialize metadata as empty object
+          account_status: 'active',
+          kyc_status: 'pending',
+          metadata: {},
         };
 
-        console.log('Creating user profile with data:', profileData);
-        console.log('User ID:', signUpData.user.id);
-        console.log('User Email:', signUpData.user.email);
-
-        // Try insert first, if it fails due to conflict, use upsert
         const { error: insertError } = await supabase
           .from('user_profiles')
           .insert(profileData);
 
         let profileError = insertError;
 
-        // If insert fails due to conflict, try upsert
         if (insertError && (insertError.code === '23505' || insertError.message?.includes('duplicate'))) {
-          console.log('Profile already exists, using upsert instead');
           const { error: upsertError } = await supabase
             .from('user_profiles')
             .upsert(profileData, {
@@ -154,87 +149,16 @@ const SignUp: React.FC = () => {
           profileError = upsertError;
         }
 
-        if (profileError) {
-          console.error('Error creating/updating profile:', profileError);
-          console.error('Profile data that failed:', profileData);
-          console.error('Error details:', {
-            code: profileError.code,
-            message: profileError.message,
-            details: profileError.details,
-            hint: profileError.hint
-          });
-          
-          // Try one more time with a simple insert (in case upsert syntax is the issue)
-          if (profileError.code !== '23505') { // Not a duplicate key error
-            console.log('Retrying profile creation with simple insert...');
-            const { error: retryError } = await supabase
-              .from('user_profiles')
-              .insert(profileData);
-            
-            if (retryError) {
-              console.error('Retry also failed:', retryError);
-              // Show error but don't block signup - user can still verify email
-              // The profile can be created later or manually
-            } else {
-              console.log('Profile created successfully on retry');
-            }
-          }
-        } else {
-          console.log('User profile saved successfully');
-          
-          // Verify the profile was actually saved
-          const { data: verifyProfile, error: verifyError } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('id', signUpData.user.id)
-            .single();
-          
-          if (verifyError) {
-            console.error('Error verifying profile creation:', verifyError);
-            // Try to create it again if verification fails
-            console.log('Attempting to create profile again after verification failed...');
-            const { error: recreateError } = await supabase
-              .from('user_profiles')
-              .insert(profileData);
-            
-            if (recreateError) {
-              console.error('Failed to recreate profile:', recreateError);
-            } else {
-              console.log('Profile recreated successfully');
-            }
-          } else if (verifyProfile) {
-            console.log('Profile verified in database:', verifyProfile);
-          } else {
-            console.warn('Profile was not found after creation, attempting to create again...');
-            const { error: recreateError } = await supabase
-              .from('user_profiles')
-              .insert(profileData);
-            
-            if (recreateError) {
-              console.error('Failed to recreate profile:', recreateError);
-            } else {
-              console.log('Profile created successfully on second attempt');
-            }
-          }
+        if (profileError && profileError.code !== '23505') {
+          console.error('Error creating profile:', profileError);
         }
 
         // Assign free package to new user
         try {
-          const packageResult = await assignFreePackageToUser(signUpData.user.id);
-          if (!packageResult.success) {
-            console.error('Error assigning free package:', packageResult.error);
-            // Log error but don't block signup - user can still verify email and use the app
-            // The package can be assigned later if needed
-          } else {
-            console.log('Free package assigned successfully to new user');
-          }
+          await assignFreePackageToUser(signUpData.user.id);
         } catch (packageError) {
           console.error('Error assigning free package:', packageError);
-          // Don't block signup if package assignment fails
         }
-
-        // Supabase will automatically send OTP email (8-digit code)
-        // No need to manually send email or store OTP in custom table
       }
 
       // Navigate to verify email page
@@ -247,195 +171,249 @@ const SignUp: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* Left Side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary to-secondary p-12 relative overflow-hidden">
-        <div className="relative z-10 flex flex-col justify-between h-full">
-          <div>
-            <h1 className="text-5xl font-bold text-white mb-4 leading-tight">
-              Build your DNAI<br />
-              powered social<br />
-              growth engine
-            </h1>
-            <div className="w-64 h-1 bg-white/90 rounded mb-8"></div>
-            <p className="text-white/90 text-lg leading-relaxed">
-              Launch your personal DNAI agent to handle content, insights, and<br />
-              execution across platforms. Stop reacting. Start controlling your<br />
-              social media with data-driven automation.
-            </p>
-          </div>
-          <div className="flex justify-center items-end">
-            <img src={characterImage} alt="Character" className="max-w-md w-full h-auto" />
-          </div>
+    <div className="signin-container">
+      {/* Left Panel - Blue Section */}
+      <div className="signin-left-panel">
+        <div className="signin-left-gradient"></div>
+        <div 
+          className="signin-left-pattern"
+          style={{ backgroundImage: `url(${rectangle1281Image})` }}
+        ></div>
+        <div className="signin-left-content">
+          <h1 className="signin-hero-title">
+            Build your Owly<br />
+            powered social<br />
+            growth engine
+          </h1>
+          <p className="signin-hero-description">
+            Launch your personal Owly agent to handle content, insights, and<br />
+            execution across platforms. Stop reacting. Start controlling your<br />
+            social media with data-driven automation.
+          </p>
+        </div>
+        <div className="signin-character-image">
+          <img src={characterImage} alt="Character illustration" />
         </div>
       </div>
 
-      {/* Right Side - Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 lg:p-12 overflow-y-auto">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle className="text-3xl font-bold text-foreground">Create your account!</CardTitle>
-            <CardDescription className="text-muted-foreground">Tell us a bit about yourself to get started.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName" className="text-foreground">First Name *</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+      {/* Right Panel - Form Section */}
+      <div className="signin-logo">
+        <img src={logoImage} alt="DNAI Logo" />
+      </div>
+      
+      <div className="signup-form-wrapper">
+        <div className="signup-welcome">
+          <h2 className="signin-welcome-title">Create your account!</h2>
+          <p className="signin-welcome-subtitle" style={{ marginBottom: '10px !important' }}>Tell us a bit about yourself to get started.</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="signin-form">
+          <div className="signin-form-group">
+            <div className="signin-form-fields">
+              <div className="signin-form-field-row">
+                <div className="signin-form-field">
+                  <div className="signin-label-row">
+                    <Label htmlFor="firstName" className="signin-label">First Name *</Label>
+                  </div>
+                  <div className="signin-input-wrapper">
                     <Input
                       id="firstName"
-                      name="firstName"
                       type="text"
+                      name="firstName"
                       placeholder="Enter your first name"
                       value={formData.firstName}
                       onChange={handleChange}
-                      className="pl-10 bg-background text-foreground border-border"
+                      className="signin-input"
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName" className="text-foreground">Last Name *</Label>
-                  <Input
-                    id="lastName"
-                    name="lastName"
-                    type="text"
-                    placeholder="Enter your last name"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    className="bg-background text-foreground border-border"
-                  />
+
+                <div className="signin-form-field">
+                  <div className="signin-label-row">
+                    <Label htmlFor="lastName" className="signin-label">Last Name *</Label>
+                  </div>
+                  <div className="signin-input-wrapper">
+                    <Input
+                      id="lastName"
+                      type="text"
+                      name="lastName"
+                      placeholder="Enter your last name"
+                      value={formData.lastName}
+                      onChange={handleChange}
+                      className="signin-input"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-foreground">Email Address *</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <div className="signin-form-field">
+                <div className="signin-label-row">
+                  <Label htmlFor="email" className="signin-label">Email Address *</Label>
+                </div>
+                <div className="signin-input-wrapper">
                   <Input
                     id="email"
-                    name="email"
                     type="email"
+                    name="email"
                     placeholder="Enter your email"
                     value={formData.email}
                     onChange={handleChange}
-                    className="pl-10 bg-background text-foreground border-border"
+                    className="signin-input"
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="phone" className="text-foreground">Phone Number *</Label>
-                <div className="flex gap-2">
-                  <CountryCodeSelector
-                    value={countryCode}
-                    onChange={setCountryCode}
-                  />
-                  <div className="relative flex-1">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <div className="signin-form-field">
+                <div className="signin-label-row">
+                  <Label htmlFor="phone" className="signin-label">Phone Number *</Label>
+                </div>
+                <div className="signin-phone-input-group">
+                  <div className="signin-country-code-wrapper">
+                    <CountryCodeSelector
+                      value={countryCode}
+                      onChange={setCountryCode}
+                    />
+                  </div>
+                  <div className="signin-input-wrapper signin-phone-input">
                     <Input
                       id="phone"
-                      name="phone"
                       type="tel"
+                      name="phone"
                       placeholder="0123456789"
                       value={formData.phone}
                       onChange={(e) => {
-                        // Only allow numbers, max 10 digits
                         const numericValue = e.target.value.replace(/\D/g, '').slice(0, 10);
                         setFormData(prev => ({ ...prev, phone: numericValue }));
                       }}
                       maxLength={10}
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      className="pl-10 bg-background text-foreground border-border"
+                      className="signin-input"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-foreground">Password *</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <div className="signin-form-field">
+                <div className="signin-label-row">
+                  <Label htmlFor="password" className="signin-label">Password *</Label>
+                </div>
+                <div className="signin-password-input">
                   <Input
                     id="password"
-                    name="password"
                     type={showPassword ? "text" : "password"}
+                    name="password"
                     placeholder="Enter Your Password"
                     value={formData.password}
                     onChange={handleChange}
-                    className="pl-10 pr-10 bg-background text-foreground border-border"
+                    className="signin-input"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
+                    className="signin-eye-button"
+                    style={{ backgroundImage: `url(${viewOffIcon})` }}
+                  ></button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Password must be at least 8 characters and include at least one capital letter
-                </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="text-foreground">Confirm Password *</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <div className="signin-form-field">
+                <div className="signin-label-row">
+                  <Label htmlFor="confirmPassword" className="signin-label">Confirm Password *</Label>
+                </div>
+                <div className="signin-password-input">
                   <Input
                     id="confirmPassword"
-                    name="confirmPassword"
                     type={showConfirmPassword ? "text" : "password"}
+                    name="confirmPassword"
                     placeholder="Enter Your Confirm Password"
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className="pl-10 pr-10 bg-background text-foreground border-border"
+                    className="signin-input"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
+                    className="signin-eye-button"
+                    style={{ backgroundImage: `url(${viewOffIcon})` }}
+                  ></button>
                 </div>
               </div>
+            </div>
 
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="terms"
-                  checked={agreeTerms}
-                  onChange={(e) => setAgreeTerms(e.target.checked)}
-                  className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
-                />
-                <Label htmlFor="terms" className="text-sm text-muted-foreground cursor-pointer">
-                  I agree to the Terms & Privacy
-                </Label>
-              </div>
+            <div className="signin-checkbox-group">
+              <input
+                type="checkbox"
+                id="terms"
+                checked={agreeTerms}
+                onChange={(e) => setAgreeTerms(e.target.checked)}
+                className="signin-checkbox"
+              />
+              <Label htmlFor="terms" className="signin-checkbox-label">
+                I agree to the <Link to="/terms" className="signin-terms-link">Terms & Privacy</Link>
+              </Label>
+            </div>
+          </div>
 
-              {error && (
-                <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm">
-                  {error}
+          {error && (
+            <div className="signin-error">
+              {error}
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            className="signin-submit-button"
+            disabled={loading}
+          >
+            <span className="signin-submit-button-text">{loading ? 'Creating Account...' : 'Sign up'}</span>
+          </Button>
+
+          <div className="signin-form-bottom">
+            <div className="signin-signup-link">
+              <span className="signin-signup-text">Have an account? </span>
+              <Link to="/" className="signin-signup-link-text">Sign in</Link>
+            </div>
+
+            <div className="signin-divider">
+              <div 
+                className="signin-divider-line"
+                style={{ backgroundImage: `url(${vector10Icon})` }}
+              ></div>
+              <span className="signin-divider-text">or</span>
+              <div 
+                className="signin-divider-line"
+                style={{ backgroundImage: `url(${vector10Icon})` }}
+              ></div>
+            </div>
+
+            <div className="signin-social-buttons">
+              <button type="button" className="signin-social-button">
+                <div 
+                  className="signin-social-icon"
+                  style={{ backgroundImage: `url(${googleIcon})` }}
+                ></div>
+                <span className="signin-social-button-text">Google</span>
+              </button>
+              <button type="button" className="signin-social-button">
+                <div 
+                  className="signin-social-icon"
+                  style={{ backgroundImage: `url(${appleIcon})` }}
+                ></div>
+                <span className="signin-social-button-text">Apple</span>
+              </button>
+              <button type="button" className="signin-social-button">
+                <div className="signin-facebook-icon">
+                  <div 
+                    className="signin-facebook-icon-inner"
+                    style={{ backgroundImage: `url(${facebookIcon})` }}
+                  ></div>
                 </div>
-              )}
-
-              <Button
-                type="submit"
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                disabled={loading}
-              >
-                {loading ? 'Creating Account...' : 'Sign up'}
-              </Button>
-
-              <div className="text-center text-sm text-muted-foreground">
-                Have an account? <Link to="/" className="text-primary hover:underline font-medium">Sign in</Link>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+                <span className="signin-social-button-text">Facebook</span>
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );

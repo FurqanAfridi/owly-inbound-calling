@@ -52,7 +52,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, title }) => {
       const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
           if (mutation.attributeName === 'class') {
-            setSidebarCollapsed(sidebar.classList.contains('w-20'));
+            setSidebarCollapsed(sidebar.classList.contains('w-20') || sidebar.classList.contains('w-[80px]'));
           }
         });
       });
@@ -67,7 +67,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, title }) => {
       <Sidebar />
 
       {/* Main Content */}
-      <main className={`${sidebarCollapsed ? 'ml-20' : 'ml-72'} p-8 transition-all duration-500`}>
+      <main className={`${sidebarCollapsed ? 'ml-20' : 'ml-[224px]'} p-8 transition-all duration-500`}>
         <DashboardHeader title={pageTitle} />
         {children || <Outlet />}
       </main>

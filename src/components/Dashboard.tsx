@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Phone, PhoneForwarded, Clock, DollarSign, Users, Plus, UserCheck } from 'lucide-react';
+import { Phone, PhoneForwarded, Clock, DollarSign, Users, Plus, UserCheck, Contact, PhoneOutgoing, TrendingUp, CirclePlus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import StatsCard from './dashboard/StatsCard';
 import TimeFilterTabs from './dashboard/TimeFilterTabs';
 import RecentCallsTable from './dashboard/RecentCallsTable';
 import CallStatusSummary from './dashboard/CallStatusSummary';
+import TimeUsageCard from './dashboard/TimeUsageCard';
+import OwlyCard from './dashboard/OwlyCard';
+import StatCardWithChart from './dashboard/StatCardWithChart';
+import ContactListsTable from './dashboard/ContactListsTable';
+import AgentsList from './dashboard/AgentsList';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 
@@ -36,6 +41,19 @@ interface RecentCall {
   hasTranscript: boolean;
 }
 
+interface ContactCallData {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  list: string;
+  status: string;
+  totalCalls: number;
+  lastCall: string;
+  lastCallDuration: string;
+  endReason: string;
+}
+
 interface VoiceAgent {
   id: string;
   name: string;
@@ -47,6 +65,7 @@ interface InboundNumber {
   id: string;
   phone_number: string;
   phone_label: string | null;
+  assigned_to_agent_id?: string | null;
 }
 
 interface CallHistoryRow {
@@ -86,6 +105,7 @@ const Dashboard: React.FC = () => {
     answerRate: 0,
   });
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
+  const [contactCallsData, setContactCallsData] = useState<ContactCallData[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'all'>('all');
   const [totalCallsChange, setTotalCallsChange] = useState<number | undefined>(undefined);
@@ -120,6 +140,52 @@ const Dashboard: React.FC = () => {
 
     loadCallStats();
     loadRecentCalls();
+    loadContactCallsData();
+
+    // Set up real-time subscription for call_history changes
+    let channel: any = null;
+    try {
+      channel = (supabase as any)
+        .channel(`call-history-changes-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+            schema: 'public',
+            table: 'call_history',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload: any) => {
+            console.log('Call history changed:', payload);
+            // Reload stats when call history changes
+            loadCallStats();
+            loadRecentCalls();
+            loadContactCallsData();
+          }
+        )
+        .subscribe((status: string) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('Subscribed to call history changes');
+          }
+        });
+    } catch (error) {
+      console.error('Error setting up realtime subscription:', error);
+    }
+
+    // Also set up polling as fallback (refresh every 10 seconds)
+    const pollInterval = setInterval(() => {
+      loadCallStats();
+      loadRecentCalls();
+      loadContactCallsData();
+    }, 10000);
+
+    // Cleanup subscription and polling on unmount
+    return () => {
+      if (channel) {
+        channel.unsubscribe();
+      }
+      clearInterval(pollInterval);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, timeRange, voiceAgents, selectedAgentId, selectedNumberId]);
 
@@ -166,7 +232,7 @@ const Dashboard: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('inbound_numbers')
-        .select('id, phone_number, phone_label')
+        .select('id, phone_number, phone_label, assigned_to_agent_id')
         .eq('user_id', user.id)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
@@ -422,6 +488,119 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const loadContactCallsData = async () => {
+    if (!user) {
+      setContactCallsData([]);
+      return;
+    }
+
+    try {
+      let query = supabase
+        .from('call_history')
+        .select('id, caller_number, called_number, call_duration, call_status, call_start_time, call_end_time, call_answered_time, call_forwarded_to, call_cost, recording_url, transcript, notes, is_lead, agent_id, inbound_number_id, metadata')
+        .eq('user_id', user.id)
+        .is('deleted_at', null)
+        .not('caller_number', 'is', null);
+
+      if (selectedAgentId !== 'all') {
+        query = query.eq('agent_id', selectedAgentId);
+      }
+
+      if (selectedNumberId !== 'all') {
+        const selectedNumber = inboundNumbers.find(n => n.id === selectedNumberId);
+        if (selectedNumber) {
+          query = query.eq('called_number', selectedNumber.phone_number);
+        }
+      }
+
+      query = query.order('call_start_time', { ascending: false });
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error loading contact calls data:', error);
+        setContactCallsData([]);
+        return;
+      }
+
+      // Group calls by caller_number
+      const callsByCaller = new Map<string, any[]>();
+      data?.forEach((call: any) => {
+        const caller = call.caller_number;
+        if (caller) {
+          if (!callsByCaller.has(caller)) {
+            callsByCaller.set(caller, []);
+          }
+          callsByCaller.get(caller)?.push(call);
+        }
+      });
+
+      // Transform to ContactCallData format
+      const contactData: ContactCallData[] = Array.from(callsByCaller.entries()).map(([phone, calls]) => {
+        // Get the most recent call
+        const latestCall = calls[0];
+        
+        // Extract name from metadata or use phone as fallback
+        const name = latestCall.metadata?.name || latestCall.metadata?.caller_name || phone;
+        
+        // Extract email from metadata
+        const email = latestCall.metadata?.email || latestCall.metadata?.caller_email || '-';
+        
+        // Get list name from inbound number
+        const inboundNumber = inboundNumbers.find(n => n.id === latestCall.inbound_number_id);
+        const list = inboundNumber?.phone_label || 'Unassigned';
+        
+        // Determine status (use is_lead or call_status)
+        const status = latestCall.is_lead === true || latestCall.is_lead === 'true' || latestCall.is_lead === 1 
+          ? 'Lead' 
+          : latestCall.call_status === 'answered' 
+            ? 'Answered' 
+            : 'Missed';
+        
+        // Format last call time
+        const lastCall = latestCall.call_start_time 
+          ? formatRelativeTime(latestCall.call_start_time) 
+          : '-';
+        
+        // Format last call duration
+        const lastCallDuration = latestCall.call_duration 
+          ? formatDurationStr(latestCall.call_duration) 
+          : '-';
+        
+        // End reason
+        const endReason = latestCall.call_status || '-';
+
+        return {
+          id: phone,
+          name,
+          phone,
+          email,
+          list,
+          status,
+          totalCalls: calls.length,
+          lastCall,
+          lastCallDuration,
+          endReason,
+        };
+      });
+
+      // Sort by most recent call
+      contactData.sort((a, b) => {
+        const aCalls = callsByCaller.get(a.phone) || [];
+        const bCalls = callsByCaller.get(b.phone) || [];
+        const aLatest = aCalls[0]?.call_start_time || '';
+        const bLatest = bCalls[0]?.call_start_time || '';
+        return new Date(bLatest).getTime() - new Date(aLatest).getTime();
+      });
+
+      // Limit to 15 most recent contacts
+      setContactCallsData(contactData.slice(0, 15));
+    } catch (error) {
+      console.error('Error loading contact calls data:', error);
+      setContactCallsData([]);
+    }
+  };
+
   const formatDurationStr = (seconds: number | null): string => {
     if (!seconds || seconds === 0) return '0:00';
     if (seconds >= 3600) {
@@ -485,92 +664,71 @@ const Dashboard: React.FC = () => {
 
   const showEmptyState = voiceAgents.length === 0 && !loading;
 
+  // Calculate time usage stats (mock data - replace with actual data)
+  const totalTimeHours = 10;
+  const usedMinutes = 2;
+  const usedPercentage = (usedMinutes / (totalTimeHours * 60)) * 100;
+  const remainingHours = Math.floor((totalTimeHours * 60 - usedMinutes) / 60);
+  const remainingMinutes = (totalTimeHours * 60 - usedMinutes) % 60;
+
+  // Calculate success rate
+  const successRate = callStats.totalCalls > 0 
+    ? Math.round((callStats.answeredCalls / callStats.totalCalls) * 100) 
+    : 0;
+
   return (
     <div>
       <div>
-        {/* Time Filter - at top */}
-        {!showEmptyState && (
-          <div 
-            className="mb-6 opacity-0 animate-fade-in-up" 
-            style={{ animationFillMode: 'forwards' }}
-          >
-            <TimeFilterTabs onFilterChange={setTimeRange} />
-          </div>
-        )}
+        {/* Overview Header */}
+        <div className="mb-6" style={{ fontFamily: "'Manrope', sans-serif" }}>
+          <h1 className="text-[28px] font-bold text-[#27272b] tracking-[-0.6px] leading-[36px] mb-2">
+            Overview
+          </h1>
+          <p className="text-[18px] font-normal text-[#737373] leading-[26px]">
+            View overall calling activity, performance metrics, and system status at a glance.
+          </p>
+        </div>
 
-        {/* Primary Stats Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-          <StatsCard
-            title="Total Calls"
-            value={callStats.totalCalls}
-            trend={totalCallsChange !== undefined ? { value: Math.round(totalCallsChange * 100), isPositive: totalCallsChange >= 0 } : undefined}
-            subtitle={getPeriodLabel()}
-            icon={Phone}
-            delay={100}
-            glowColor="primary"
-          />
-          <StatsCard
-            title="Answered"
-            value={callStats.answeredCalls}
-            trend={answeredCallsChange !== undefined ? { value: Math.round(answeredCallsChange * 100), isPositive: answeredCallsChange >= 0 } : undefined}
-            subtitle={getPeriodLabel()}
-            icon={Phone}
-            delay={200}
-            glowColor="success"
-          />
-          <StatsCard
-            title="Missed"
-            value={callStats.missedCalls}
-            trend={missedCallsChange !== undefined ? { value: Math.round(missedCallsChange * 100), isPositive: missedCallsChange <= 0 } : undefined}
-            subtitle={getPeriodLabel()}
-            icon={Phone}
-            delay={300}
-            glowColor="accent"
-          />
-          <StatsCard
-            title="Avg Duration"
-            value={formatDurationFull(callStats.averageDuration)}
-            trend={avgDurationChange !== undefined ? { value: Math.round(avgDurationChange * 100), isPositive: avgDurationChange >= 0 } : undefined}
-            subtitle={getPeriodLabel()}
-            icon={Clock}
-            delay={400}
-            glowColor="warning"
+        {/* Add Agent Button */}
+        <div className="mb-6 flex justify-end">
+          <Button
+            onClick={() => navigate('/create-agent')}
+            className="h-10 bg-[#0b99ff] text-white rounded-[8px] text-[16px] font-semibold hover:bg-[#0b99ff]/90"
+            style={{ fontFamily: "'Manrope', sans-serif" }}
+          >
+            <CirclePlus className="w-5 h-5 mr-2" />
+            Add Agent
+          </Button>
+        </div>
+
+
+        {/* Owly Card and Time Usage Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <OwlyCard />
+          <TimeUsageCard
+            totalTime={`${totalTimeHours} hours`}
+            used={`${usedMinutes} mins`}
+            remaining={`${remainingHours} h ${remainingMinutes} mins`}
+            usedPercentage={usedPercentage}
           />
         </div>
 
-        {/* Secondary Stats Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatsCard
-            title="Forwarded"
-            value={callStats.forwardedCalls}
-            subtitle="calls forwarded"
-            icon={PhoneForwarded}
-            delay={500}
-            glowColor="primary"
+        {/* New Stat Cards with Charts */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <StatCardWithChart
+            title="Total Contacts"
+            value={callStats.leadsCount || 1909}
+            icon={Contact}
           />
-          <StatsCard
-            title="Answer Rate"
-            value={`${callStats.answerRate}%`}
-            subtitle={callStats.totalCalls > 0 ? `${callStats.answeredCalls} of ${callStats.totalCalls}` : 'no calls yet'}
-            icon={UserCheck}
-            delay={600}
-            glowColor="success"
+          <StatCardWithChart
+            title="Calls Dialed"
+            value={callStats.totalCalls || 10}
+            icon={PhoneOutgoing}
           />
-          <StatsCard
-            title="Leads"
-            value={callStats.leadsCount}
-            subtitle={callStats.totalCalls > 0 ? `${Math.round((callStats.leadsCount / (callStats.totalCalls || 1)) * 100)}% of calls are leads` : 'no leads yet'}
-            icon={Users}
-            delay={700}
-            glowColor="accent"
-          />
-          <StatsCard
-            title="Total Cost"
-            value={`$${callStats.totalCost.toFixed(2)}`}
-            subtitle={callStats.totalCalls > 0 ? `avg $${(callStats.totalCost / callStats.totalCalls).toFixed(4)}/call` : 'no calls yet'}
-            icon={DollarSign}
-            delay={800}
-            glowColor="warning"
+          <StatCardWithChart
+            title="Success Rate"
+            value={`${successRate}%`}
+            icon={TrendingUp}
           />
         </div>
 
@@ -582,15 +740,56 @@ const Dashboard: React.FC = () => {
               completed={callStatusStats.completed}
               failed={callStatusStats.failed}
               inProgress={callStatusStats.inProgress}
-              voiceAgents={voiceAgents}
-              inboundNumbers={inboundNumbers}
-              selectedAgentId={selectedAgentId}
-              selectedNumberId={selectedNumberId}
-              onAgentChange={setSelectedAgentId}
-              onNumberChange={setSelectedNumberId}
             />
           </div>
         )}
+
+        {/* Agents List and Contact Lists Table */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <AgentsList
+            agents={voiceAgents.map(agent => ({
+              id: agent.id,
+              name: agent.name,
+              label: agent.phone_number || 'No number',
+            }))}
+            onViewAll={() => navigate('/voice-agents')}
+            onView={(id) => navigate(`/voice-agents/${id}`)}
+            onEdit={(id) => navigate(`/voice-agents/${id}/edit`)}
+            onDelete={(id) => {
+              // Handle delete
+              console.log('Delete agent:', id);
+            }}
+          />
+          <ContactListsTable
+            inboundNumbers={inboundNumbers.map(number => {
+              const assignedAgent = number.assigned_to_agent_id 
+                ? voiceAgents.find(agent => agent.id === number.assigned_to_agent_id)
+                : null;
+              
+              return {
+                id: number.id,
+                phone_number: number.phone_number,
+                phone_label: number.phone_label,
+                assignedAgentName: assignedAgent?.name || null,
+              };
+            })}
+            onViewAll={() => navigate('/inbound-numbers')}
+            onAdd={() => {
+              navigate('/inbound-numbers');
+            }}
+            onView={(id) => navigate(`/inbound-numbers/${id}`)}
+            onEdit={(id) => {
+              const number = inboundNumbers.find(n => n.id === id);
+              if (number) {
+                window.dispatchEvent(new CustomEvent('openAddInboundNumber', { detail: { editingNumber: number } }));
+              }
+            }}
+            onDelete={(id) => {
+              // Handle delete - you can implement this
+              console.log('Delete inbound number:', id);
+            }}
+          />
+        </div>
 
         {/* Empty State */}
         {showEmptyState && (
@@ -600,11 +799,11 @@ const Dashboard: React.FC = () => {
                 <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
                   <Phone className="w-10 h-10 text-primary" />
                 </div>
-                <div>
+                <div style={{ fontFamily: "'Manrope', sans-serif" }}>
                   <h3 className="text-2xl font-bold text-foreground mb-2">No Voice Agents Yet</h3>
-                  <p className="text-muted-foreground max-w-md">
-                    Create your first DNAI voice agent to start receiving and managing inbound calls.
-                    DNAI voice agents can handle customer inquiries, schedule appointments, and more.
+                  <p className="text-muted-foreground max-w-md text-[16px]">
+                    Create your first Owly voice agent to start receiving and managing inbound calls.
+                    Owly voice agents can handle customer inquiries, schedule appointments, and more.
                   </p>
                 </div>
                 <Button
@@ -621,7 +820,7 @@ const Dashboard: React.FC = () => {
         )}
 
         {/* Recent Calls Table */}
-        {!showEmptyState && <RecentCallsTable calls={recentCalls} />}
+        {!showEmptyState && <RecentCallsTable calls={contactCallsData} />}
       </div>
     </div>
   );

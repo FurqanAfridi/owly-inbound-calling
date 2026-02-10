@@ -20,6 +20,11 @@ node_modules/
 /.next
 /out
 *.tsbuildinfo
+build/
+dist/
+out/
+*.js.map
+*.css.map
 
 # ===========================================
 # Environment Variables (CRITICAL - Contains Secrets)
@@ -99,6 +104,10 @@ tramp
 # Cursor IDE
 .cursor/
 .cursorrules
+.cursor/**
+*.cursor
+.cursor-settings/
+.cursor-temp/
 
 # ===========================================
 # OS Files

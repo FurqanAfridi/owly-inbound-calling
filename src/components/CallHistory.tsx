@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -97,6 +98,7 @@ interface AnalyticsData {
 const CallHistory: React.FC = () => {
   const { user } = useAuth();
   const theme = useTheme();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [calls, setCalls] = useState<CallHistoryRecord[]>([]);
@@ -112,7 +114,7 @@ const CallHistory: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [agentFilter, setAgentFilter] = useState<string>('all');
   const [numberFilter, setNumberFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState((location.state as any)?.searchQuery || '');
   const [currentTab, setCurrentTab] = useState(0);
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
   const [inboundNumbers, setInboundNumbers] = useState<Array<{ id: string; phone_number: string; phone_label: string | null }>>([]);
@@ -390,7 +392,7 @@ const CallHistory: React.FC = () => {
 
   return (
     <>
-      <Box>
+      <Box sx={{ fontFamily: "'Manrope', sans-serif" }}>
 
         {error && (
           <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
@@ -514,10 +516,10 @@ const CallHistory: React.FC = () => {
             <CardContent>
               <Box textAlign="center" py={4}>
                 <PhoneIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                <Typography variant="h6" gutterBottom>
+                <Typography variant="h6" gutterBottom sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '18px', fontWeight: 600, color: '#27272b' }}>
                   No Call History
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#737373' }}>
                   No calls found for the selected filters.
                 </Typography>
               </Box>
@@ -529,29 +531,29 @@ const CallHistory: React.FC = () => {
               <Table>
               <TableHead>
                 <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100' }}>
-                  <TableCell sx={{ fontWeight: 600 }}>Date & Time</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Caller</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Called</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Duration</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Recording</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Transcript</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Date & Time</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Caller</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Called</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Duration</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Recording</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Transcript</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {filteredCalls.map((call) => (
                   <TableRow key={call.id} hover>
                     <TableCell>
-                      <Typography variant="body2">{formatDate(call.call_start_time)}</Typography>
+                      <Typography variant="body2" sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>{formatDate(call.call_start_time)}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>
                         {call.caller_country_code} {call.caller_number}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>
                         {call.called_country_code} {call.called_number}
                       </Typography>
                     </TableCell>

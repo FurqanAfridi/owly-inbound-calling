@@ -1,14 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { emailService } from '../services/emailService';
 import { validatePassword } from '../utils/passwordValidation';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import {
   Dialog,
   DialogContent,
@@ -17,9 +12,20 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import { Alert, AlertDescription } from './ui/alert';
-import characterImage from '../assest/signin.png';
-
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
 import TwoFactorLogin from './TwoFactorLogin';
+
+// Import assets
+import characterImage from '../assest/Gemini_Generated_Image_ppyqz2ppyqz2ppyq (1) 1.png';
+import logoImage from '../assest/DNAI-Logo 1.png';
+import googleIcon from '../assest/google.svg';
+import appleIcon from '../assest/Apple.svg';
+import facebookIcon from '../assest/Symbol.png.png';
+import viewOffIcon from '../assest/view-off.svg';
+import vector10Icon from '../assest/Vector 10.svg';
+import rectangle1281Image from '../assest/Rectangle 1281.png';
 
 const SignIn: React.FC = () => {
   const navigate = useNavigate();
@@ -64,11 +70,9 @@ const SignIn: React.FC = () => {
       const { error: signInError } = await signIn(email, password);
 
       if (signInError) {
-        // Check if user exists to provide specific error messages
         let errorMessage = 'Invalid email or password';
         const errorMsg = signInError.message?.toLowerCase() || '';
         
-        // Check if email format is valid
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
           errorMessage = 'Please enter a valid email address';
@@ -77,7 +81,6 @@ const SignIn: React.FC = () => {
           return;
         }
         
-        // Check for specific error types
         if (errorMsg.includes('email not confirmed') || errorMsg.includes('email_not_confirmed')) {
           errorMessage = 'Please verify your email address before signing in';
         } else if (errorMsg.includes('too many requests') || errorMsg.includes('rate limit')) {
@@ -85,35 +88,19 @@ const SignIn: React.FC = () => {
         } else if (errorMsg.includes('invalid login credentials') || 
                    errorMsg.includes('invalid password') ||
                    errorMsg.includes('email or password')) {
-          
-          // Try to determine if user exists by checking our database
-          // We'll use a database function or check user_profiles
-          // Since we can't query auth.users directly, we'll check if we can find the user
-          // by attempting to see if there's a profile (though this requires user_id)
-          
-          // Better approach: Use Supabase RPC to check if user exists
           try {
-            // Call a database function to check if user exists by email
-            // If this function doesn't exist, we'll create a fallback
             const { data: userExists, error: checkError } = await supabase.rpc('check_user_exists', {
               p_email: email.toLowerCase().trim()
             }).catch(() => ({ data: null, error: { message: 'Function not found' } }));
             
             if (!checkError && userExists === true) {
-              // User exists, so password must be wrong
               errorMessage = 'Password is not correct';
             } else if (!checkError && userExists === false) {
-              // User doesn't exist
               errorMessage = 'User does not exist';
             } else {
-              // RPC function doesn't exist or returned unexpected value
-              // Provide helpful fallback message
               errorMessage = 'User does not exist or password is not correct';
             }
           } catch (rpcError) {
-            // RPC function doesn't exist, provide helpful message
-            // Note: You'll need to create the check_user_exists RPC function in Supabase
-            // For now, show a generic but helpful message
             errorMessage = 'User does not exist or password is not correct';
           }
         } else {
@@ -125,17 +112,14 @@ const SignIn: React.FC = () => {
         return;
       }
 
-      // Check if user has 2FA enabled
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        // Check 2FA status
         const { data: twoFactorData } = await supabase
           .from('user_2fa')
           .select('enabled, verified')
           .eq('user_id', user.id)
           .single();
 
-        // If 2FA is enabled and verified, show 2FA verification screen
         if (twoFactorData?.enabled && twoFactorData?.verified) {
           setPendingUserId(user.id);
           setPendingUserEmail(user.email || '');
@@ -144,10 +128,8 @@ const SignIn: React.FC = () => {
           return;
         }
 
-        // If no 2FA, proceed with normal login flow
         await completeLogin(user, false);
       } else {
-        // Navigate to dashboard if no user (shouldn't happen)
         navigate('/dashboard');
       }
     } catch (err: any) {
@@ -158,12 +140,10 @@ const SignIn: React.FC = () => {
 
   const completeLogin = async (user: any, used2FA: boolean = false) => {
     try {
-      // Get user IP and device info
       const ipResponse = await fetch('https://api.ipify.org?format=json').catch(() => null);
       const ipData = ipResponse ? await ipResponse.json() : { ip: null };
       const ipAddress = ipData.ip;
 
-      // Get device info
       const userAgent = navigator.userAgent;
       const deviceType = /Mobile|Android|iPhone|iPad/.test(userAgent) ? 'mobile' : 'desktop';
       const browserName = userAgent.match(/(Chrome|Firefox|Safari|Edge|Opera)\/[\d.]+/)?.[1] || 'Unknown';
@@ -177,13 +157,11 @@ const SignIn: React.FC = () => {
         p_login_method: used2FA ? '2fa' : 'email'
       });
 
-      // Update last login
       await supabase
         .from('user_profiles')
         .update({ last_login_at: new Date().toISOString(), last_active_at: new Date().toISOString() })
         .eq('id', user.id);
 
-      // Send login alert email (check if this is a new device/location)
       try {
         const { data: previousLogins } = await supabase
           .from('login_activity')
@@ -201,7 +179,7 @@ const SignIn: React.FC = () => {
           await emailService.sendNewDeviceLoginEmail(user.email, {
             ip: ipAddress || undefined,
             device: `${deviceType} • ${osName} • ${browserName}`,
-            location: 'Unknown', // In production, use a geolocation service
+            location: 'Unknown',
           });
         } else if (user.email) {
           await emailService.sendLoginAlertEmail(user.email, {
@@ -213,10 +191,8 @@ const SignIn: React.FC = () => {
         }
       } catch (emailError) {
         console.error('Error sending login alert email:', emailError);
-        // Don't block login if email fails
       }
 
-      // Navigate to dashboard
       navigate('/dashboard');
     } catch (err: any) {
       console.error('Error completing login:', err);
@@ -234,7 +210,6 @@ const SignIn: React.FC = () => {
   };
 
   const handle2FACancel = () => {
-    // Sign out the user since they haven't completed 2FA
     supabase.auth.signOut();
     setShow2FA(false);
     setPendingUserId(null);
@@ -242,16 +217,13 @@ const SignIn: React.FC = () => {
     setError('Login cancelled. Please sign in again.');
   };
 
-  // Handle password reset link from URL hash fragments
   useEffect(() => {
     const handlePasswordResetLink = async () => {
       try {
-        // Check for hash fragments in URL (Supabase password reset link format)
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = hashParams.get('access_token');
         const type = hashParams.get('type');
 
-        // If we have a recovery token in the URL, exchange it for a session
         if (accessToken && type === 'recovery') {
           setResetInitializing(true);
           
@@ -263,21 +235,17 @@ const SignIn: React.FC = () => {
           if (sessionError) {
             setResetError('Invalid or expired reset link. Please request a new one.');
             setResetInitializing(false);
-            // Clear hash from URL
             window.history.replaceState(null, '', window.location.pathname);
             return;
           }
 
-          // Clear the hash from URL
           window.history.replaceState(null, '', window.location.pathname);
           
-          // Get user email for display
           const { data: { user } } = await supabase.auth.getUser();
           if (user?.email) {
             setPendingUserEmail(user.email);
           }
           
-          // Show password reset dialog
           setShowPasswordResetDialog(true);
           setResetInitializing(false);
         }
@@ -285,7 +253,6 @@ const SignIn: React.FC = () => {
         console.error('Error handling password reset link:', err);
         setResetError('An error occurred while processing the reset link. Please try again.');
         setResetInitializing(false);
-        // Clear hash from URL
         window.history.replaceState(null, '', window.location.pathname);
       }
     };
@@ -307,7 +274,6 @@ const SignIn: React.FC = () => {
       return;
     }
 
-    // Validate password strength
     const passwordValidation = validatePassword(resetPassword);
     if (!passwordValidation.isValid) {
       setResetError(passwordValidation.errors.join('. '));
@@ -325,18 +291,15 @@ const SignIn: React.FC = () => {
         return;
       }
 
-      // Store password in history
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        // In production, hash the password before storing
         await supabase
           .from('password_history')
           .insert({
             user_id: user.id,
-            password_hash: resetPassword, // Should be hashed in production
+            password_hash: resetPassword,
           });
 
-        // Create notification
         await supabase.rpc('create_notification', {
           p_user_id: user.id,
           p_type: 'password_changed',
@@ -344,21 +307,17 @@ const SignIn: React.FC = () => {
           p_message: 'Your password has been successfully changed.',
         });
 
-        // Send password changed email notification
         if (user.email) {
           await emailService.sendPasswordChangedEmail(user.email);
         }
       }
 
-      // Close dialog and show success message
       setShowPasswordResetDialog(false);
       setResetPassword('');
       setResetConfirmPassword('');
       setError('');
-      // Show success message
       alert('Password updated successfully! You can now sign in with your new password.');
       
-      // Sign out the user so they can sign in with new password
       await supabase.auth.signOut();
     } catch (err: any) {
       setResetError(err.message || 'An error occurred');
@@ -367,7 +326,6 @@ const SignIn: React.FC = () => {
   };
 
   const handleClosePasswordResetDialog = () => {
-    // Sign out if dialog is closed without completing password reset
     supabase.auth.signOut();
     setShowPasswordResetDialog(false);
     setResetPassword('');
@@ -375,7 +333,6 @@ const SignIn: React.FC = () => {
     setResetError('');
   };
 
-  // Show 2FA verification screen if needed
   if (show2FA && pendingUserId) {
     return (
       <TwoFactorLogin
@@ -389,7 +346,6 @@ const SignIn: React.FC = () => {
 
   return (
     <>
-      {/* Password Reset Dialog */}
       <Dialog open={showPasswordResetDialog} onOpenChange={handleClosePasswordResetDialog}>
         <DialogContent className="sm:max-w-md bg-card border-border">
           <DialogHeader>
@@ -410,7 +366,6 @@ const SignIn: React.FC = () => {
               <div className="space-y-2">
                 <Label htmlFor="resetPassword" className="text-foreground">New Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="resetPassword"
                     type={showResetPassword ? "text" : "password"}
@@ -424,7 +379,7 @@ const SignIn: React.FC = () => {
                     onClick={() => setShowResetPassword(!showResetPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
-                    {showResetPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    <img src={viewOffIcon} alt="Toggle password" className="w-5 h-5" />
                   </button>
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -435,7 +390,6 @@ const SignIn: React.FC = () => {
               <div className="space-y-2">
                 <Label htmlFor="resetConfirmPassword" className="text-foreground">Confirm Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="resetConfirmPassword"
                     type={showResetConfirmPassword ? "text" : "password"}
@@ -449,7 +403,7 @@ const SignIn: React.FC = () => {
                     onClick={() => setShowResetConfirmPassword(!showResetConfirmPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
-                    {showResetConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    <img src={viewOffIcon} alt="Toggle password" className="w-5 h-5" />
                   </button>
                 </div>
               </div>
@@ -483,144 +437,157 @@ const SignIn: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Main sign-in page */}
-      <div className="min-h-screen bg-background flex">
-      {/* Left Side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary to-secondary p-12 relative overflow-hidden">
-        <div className="relative z-10 flex flex-col justify-between h-full">
-          <div>
-            <h1 className="text-5xl font-bold text-white mb-4 leading-tight">
-              Sign in to your<br />
-              creative HQ
-            </h1>
-            <div className="w-64 h-1 bg-white/90 rounded mb-8"></div>
-            <p className="text-white/90 text-lg leading-relaxed">
-              Unlock the power of DNAI-driven<br />
-              social media intelligence.<br />
-              Create, analyze, and dominate<br />
-              your social presence with<br />
-              cutting-edge tools.
+      <div className="signin-container">
+        {/* Left Panel - Blue Section */}
+        <div className="signin-left-panel">
+          <div className="signin-left-gradient"></div>
+          <div 
+            className="signin-left-pattern"
+            style={{ backgroundImage: `url(${rectangle1281Image})` }}
+          ></div>
+          <div className="signin-left-content">
+            <h1 className="signin-hero-title">Sign in to your creative HQ of Inbound Calling</h1>
+            <div 
+              className="signin-underline"
+              style={{ backgroundImage: `url(${vector10Icon})` }}
+            ></div>
+            <p className="signin-hero-description">
+              Unlock the power of AI-driven social media intelligence. Create, analyze, and dominate your social presence with cutting-edge tools.
             </p>
           </div>
-          <div className="flex justify-center items-end">
-            <img src={characterImage} alt="Character" className="max-w-md w-full h-auto" />
+          <div className="signin-character-image">
+            <img src={characterImage} alt="Character illustration" />
           </div>
         </div>
-      </div>
 
-      {/* Right Side - Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 lg:p-12">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle className="text-3xl font-bold text-foreground">Welcome back!</CardTitle>
-            <CardDescription className="text-muted-foreground">Good to see you again.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-foreground">Email Address</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="123@gmail.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 bg-background text-foreground border-border"
-                  />
+        {/* Right Panel - Form Section */}
+        <div className="signin-logo">
+          <img src={logoImage} alt="DNAI Logo" />
+        </div>
+        
+        <div className="signin-form-wrapper">
+          <div className="signin-welcome">
+            <h2 className="signin-welcome-title">Welcome back!</h2>
+            <p className="signin-welcome-subtitle">Good to see you again.</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="signin-form">
+            <div className="signin-form-group">
+              <div className="signin-form-fields">
+                <div className="signin-form-field">
+                  <div className="signin-label-row">
+                    <Label htmlFor="email" className="signin-label">Email Address</Label>
+                  </div>
+                  <div className="signin-input-wrapper">
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="123@gmail.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="signin-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="signin-form-field">
+                  <div className="signin-label-row">
+                    <Label htmlFor="password" className="signin-label">Password</Label>
+                    <Link to="/reset-password" className="signin-forgot-link">Forget Password?</Link>
+                  </div>
+                  <div className="signin-password-input">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter Your Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="signin-input"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="signin-eye-button"
+                      style={{ backgroundImage: `url(${viewOffIcon})` }}
+                    ></button>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex justify-end">
-                <Link to="/reset-password" className="text-sm text-primary hover:underline">
-                  Forget Password?
-                </Link>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-foreground">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter Your Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 bg-background text-foreground border-border"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
+              <div className="signin-checkbox-group">
                 <input
                   type="checkbox"
                   id="terms"
                   checked={agreeTerms}
                   onChange={(e) => setAgreeTerms(e.target.checked)}
-                  className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                  className="signin-checkbox"
                 />
-                <Label htmlFor="terms" className="text-sm text-muted-foreground cursor-pointer">
-                  I agree to the Terms & Privacy
+                <Label htmlFor="terms" className="signin-checkbox-label">
+                  I agree to the <Link to="/terms" className="signin-terms-link">Terms & Privacy</Link>
                 </Label>
               </div>
+            </div>
 
-              {error && (
-                <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              )}
+            {error && (
+              <div className="signin-error">
+                {error}
+              </div>
+            )}
 
-              <Button
-                type="submit"
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                disabled={loading}
-              >
-                {loading ? 'Signing in...' : 'Sign in'}
-              </Button>
+            <Button
+              type="submit"
+              className="signin-submit-button"
+              disabled={loading}
+            >
+              <span className="signin-submit-button-text">{loading ? 'Signing in...' : 'Sign in'}</span>
+            </Button>
 
-              <div className="text-center text-sm text-muted-foreground">
-                Don't have an account? <Link to="/signup" className="text-primary hover:underline font-medium">Sign up</Link>
+            <div className="signin-form-bottom">
+              <div className="signin-signup-link">
+                <span className="signin-signup-text">Don't have an account? </span>
+                <Link to="/signup" className="signin-signup-link-text">Sign up</Link>
               </div>
 
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-border"></span>
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">or</span>
-                </div>
+              <div className="signin-divider">
+                <div 
+                  className="signin-divider-line"
+                  style={{ backgroundImage: `url(${vector10Icon})` }}
+                ></div>
+                <span className="signin-divider-text">or</span>
+                <div 
+                  className="signin-divider-line"
+                  style={{ backgroundImage: `url(${vector10Icon})` }}
+                ></div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <Button type="button" variant="outline" className="flex items-center justify-center gap-2">
-                  <svg width="20" height="20" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  </svg>
-                </Button>
-                <Button type="button" variant="outline" className="flex items-center justify-center gap-2">
-                  <svg width="20" height="20" viewBox="0 0 24 24">
-                    <path fill="#000000" d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-                  </svg>
-                </Button>
-                <Button type="button" variant="outline" className="flex items-center justify-center gap-2">
-                  <svg width="20" height="20" viewBox="0 0 24 24">
-                    <path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                  </svg>
-                </Button>
+              <div className="signin-social-buttons">
+                <button type="button" className="signin-social-button">
+                  <div 
+                    className="signin-social-icon"
+                    style={{ backgroundImage: `url(${googleIcon})` }}
+                  ></div>
+                  <span className="signin-social-button-text">Google</span>
+                </button>
+                <button type="button" className="signin-social-button">
+                  <div 
+                    className="signin-social-icon"
+                    style={{ backgroundImage: `url(${appleIcon})` }}
+                  ></div>
+                  <span className="signin-social-button-text">Apple</span>
+                </button>
+                <button type="button" className="signin-social-button">
+                  <div className="signin-facebook-icon">
+                    <div 
+                      className="signin-facebook-icon-inner"
+                      style={{ backgroundImage: `url(${facebookIcon})` }}
+                    ></div>
+                  </div>
+                  <span className="signin-social-button-text">Facebook</span>
+                </button>
               </div>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+            </div>
+          </form>
+        </div>
       </div>
     </>
   );

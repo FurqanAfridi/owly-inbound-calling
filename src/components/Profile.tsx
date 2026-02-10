@@ -606,7 +606,8 @@ const Profile: React.FC = () => {
 
   return (
     <>
-      <Tabs defaultValue="profile" className="space-y-6">
+      <div className="max-w-[1200px] mx-auto px-6" style={{ fontFamily: "'Manrope', sans-serif" }}>
+        <Tabs defaultValue="profile" className="space-y-6">
         <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="profile">
             <User className="w-4 h-4 mr-2" />
@@ -658,16 +659,16 @@ const Profile: React.FC = () => {
           )}
 
           {/* Profile Information Card */}
-        <Card>
-          <CardHeader>
+        <Card className="rounded-[14px] border border-[#e5e5e5]">
+          <CardHeader className="px-5 pt-5 pb-0">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-foreground">Profile Information</CardTitle>
+              <CardTitle className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Profile Information</CardTitle>
               {isEditMode && (
                 <Badge variant="default">Edit Mode</Badge>
               )}
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-5 py-5">
 
             {isEditMode ? (
               <form onSubmit={handleProfileSubmit}>
@@ -868,14 +869,14 @@ const Profile: React.FC = () => {
         </Card>
 
         {/* Change Password Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-foreground">Change Password</CardTitle>
-            <CardDescription className="text-muted-foreground">
+        <Card className="rounded-[14px] border border-[#e5e5e5]">
+          <CardHeader className="px-5 pt-5 pb-0">
+            <CardTitle className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Change Password</CardTitle>
+            <CardDescription className="text-[16px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
               Update your password to keep your account secure
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-5 py-5">
             <form onSubmit={handlePasswordSubmit}>
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -982,6 +983,7 @@ const Profile: React.FC = () => {
           <AccountDeactivation />
         </TabsContent>
       </Tabs>
+      </div>
 
       {/* Phone Number Change Verification Dialog */}
       <Dialog open={showPhoneVerificationDialog} onOpenChange={setShowPhoneVerificationDialog}>

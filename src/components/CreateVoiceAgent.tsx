@@ -64,6 +64,10 @@ const CreateVoiceAgent: React.FC = () => {
   const [previousAgent, setPreviousAgent] = useState<{ id: string; name: string } | null>(null);
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<Array<{ id: string; name: string }>>([]);
+  const [showAutofillDialog, setShowAutofillDialog] = useState(false);
+  const [autofillPrompt, setAutofillPrompt] = useState('');
+  const [autofillLoading, setAutofillLoading] = useState(false);
+  const [autofillError, setAutofillError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     agentName: '',
@@ -331,34 +335,141 @@ const CreateVoiceAgent: React.FC = () => {
     return inboundNumbers.find(n => n.id === selectedNumberId) || null;
   };
 
-  const autofillForm = () => {
-    setFormData({
-      agentName: 'julie2',
-      companyName: 'EduCare',
-      websiteUrl: 'https://educare.com',
-      goal: 'The core business goal, in order of priority, is:\n\nConvert inbound inquiries into booked trial classes\n\nCapture and validate lead information step-by-step\n\nDeliver trial classes as the primary conversion mechanism',
-      backgroundContext: 'EduCare is positioned as an online live tuition platform that provides:\n\nDedicated 1-to-1 or live online classes\n\nAcademic and professional subject tutoring\n\nServices delivered through human-like inbound voice support',
-      welcomeMessage: 'Hi, thank you for calling our online tuition support line… this is EduCare. How can I help you today?',
-      instructionVoice: 'Be friendly, professional, and helpful. Listen carefully to the caller\'s needs and provide accurate information.',
-      script: 'You are **EduCare**, a **human‑sounding inbound voice agent** for an **online live tuition platform**.',
-      language: 'en-US',
-      timezone: 'America/New_York',
-      agentType: 'sales',
-      tool: 'calendar',
-      voice: 'helena',
-      temperature: 0.7,
-      confidence: 0.8,
-      verbosity: 0.7,
-      fallbackEnabled: false,
-      fallbackNumber: '',
-      knowledgeBaseId: '',
-      callAvailabilityStart: '09:00',
-      callAvailabilityEnd: '17:00',
-      callAvailabilityDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-    });
+  const handleOpenAutofillDialog = () => {
+    setShowAutofillDialog(true);
+    setAutofillPrompt('');
+    setAutofillError(null);
+  };
 
-    if (inboundNumbers.length > 0) {
-      setSelectedNumberId(inboundNumbers[0].id);
+  const handleCloseAutofillDialog = () => {
+    setShowAutofillDialog(false);
+    setAutofillPrompt('');
+    setAutofillError(null);
+  };
+
+  const generateAgentDetails = async (prompt: string) => {
+    const apiKey = process.env.REACT_APP_OPENAI_API_KEY;
+    
+    if (!apiKey) {
+      throw new Error('OpenAI API key is not configured. Please set REACT_APP_OPENAI_API_KEY in your environment variables.');
+    }
+
+    const systemPrompt = `You are an AI assistant that helps create voice agent configurations. Based on the user's description, generate a complete voice agent configuration in JSON format.
+
+Return ONLY a valid JSON object with the following structure:
+{
+  "agentName": "string (short, descriptive name)",
+  "companyName": "string",
+  "websiteUrl": "string (valid URL)",
+  "goal": "string (primary business objectives, can be multi-line)",
+  "backgroundContext": "string (company history, mission, product description, can be multi-line)",
+  "welcomeMessage": "string (friendly greeting message)",
+  "instructionVoice": "string (tone and style instructions for the agent)",
+  "script": "string (agent's role and behavior description)",
+  "language": "string (ISO language code like en-US, es-ES, fr-FR, de-DE, zh-CN)",
+  "timezone": "string (IANA timezone like America/New_York, America/Los_Angeles, UTC)",
+  "agentType": "string (one of: sales, support, booking, general)",
+  "tool": "string (one of: calendar, crm, email, sms)",
+  "voice": "string (voice name, default to helena)",
+  "temperature": number (0.0 to 1.0, default 0.7),
+  "confidence": number (0.0 to 1.0, default 0.8),
+  "verbosity": number (0.0 to 1.0, default 0.7),
+  "callAvailabilityStart": "string (time in HH:MM format, default 09:00)",
+  "callAvailabilityEnd": "string (time in HH:MM format, default 17:00)",
+  "callAvailabilityDays": ["array of strings", "monday", "tuesday", "wednesday", "thursday", "friday"]
+}
+
+Make the content professional, realistic, and tailored to the user's business description.`;
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.7,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `OpenAI API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices[0]?.message?.content;
+      
+      if (!content) {
+        throw new Error('No response content from OpenAI');
+      }
+
+      // Parse JSON response
+      const agentConfig = JSON.parse(content);
+
+      // Validate and set form data
+      setFormData(prev => ({
+        ...prev,
+        agentName: agentConfig.agentName || prev.agentName,
+        companyName: agentConfig.companyName || prev.companyName,
+        websiteUrl: agentConfig.websiteUrl || prev.websiteUrl,
+        goal: agentConfig.goal || prev.goal,
+        backgroundContext: agentConfig.backgroundContext || prev.backgroundContext,
+        welcomeMessage: agentConfig.welcomeMessage || prev.welcomeMessage,
+        instructionVoice: agentConfig.instructionVoice || prev.instructionVoice,
+        script: agentConfig.script || prev.script,
+        language: agentConfig.language || prev.language,
+        timezone: agentConfig.timezone || prev.timezone,
+        agentType: agentConfig.agentType || prev.agentType,
+        tool: agentConfig.tool || prev.tool,
+        voice: agentConfig.voice || prev.voice,
+        temperature: typeof agentConfig.temperature === 'number' ? agentConfig.temperature : prev.temperature,
+        confidence: typeof agentConfig.confidence === 'number' ? agentConfig.confidence : prev.confidence,
+        verbosity: typeof agentConfig.verbosity === 'number' ? agentConfig.verbosity : prev.verbosity,
+        callAvailabilityStart: agentConfig.callAvailabilityStart || prev.callAvailabilityStart,
+        callAvailabilityEnd: agentConfig.callAvailabilityEnd || prev.callAvailabilityEnd,
+        callAvailabilityDays: Array.isArray(agentConfig.callAvailabilityDays) 
+          ? agentConfig.callAvailabilityDays 
+          : prev.callAvailabilityDays,
+      }));
+
+      // Auto-select first available number if none selected
+      if (!selectedNumberId && inboundNumbers.length > 0) {
+        setSelectedNumberId(inboundNumbers[0].id);
+      }
+
+      setShowAutofillDialog(false);
+      setAutofillPrompt('');
+      setStatusMessage({ type: 'success', text: 'Agent details generated and filled successfully!' });
+    } catch (error: any) {
+      console.error('Error generating agent details:', error);
+      setAutofillError(error.message || 'Failed to generate agent details. Please try again.');
+      throw error;
+    }
+  };
+
+  const handleGenerateAutofill = async () => {
+    if (!autofillPrompt.trim()) {
+      setAutofillError('Please enter a description of your agent or business');
+      return;
+    }
+
+    setAutofillLoading(true);
+    setAutofillError(null);
+
+    try {
+      await generateAgentDetails(autofillPrompt.trim());
+    } catch (error: any) {
+      // Error is already set in generateAgentDetails
+    } finally {
+      setAutofillLoading(false);
     }
   };
 
@@ -882,15 +993,16 @@ const CreateVoiceAgent: React.FC = () => {
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-6" style={{ fontFamily: "'Manrope', sans-serif" }}>
         {/* Action Button */}
         <div className="flex justify-end">
           <Button 
             variant="outline" 
-            onClick={autofillForm}
+            onClick={handleOpenAutofillDialog}
+            disabled={isEditMode}
           >
             <Sparkles className="w-4 h-4 mr-2" />
-            Autofill
+            AI Autofill
           </Button>
         </div>
 
@@ -907,9 +1019,9 @@ const CreateVoiceAgent: React.FC = () => {
         ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-foreground">{isEditMode ? 'Edit Voice Agent' : 'Create New Voice Agent'}</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              {isEditMode ? 'Update your DNAI voice agent configuration' : 'Configure your DNAI voice agent to handle inbound calls'}
+            <CardTitle className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>{isEditMode ? 'Edit Voice Agent' : 'Create New Voice Agent'}</CardTitle>
+            <CardDescription className="text-[16px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              {isEditMode ? 'Update your Owly voice agent configuration' : 'Configure your Owly voice agent to handle inbound calls'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1001,7 +1113,7 @@ const CreateVoiceAgent: React.FC = () => {
               <Separator />
               <div className="flex items-center gap-2">
                 <Mic className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-semibold text-foreground">Voice Configuration</h3>
+                <h3 className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Voice Configuration</h3>
               </div>
 
               {/* Voice Selection */}
@@ -1144,7 +1256,7 @@ const CreateVoiceAgent: React.FC = () => {
                     name="script"
                     value={formData.script}
                     onChange={handleInputChange}
-                    placeholder="Drag file or type script for your DNAI agent."
+                    placeholder="Drag file or type script for your Owly agent."
                     rows={5}
                     required
                     className="pl-10 bg-background text-foreground border-border"
@@ -1156,7 +1268,7 @@ const CreateVoiceAgent: React.FC = () => {
               <Separator />
               <div className="flex items-center gap-2">
                 <Settings className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-semibold text-foreground">Call Availability Time</h3>
+                <h3 className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Call Availability Time</h3>
               </div>
 
               <div className="space-y-4">
@@ -1232,7 +1344,7 @@ const CreateVoiceAgent: React.FC = () => {
               <Separator />
               <div className="flex items-center gap-2">
                 <Phone className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-semibold text-foreground">Phone Number</h3>
+                <h3 className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Phone Number</h3>
               </div>
 
               {loadingNumbers ? (
@@ -1323,7 +1435,7 @@ const CreateVoiceAgent: React.FC = () => {
               <Separator />
               <div className="flex items-center gap-2">
                 <Settings className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-semibold text-foreground">Agent Settings</h3>
+                <h3 className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Agent Settings</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1480,7 +1592,7 @@ const CreateVoiceAgent: React.FC = () => {
               <Separator />
               <div className="flex items-center gap-2">
                 <Phone className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-semibold text-foreground">Fallback Configuration</h3>
+                <h3 className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Fallback Configuration</h3>
               </div>
 
               <div className="space-y-4">
@@ -1519,7 +1631,7 @@ const CreateVoiceAgent: React.FC = () => {
               <Separator />
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-semibold text-foreground">Knowledge Base</h3>
+                <h3 className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Knowledge Base</h3>
               </div>
 
               <div className="space-y-2">
@@ -1597,6 +1709,79 @@ const CreateVoiceAgent: React.FC = () => {
           </CardContent>
         </Card>
         )}
+
+        {/* AI Autofill Dialog */}
+        <Dialog open={showAutofillDialog} onOpenChange={setShowAutofillDialog}>
+          <DialogContent className="bg-card text-foreground border-border max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-foreground flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary" />
+                AI Agent Autofill
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                Describe your business or agent requirements, and AI will generate complete agent configuration details for you.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="autofillPrompt" className="text-foreground">
+                  Describe your agent or business
+                </Label>
+                <Textarea
+                  id="autofillPrompt"
+                  value={autofillPrompt}
+                  onChange={(e) => setAutofillPrompt(e.target.value)}
+                  placeholder="Example: I run an online tutoring platform called EduCare. We offer 1-on-1 live classes for students. I need a voice agent that can answer inquiries, schedule trial classes, and capture lead information. The agent should be friendly and professional."
+                  rows={6}
+                  className="bg-background text-foreground border-border resize-none"
+                  disabled={autofillLoading}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Be as detailed as possible. Include your company name, business type, services offered, and what you want the agent to do.
+                </p>
+              </div>
+              
+              {autofillError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{autofillError}</AlertDescription>
+                </Alert>
+              )}
+
+              {autofillLoading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  Generating agent details with AI...
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={handleCloseAutofillDialog}
+                disabled={autofillLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleGenerateAutofill}
+                disabled={autofillLoading || !autofillPrompt.trim()}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                {autofillLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate & Fill
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Warning Dialog for Number Reassignment */}
         <Dialog open={showNumberWarning} onOpenChange={setShowNumberWarning}>
