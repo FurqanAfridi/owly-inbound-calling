@@ -47,6 +47,28 @@ interface InboundNumber {
   telnyx_api_key?: string | null;
 }
 
+interface AgentConfig {
+  agentName?: string;
+  companyName?: string;
+  websiteUrl?: string;
+  goal?: string;
+  backgroundContext?: string;
+  welcomeMessage?: string;
+  instructionVoice?: string;
+  script?: string;
+  language?: string;
+  timezone?: string;
+  agentType?: string;
+  tool?: string;
+  voice?: string;
+  temperature?: number;
+  confidence?: number;
+  verbosity?: number;
+  callAvailabilityStart?: string;
+  callAvailabilityEnd?: string;
+  callAvailabilityDays?: string[];
+}
+
 const CreateVoiceAgent: React.FC = () => {
   const navigate = useNavigate();
   const { id: agentId } = useParams<{ id?: string }>();
@@ -348,10 +370,17 @@ const CreateVoiceAgent: React.FC = () => {
   };
 
   const generateAgentDetails = async (prompt: string) => {
-    const apiKey = process.env.REACT_APP_OPENAI_API_KEY;
+    // Support both REACT_APP_OPENAI_API and REACT_APP_OPENAI_API_KEY for flexibility
+    const apiKey = process.env.REACT_APP_OPENAI_API || process.env.REACT_APP_OPENAI_API_KEY;
+    
+    console.log('Checking for API key...');
+    console.log('REACT_APP_OPENAI_API:', process.env.REACT_APP_OPENAI_API ? 'Present' : 'Missing');
+    console.log('REACT_APP_OPENAI_API_KEY:', process.env.REACT_APP_OPENAI_API_KEY ? 'Present' : 'Missing');
     
     if (!apiKey) {
-      throw new Error('OpenAI API key is not configured. Please set REACT_APP_OPENAI_API_KEY in your environment variables.');
+      const errorMsg = 'OpenAI API key is not configured. Please set REACT_APP_OPENAI_API or REACT_APP_OPENAI_API_KEY in your .env.local file and restart the development server.';
+      console.error(errorMsg);
+      throw new Error(errorMsg);
     }
 
     const systemPrompt = `You are an AI assistant that helps create voice agent configurations. Based on the user's description, generate a complete voice agent configuration in JSON format.
@@ -382,37 +411,66 @@ Return ONLY a valid JSON object with the following structure:
 Make the content professional, realistic, and tailored to the user's business description.`;
 
     try {
+      console.log('Sending request to OpenAI API...');
+      const requestBody = {
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.7,
+        response_format: { type: 'json_object' },
+      };
+      
+      console.log('Request body:', { ...requestBody, messages: requestBody.messages.map(m => ({ ...m, content: m.content.substring(0, 100) + '...' })) });
+      
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.7,
-          response_format: { type: 'json_object' },
-        }),
+        body: JSON.stringify(requestBody),
       });
+      
+      console.log('Response status:', response.status, response.statusText);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `OpenAI API error: ${response.status} ${response.statusText}`);
+        let errorMessage = `OpenAI API error: ${response.status} ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error?.message || errorMessage;
+          console.error('OpenAI API error details:', errorData);
+        } catch (parseError) {
+          const errorText = await response.text().catch(() => 'No error details');
+          console.error('OpenAI API error response:', errorText);
+          errorMessage = `OpenAI API error (${response.status}): ${errorText.substring(0, 200)}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
+      console.log('OpenAI API response received');
+      
       const content = data.choices[0]?.message?.content;
       
       if (!content) {
-        throw new Error('No response content from OpenAI');
+        console.error('No content in OpenAI response:', data);
+        throw new Error('No response content from OpenAI. Please try again.');
       }
+      
+      console.log('Parsing OpenAI response content...');
 
       // Parse JSON response
-      const agentConfig = JSON.parse(content);
+      let agentConfig: AgentConfig;
+      try {
+        agentConfig = JSON.parse(content) as AgentConfig;
+        console.log('Successfully parsed agent configuration');
+      } catch (parseError: any) {
+        console.error('Failed to parse JSON response:', parseError);
+        console.error('Response content:', content);
+        throw new Error('Failed to parse AI response. The response may not be in valid JSON format. Please try again.');
+      }
 
       // Validate and set form data
       setFormData(prev => ({
@@ -455,19 +513,41 @@ Make the content professional, realistic, and tailored to the user's business de
     }
   };
 
-  const handleGenerateAutofill = async () => {
+  const handleGenerateAutofill = async (e?: React.MouseEvent) => {
+    // Prevent form submission if button is inside a form
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
     if (!autofillPrompt.trim()) {
       setAutofillError('Please enter a description of your agent or business');
+      return;
+    }
+
+    // Check for API key before starting
+    const apiKey = process.env.REACT_APP_OPENAI_API || process.env.REACT_APP_OPENAI_API_KEY;
+    if (!apiKey) {
+      setAutofillError(
+        'OpenAI API key is not configured. Please add REACT_APP_OPENAI_API to your .env.local file and restart the development server.'
+      );
       return;
     }
 
     setAutofillLoading(true);
     setAutofillError(null);
 
+    console.log('Starting AI autofill generation...');
+    console.log('API Key present:', !!apiKey);
+    console.log('Prompt length:', autofillPrompt.trim().length);
+
     try {
       await generateAgentDetails(autofillPrompt.trim());
+      console.log('AI autofill completed successfully');
     } catch (error: any) {
-      // Error is already set in generateAgentDetails
+      console.error('AI autofill error:', error);
+      // Ensure error is displayed
+      setAutofillError(error.message || 'Failed to generate agent details. Please check the console for details and try again.');
     } finally {
       setAutofillLoading(false);
     }
@@ -1723,6 +1803,15 @@ Make the content professional, realistic, and tailored to the user's business de
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              {/* API Key Status Indicator */}
+              {(!process.env.REACT_APP_OPENAI_API && !process.env.REACT_APP_OPENAI_API_KEY) && (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    <strong>Configuration Required:</strong> OpenAI API key not found. Please add <code className="text-xs bg-muted px-1 py-0.5 rounded">REACT_APP_OPENAI_API</code> to your <code className="text-xs bg-muted px-1 py-0.5 rounded">.env.local</code> file and restart the development server.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
               <div className="space-y-2">
                 <Label htmlFor="autofillPrompt" className="text-foreground">
                   Describe your agent or business
@@ -1730,14 +1819,24 @@ Make the content professional, realistic, and tailored to the user's business de
                 <Textarea
                   id="autofillPrompt"
                   value={autofillPrompt}
-                  onChange={(e) => setAutofillPrompt(e.target.value)}
+                  onChange={(e) => {
+                    setAutofillPrompt(e.target.value);
+                    setAutofillError(null); // Clear error when user types
+                  }}
+                  onKeyDown={(e) => {
+                    // Allow Ctrl+Enter or Cmd+Enter to submit
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && autofillPrompt.trim() && !autofillLoading) {
+                      e.preventDefault();
+                      handleGenerateAutofill();
+                    }
+                  }}
                   placeholder="Example: I run an online tutoring platform called EduCare. We offer 1-on-1 live classes for students. I need a voice agent that can answer inquiries, schedule trial classes, and capture lead information. The agent should be friendly and professional."
                   rows={6}
                   className="bg-background text-foreground border-border resize-none"
                   disabled={autofillLoading}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Be as detailed as possible. Include your company name, business type, services offered, and what you want the agent to do.
+                  Be as detailed as possible. Include your company name, business type, services offered, and what you want the agent to do. Press Ctrl+Enter (or Cmd+Enter on Mac) to generate.
                 </p>
               </div>
               
@@ -1756,6 +1855,7 @@ Make the content professional, realistic, and tailored to the user's business de
             </div>
             <DialogFooter>
               <Button
+                type="button"
                 variant="outline"
                 onClick={handleCloseAutofillDialog}
                 disabled={autofillLoading}
@@ -1763,7 +1863,11 @@ Make the content professional, realistic, and tailored to the user's business de
                 Cancel
               </Button>
               <Button
-                onClick={handleGenerateAutofill}
+                type="button"
+                onClick={(e) => {
+                  console.log('Generate button clicked');
+                  handleGenerateAutofill(e);
+                }}
                 disabled={autofillLoading || !autofillPrompt.trim()}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
