@@ -63,6 +63,7 @@ const CreateVoiceAgent: React.FC = () => {
   const [pendingNumberId, setPendingNumberId] = useState<string>('');
   const [previousAgent, setPreviousAgent] = useState<{ id: string; name: string } | null>(null);
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
+  const [knowledgeBases, setKnowledgeBases] = useState<Array<{ id: string; name: string }>>([]);
 
   const [formData, setFormData] = useState({
     agentName: '',
@@ -79,6 +80,11 @@ const CreateVoiceAgent: React.FC = () => {
     tool: '',
     voice: 'helena', // Default to helena (Deepgram)
     temperature: 0.7, // Default temperature between 0 and 1
+    confidence: 0.8, // Default confidence between 0 and 1
+    verbosity: 0.7, // Default verbosity between 0 and 1
+    fallbackEnabled: false,
+    fallbackNumber: '',
+    knowledgeBaseId: '', // Selected knowledge base ID
     callAvailabilityStart: '09:00',
     callAvailabilityEnd: '17:00',
     callAvailabilityDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
@@ -106,6 +112,7 @@ const CreateVoiceAgent: React.FC = () => {
     const initialize = async () => {
       await fetchInboundNumbers();
       await fetchAgents();
+      await fetchKnowledgeBases();
       if (isEditMode && agentId && user) {
         // Wait a bit for inbound numbers to be loaded
         setTimeout(() => {
@@ -140,6 +147,22 @@ const CreateVoiceAgent: React.FC = () => {
       setAgents(data || []);
     } catch (err: any) {
       console.error('Error fetching agents:', err);
+    }
+  };
+
+  const fetchKnowledgeBases = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('knowledge_bases')
+        .select('id, name')
+        .eq('user_id', user.id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setKnowledgeBases(data || []);
+    } catch (err: any) {
+      console.error('Error fetching knowledge bases:', err);
     }
   };
 
@@ -246,6 +269,11 @@ const CreateVoiceAgent: React.FC = () => {
           tool: data.tool || '',
           voice: data.voice || 'helena',
           temperature: data.temperature || 0.7,
+          confidence: data.confidence || 0.8,
+          verbosity: data.verbosity || 0.7,
+          fallbackEnabled: data.fallback_enabled || false,
+          fallbackNumber: data.fallback_number || '',
+          knowledgeBaseId: data.knowledge_base_id || '',
           callAvailabilityStart: data.metadata?.call_availability_start || '09:00',
           callAvailabilityEnd: data.metadata?.call_availability_end || '17:00',
           callAvailabilityDays: data.metadata?.call_availability_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
@@ -291,6 +319,14 @@ const CreateVoiceAgent: React.FC = () => {
     setFormData(prev => ({ ...prev, temperature: value[0] }));
   };
 
+  const handleConfidenceChange = (value: number[]) => {
+    setFormData(prev => ({ ...prev, confidence: value[0] }));
+  };
+
+  const handleVerbosityChange = (value: number[]) => {
+    setFormData(prev => ({ ...prev, verbosity: value[0] }));
+  };
+
   const getSelectedNumber = (): InboundNumber | null => {
     return inboundNumbers.find(n => n.id === selectedNumberId) || null;
   };
@@ -311,6 +347,11 @@ const CreateVoiceAgent: React.FC = () => {
       tool: 'calendar',
       voice: 'helena',
       temperature: 0.7,
+      confidence: 0.8,
+      verbosity: 0.7,
+      fallbackEnabled: false,
+      fallbackNumber: '',
+      knowledgeBaseId: '',
       callAvailabilityStart: '09:00',
       callAvailabilityEnd: '17:00',
       callAvailabilityDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
@@ -423,6 +464,10 @@ const CreateVoiceAgent: React.FC = () => {
         voice: formData.voice,
         voice_provider: getSelectedVoice()?.provider || 'deepgram',
         temperature: formData.temperature,
+        confidence: formData.confidence,
+        verbosity: formData.verbosity,
+        fallback_enabled: formData.fallbackEnabled,
+        fallback_number: formData.fallbackEnabled ? formData.fallbackNumber : null,
         tone: 'professional',
         model: 'gpt-4o',
         background_noise: 'office',
@@ -432,10 +477,15 @@ const CreateVoiceAgent: React.FC = () => {
         status: 'active',
         created_at: currentTime,
         updated_at: currentTime,
+        knowledge_base_id: formData.knowledgeBaseId || null,
         metadata: {
           call_availability_start: formData.callAvailabilityStart,
           call_availability_end: formData.callAvailabilityEnd,
           call_availability_days: formData.callAvailabilityDays,
+          fallback_config: {
+            enabled: formData.fallbackEnabled,
+            number: formData.fallbackNumber,
+          },
         },
       };
 
@@ -448,6 +498,46 @@ const CreateVoiceAgent: React.FC = () => {
         agentData.vonage_api_secret = selectedNumber.vonage_api_secret;
       } else if (selectedNumber.provider === 'telnyx') {
         agentData.telnyx_api_key = selectedNumber.telnyx_api_key;
+      }
+
+      // Fetch knowledge base FAQs and documents if a knowledge base is selected
+      let knowledgeBaseData = null;
+      if (formData.knowledgeBaseId) {
+        try {
+          // Fetch FAQs
+          const { data: faqsData, error: faqsError } = await supabase
+            .from('knowledge_base_faqs')
+            .select('id, question, answer, category, priority, display_order')
+            .eq('knowledge_base_id', formData.knowledgeBaseId)
+            .is('deleted_at', null)
+            .order('priority', { ascending: false })
+            .order('display_order', { ascending: true });
+
+          if (faqsError) {
+            console.error('Error fetching FAQs:', faqsError);
+          }
+
+          // Fetch Documents
+          const { data: docsData, error: docsError } = await supabase
+            .from('knowledge_base_documents')
+            .select('id, name, file_type, file_url, file_size, description, storage_path')
+            .eq('knowledge_base_id', formData.knowledgeBaseId)
+            .is('deleted_at', null)
+            .order('uploaded_at', { ascending: false });
+
+          if (docsError) {
+            console.error('Error fetching documents:', docsError);
+          }
+
+          knowledgeBaseData = {
+            id: formData.knowledgeBaseId,
+            faqs: faqsData || [],
+            documents: docsData || [],
+          };
+        } catch (err: any) {
+          console.error('Error fetching knowledge base data:', err);
+          // Continue without knowledge base data if fetch fails
+        }
       }
 
       // Call appropriate webhook based on mode
@@ -479,10 +569,20 @@ const CreateVoiceAgent: React.FC = () => {
             ...agentData,
             voice_provider: getSelectedVoice()?.provider || 'deepgram',
             executionMode: 'production',
+            confidence: formData.confidence,
+            verbosity: formData.verbosity,
+            fallback_enabled: formData.fallbackEnabled,
+            fallback_number: formData.fallbackEnabled ? formData.fallbackNumber : null,
+            knowledge_base_id: formData.knowledgeBaseId || null,
+            knowledge_base: knowledgeBaseData,
             call_availability: {
               start_time: formData.callAvailabilityStart,
               end_time: formData.callAvailabilityEnd,
               days: formData.callAvailabilityDays,
+            },
+            fallback_config: {
+              enabled: formData.fallbackEnabled,
+              number: formData.fallbackNumber,
             },
           };
 
@@ -544,10 +644,20 @@ const CreateVoiceAgent: React.FC = () => {
             account_in_use: false,
             voice_provider: getSelectedVoice()?.provider || 'deepgram',
             executionMode: 'production',
+            confidence: formData.confidence,
+            verbosity: formData.verbosity,
+            fallback_enabled: formData.fallbackEnabled,
+            fallback_number: formData.fallbackEnabled ? formData.fallbackNumber : null,
+            knowledge_base_id: formData.knowledgeBaseId || null,
+            knowledge_base: knowledgeBaseData,
             call_availability: {
               start_time: formData.callAvailabilityStart,
               end_time: formData.callAvailabilityEnd,
               days: formData.callAvailabilityDays,
+            },
+            fallback_config: {
+              enabled: formData.fallbackEnabled,
+              number: formData.fallbackNumber,
             },
           };
 
@@ -604,12 +714,20 @@ const CreateVoiceAgent: React.FC = () => {
           call_availability_start: formData.callAvailabilityStart,
           call_availability_end: formData.callAvailabilityEnd,
           call_availability_days: formData.callAvailabilityDays,
+          fallback_config: {
+            enabled: formData.fallbackEnabled,
+            number: formData.fallbackNumber,
+          },
         };
         
         const { data: updateData, error: updateError } = await supabase
           .from('voice_agents')
           .update({
             ...agentData,
+            confidence: formData.confidence,
+            verbosity: formData.verbosity,
+            fallback_enabled: formData.fallbackEnabled,
+            fallback_number: formData.fallbackEnabled ? formData.fallbackNumber : null,
             metadata: updatedMetadata,
             updated_at: currentTime,
           })
@@ -748,6 +866,11 @@ const CreateVoiceAgent: React.FC = () => {
       tool: '',
       voice: 'helena',
       temperature: 0.7,
+      confidence: 0.8,
+      verbosity: 0.7,
+      fallbackEnabled: false,
+      fallbackNumber: '',
+      knowledgeBaseId: '',
       callAvailabilityStart: '09:00',
       callAvailabilityEnd: '17:00',
       callAvailabilityDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
@@ -1294,6 +1417,134 @@ const CreateVoiceAgent: React.FC = () => {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Controls the randomness of the model's responses. Lower values make responses more focused and deterministic, while higher values make them more creative and varied.
+                </p>
+              </div>
+
+              {/* Confidence Control */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="confidence" className="text-foreground">Confidence Level *</Label>
+                  <span className="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-md">
+                    {formData.confidence.toFixed(2)}
+                  </span>
+                </div>
+                <div className="px-2">
+                  <Slider
+                    value={[formData.confidence]}
+                    onValueChange={handleConfidenceChange}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    className="w-full"
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>0.0 (Low)</span>
+                  <span>0.5 (Medium)</span>
+                  <span>1.0 (High)</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Controls how confident the agent should be before responding. Higher values make the agent more decisive.
+                </p>
+              </div>
+
+              {/* Verbosity Control */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="verbosity" className="text-foreground">Verbosity Level *</Label>
+                  <span className="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-md">
+                    {formData.verbosity.toFixed(2)}
+                  </span>
+                </div>
+                <div className="px-2">
+                  <Slider
+                    value={[formData.verbosity]}
+                    onValueChange={handleVerbosityChange}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    className="w-full"
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>0.0 (Concise)</span>
+                  <span>0.5 (Balanced)</span>
+                  <span>1.0 (Detailed)</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Controls response length. Lower values make responses brief, higher values provide more detail.
+                </p>
+              </div>
+
+              {/* Fallback Number Configuration */}
+              <Separator />
+              <div className="flex items-center gap-2">
+                <Phone className="w-5 h-5 text-primary" />
+                <h3 className="text-lg font-semibold text-foreground">Fallback Configuration</h3>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="fallbackEnabled"
+                    checked={formData.fallbackEnabled}
+                    onChange={(e) => setFormData(prev => ({ ...prev, fallbackEnabled: e.target.checked }))}
+                    className="rounded"
+                  />
+                  <Label htmlFor="fallbackEnabled" className="text-foreground">
+                    Enable Fallback Number
+                  </Label>
+                </div>
+                
+                {formData.fallbackEnabled && (
+                  <div className="space-y-2">
+                    <Label htmlFor="fallbackNumber" className="text-foreground">Fallback Phone Number</Label>
+                    <Input
+                      id="fallbackNumber"
+                      name="fallbackNumber"
+                      value={formData.fallbackNumber}
+                      onChange={handleInputChange}
+                      placeholder="+1234567890"
+                      className="bg-background text-foreground border-border"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Number to call if the agent fails or after retries are exhausted
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Knowledge Base Selection */}
+              <Separator />
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary" />
+                <h3 className="text-lg font-semibold text-foreground">Knowledge Base</h3>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="knowledgeBase" className="text-foreground">Assign Knowledge Base (Optional)</Label>
+                <Select 
+                  value={formData.knowledgeBaseId || 'none'} 
+                  onValueChange={(value) => handleSelectChange('knowledgeBaseId', value === 'none' ? '' : value)}
+                >
+                  <SelectTrigger className="bg-background text-foreground border-border">
+                    <SelectValue placeholder="Select a knowledge base" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {knowledgeBases.map((kb) => (
+                      <SelectItem key={kb.id} value={kb.id}>
+                        {kb.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Select a knowledge base to provide FAQs and documents to this agent.{' '}
+                  <Link to="/knowledge-bases" className="text-primary hover:underline">
+                    Manage knowledge bases
+                  </Link>
                 </p>
               </div>
 

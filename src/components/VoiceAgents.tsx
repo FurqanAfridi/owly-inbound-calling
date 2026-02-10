@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Phone, Users } from 'lucide-react';
+import { Plus, Edit, Trash2, Phone, Users, Play, Pause } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import CallStatusSummary from './dashboard/CallStatusSummary';
@@ -209,6 +209,35 @@ const VoiceAgents: React.FC = () => {
     }
   };
 
+  const handleToggleStatus = async (agentId: string, currentStatus: string, agentName: string) => {
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    const action = newStatus === 'active' ? 'enable' : 'disable';
+    
+    if (!window.confirm(`Are you sure you want to ${action} "${agentName}"?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('voice_agents')
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', agentId)
+        .eq('user_id', user?.id);
+
+      if (error) {
+        throw error;
+      }
+      
+      loadAgents(); // Refresh list
+    } catch (err: any) {
+      console.error('Error updating agent status:', err);
+      alert(`Failed to ${action} agent. Please try again.`);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const statusConfig: { [key: string]: { variant: 'default' | 'success' | 'warning' | 'destructive'; label: string } } = {
       active: { variant: 'success', label: 'Active' },
@@ -348,7 +377,24 @@ const VoiceAgents: React.FC = () => {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell>{getStatusBadge(agent.status)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getStatusBadge(agent.status)}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleToggleStatus(agent.id, agent.status, agent.name)}
+                              title={agent.status === 'active' ? 'Disable Agent' : 'Enable Agent'}
+                              className="h-7 w-7 p-0"
+                            >
+                              {agent.status === 'active' ? (
+                                <Pause className="w-4 h-4" />
+                              ) : (
+                                <Play className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </TableCell>
                         <TableCell className="text-muted-foreground">
                           {formatDate(agent.created_at)}
                         </TableCell>
@@ -358,6 +404,7 @@ const VoiceAgents: React.FC = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => navigate(`/edit-agent/${agent.id}`)}
+                              title="Edit Agent"
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -366,6 +413,7 @@ const VoiceAgents: React.FC = () => {
                               size="sm"
                               onClick={() => handleDelete(agent.id, agent.name)}
                               className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              title="Delete Agent"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>

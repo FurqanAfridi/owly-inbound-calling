@@ -9,7 +9,8 @@ import {
   UserPlus,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  BookOpen
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useThemeMode } from '@/contexts/ThemeContext';
@@ -28,6 +29,7 @@ const sidebarItems: SidebarItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="sidebar-item-icon" />, path: '/dashboard' },
   { id: 'voice-agents', label: 'Voice Agents', icon: <Users className="sidebar-item-icon" />, path: '/agents' },
   { id: 'inbound-numbers', label: 'Inbound Numbers', icon: <PhoneIncoming className="sidebar-item-icon" />, path: '/inbound-numbers' },
+  { id: 'knowledge-bases', label: 'Knowledge Bases', icon: <BookOpen className="sidebar-item-icon" />, path: '/knowledge-bases' },
   { id: 'call-schedules', label: 'Call Schedules', icon: <Calendar className="sidebar-item-icon" />, path: '/call-schedules' },
   { id: 'call-history', label: 'Call History', icon: <History className="sidebar-item-icon" />, path: '/call-history' },
   { id: 'leads', label: 'Leads', icon: <UserPlus className="sidebar-item-icon" />, path: '/leads' },

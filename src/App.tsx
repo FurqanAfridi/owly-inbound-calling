@@ -21,6 +21,7 @@ import CallSchedules from './components/CallSchedules';
 import CallHistory from './components/CallHistory';
 import Leads from './components/Leads';
 import Billing from './components/Billing';
+import KnowledgeBases from './components/KnowledgeBases';
 import TwoFactorAuth from './components/TwoFactorAuth';
 import LoginActivity from './components/LoginActivity';
 import AccountDeactivation from './components/AccountDeactivation';
@@ -74,6 +75,7 @@ const App: React.FC = () => {
                   <Route path="/call-history" element={<CallHistory />} />
                   <Route path="/leads" element={<Leads />} />
                   <Route path="/billing" element={<Billing />} />
+                  <Route path="/knowledge-bases" element={<KnowledgeBases />} />
                 </Route>
               </Routes>
             </Router>
