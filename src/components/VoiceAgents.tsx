@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Phone, MoreVertical, Eye, Pencil, Trash2, GraduationCap } from 'lucide-react';
+import { Plus, Phone, MoreVertical, Eye, Pencil, Trash2, GraduationCap, Power, PowerOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Button } from './ui/button';
@@ -135,6 +135,83 @@ const VoiceAgents: React.FC = () => {
     setOpenMenuId(null);
   };
 
+  const handleToggleStatus = async (agent: VoiceAgent) => {
+    const newStatus = agent.status === 'active' ? 'inactive' : 'active';
+    const webhookUrl = newStatus === 'active' 
+      ? process.env.REACT_APP_BIND_WEBHOOK_URL 
+      : process.env.REACT_APP_UN_BIND_WEBHOOK_URL;
+
+    if (!webhookUrl) {
+      alert(`Webhook URL is not configured for ${newStatus === 'active' ? 'binding' : 'unbinding'}`);
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to ${newStatus === 'active' ? 'enable' : 'disable'} "${agent.name}"?`)) {
+      return;
+    }
+
+    try {
+      // Get complete agent data
+      const { data: fullAgent, error: fetchError } = await supabase
+        .from('voice_agents')
+        .select('*')
+        .eq('id', agent.id)
+        .eq('user_id', user?.id)
+        .single();
+
+      if (fetchError || !fullAgent) {
+        throw new Error('Failed to fetch agent details');
+      }
+
+      // Prepare webhook payload with all agent details
+      const webhookPayload = {
+        agent_id: fullAgent.id,
+        owner_user_id: user?.id,
+        ...fullAgent,
+        status: newStatus,
+      };
+
+      // Call webhook
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      const webhookResponse = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(webhookPayload),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!webhookResponse.ok) {
+        const errorText = await webhookResponse.text().catch(() => 'No error details available');
+        throw new Error(`Webhook failed: ${webhookResponse.status} ${webhookResponse.statusText} - ${errorText}`);
+      }
+
+      // Update agent status in database
+      const { error: updateError } = await supabase
+        .from('voice_agents')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', agent.id)
+        .eq('user_id', user?.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Reload agents
+      loadAgents();
+      setOpenMenuId(null);
+    } catch (err: any) {
+      console.error('Error toggling agent status:', err);
+      alert(`Failed to ${newStatus === 'active' ? 'enable' : 'disable'} agent: ${err.message || 'Unknown error'}`);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
@@ -241,7 +318,7 @@ const VoiceAgents: React.FC = () => {
                           <MoreVertical className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-[91px] p-1">
+                      <DropdownMenuContent align="end" className="w-[140px] p-1">
                         <DropdownMenuItem 
                           onClick={() => handleView(agent.id)} 
                           className="gap-2 text-[14px] px-2 py-1.5"
@@ -255,6 +332,24 @@ const VoiceAgents: React.FC = () => {
                         >
                           <Pencil className="w-4 h-4" />
                           Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleToggleStatus(agent)} 
+                          className={`gap-2 text-[14px] px-2 py-1.5 ${
+                            agent.status === 'active' ? 'text-[#e7000b]' : 'text-[#016630]'
+                          }`}
+                        >
+                          {agent.status === 'active' ? (
+                            <>
+                              <PowerOff className="w-4 h-4" />
+                              Disable
+                            </>
+                          ) : (
+                            <>
+                              <Power className="w-4 h-4" />
+                              Enable
+                            </>
+                          )}
                         </DropdownMenuItem>
                         <DropdownMenuItem 
                           onClick={() => handleDelete(agent.id, agent.name)} 

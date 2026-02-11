@@ -6,9 +6,10 @@ import { cn } from '@/lib/utils';
 interface CountryCodeSelectorProps {
   value: string;
   onChange: (code: string) => void;
+  disabled?: boolean;
 }
 
-const CountryCodeSelector: React.FC<CountryCodeSelectorProps> = ({ value, onChange }) => {
+const CountryCodeSelector: React.FC<CountryCodeSelectorProps> = ({ value, onChange, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -44,8 +45,9 @@ const CountryCodeSelector: React.FC<CountryCodeSelectorProps> = ({ value, onChan
     <div className="country-selector-root" ref={dropdownRef}>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
         className="country-selector-button"
+        disabled={disabled}
       >
         <span className="country-selector-flag">{selectedCountry.flag}</span>
         <ChevronDown className={cn("country-selector-chevron", isOpen && "country-selector-chevron-open")} />

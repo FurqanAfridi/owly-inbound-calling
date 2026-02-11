@@ -935,6 +935,82 @@ IMPORTANT:
       
       updateData.metadata = updatedMetadata;
 
+      // Handle number assignment if changed
+      if (selectedNumberId) {
+        const selectedNumber = getSelectedNumber();
+        if (selectedNumber) {
+          // Check if number is assigned to another agent
+          if (selectedNumber.assigned_to_agent_id && selectedNumber.assigned_to_agent_id !== editingAgent.id) {
+            const unBindWebhookUrl = process.env.REACT_APP_UN_BIND_WEBHOOK_URL;
+            if (unBindWebhookUrl) {
+              // Get the agent that currently has this number
+              const { data: currentAgent, error: agentError } = await supabase
+                .from('voice_agents')
+                .select('*')
+                .eq('id', selectedNumber.assigned_to_agent_id)
+                .eq('user_id', user.id)
+                .single();
+
+              if (!agentError && currentAgent) {
+                // Call unbind webhook
+                try {
+                  const unbindPayload = {
+                    agent_id: currentAgent.id,
+                    owner_user_id: user.id,
+                    ...currentAgent,
+                  };
+
+                  const controller = new AbortController();
+                  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+                  const unbindResponse = await fetch(unBindWebhookUrl, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Accept': 'application/json',
+                    },
+                    body: JSON.stringify(unbindPayload),
+                    signal: controller.signal,
+                  });
+
+                  clearTimeout(timeoutId);
+
+                  if (!unbindResponse.ok) {
+                    const errorText = await unbindResponse.text().catch(() => 'No error details available');
+                    console.error(`Unbind webhook failed: ${errorText}`);
+                  }
+                } catch (unbindError: any) {
+                  console.error('Error calling unbind webhook:', unbindError);
+                }
+              }
+
+              // Remove assignment from inbound_numbers
+              await supabase
+                .from('inbound_numbers')
+                .update({ assigned_to_agent_id: null, updated_at: new Date().toISOString() })
+                .eq('id', selectedNumber.id);
+            }
+          }
+
+          // Update agent's phone number fields
+          updateData.phone_provider = selectedNumber.provider;
+          updateData.phone_number = selectedNumber.phone_number;
+          updateData.phone_label = selectedNumber.phone_label || '';
+          
+          // Add provider-specific fields
+          if (selectedNumber.provider === 'twilio') {
+            updateData.twilio_sid = selectedNumber.twilio_sid;
+            updateData.twilio_auth_token = selectedNumber.twilio_auth_token;
+            updateData.sms_enabled = selectedNumber.sms_enabled || false;
+          } else if (selectedNumber.provider === 'vonage') {
+            updateData.vonage_api_key = selectedNumber.vonage_api_key;
+            updateData.vonage_api_secret = selectedNumber.vonage_api_secret;
+          } else if (selectedNumber.provider === 'telnyx') {
+            updateData.telnyx_api_key = selectedNumber.telnyx_api_key;
+          }
+        }
+      }
+
       const { error: updateError } = await supabase
         .from('voice_agents')
         .update(updateData)
@@ -942,6 +1018,64 @@ IMPORTANT:
         .eq('user_id', user.id);
 
       if (updateError) throw updateError;
+
+      // Update inbound number assignment if changed
+      if (selectedNumberId) {
+        const selectedNumber = getSelectedNumber();
+        if (selectedNumber) {
+          await supabase
+            .from('inbound_numbers')
+            .update({ 
+              assigned_to_agent_id: editingAgent.id,
+              is_in_use: true,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', selectedNumberId);
+
+          // Call bind webhook after successful assignment
+          const bindWebhookUrl = process.env.REACT_APP_BIND_WEBHOOK_URL;
+          if (bindWebhookUrl) {
+            try {
+              const { data: completeAgent } = await supabase
+                .from('voice_agents')
+                .select('*')
+                .eq('id', editingAgent.id)
+                .eq('user_id', user.id)
+                .single();
+
+              if (completeAgent) {
+                const bindPayload = {
+                  agent_id: completeAgent.id,
+                  owner_user_id: user.id,
+                  ...completeAgent,
+                };
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+                const bindResponse = await fetch(bindWebhookUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                  },
+                  body: JSON.stringify(bindPayload),
+                  signal: controller.signal,
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!bindResponse.ok) {
+                  const errorText = await bindResponse.text().catch(() => 'No error details available');
+                  console.error(`Bind webhook failed: ${errorText}`);
+                }
+              }
+            } catch (bindError: any) {
+              console.error('Error calling bind webhook:', bindError);
+            }
+          }
+        }
+      }
 
       // Get complete updated agent data for webhook
       const { data: updatedAgent } = await supabase
@@ -1102,47 +1236,109 @@ IMPORTANT:
         if (selectedNumber) {
           // Check if number is assigned to another agent
           if (selectedNumber.assigned_to_agent_id && selectedNumber.assigned_to_agent_id !== editingAgent.id) {
-            // Remove assignment from previous agent
-            await supabase
-              .from('inbound_numbers')
-              .update({ assigned_to_agent_id: null, updated_at: new Date().toISOString() })
-              .eq('id', selectedNumber.id);
-          }
+            const unBindWebhookUrl = process.env.REACT_APP_UN_BIND_WEBHOOK_URL;
+            if (unBindWebhookUrl) {
+              // Get the agent that currently has this number
+              const { data: currentAgent, error: agentError } = await supabase
+                .from('voice_agents')
+                .select('*')
+                .eq('id', selectedNumber.assigned_to_agent_id)
+                .eq('user_id', user.id)
+                .single();
 
-          // Update agent's phone number fields
-          const phoneUpdateData: any = {
-            phone_provider: selectedNumber.provider,
-            phone_number: selectedNumber.phone_number,
-            phone_label: selectedNumber.phone_label || '',
-          };
-          
-          // Add provider-specific fields
-          if (selectedNumber.provider === 'twilio') {
-            phoneUpdateData.twilio_sid = selectedNumber.twilio_sid;
-            phoneUpdateData.twilio_auth_token = selectedNumber.twilio_auth_token;
-            phoneUpdateData.sms_enabled = selectedNumber.sms_enabled || false;
-          } else if (selectedNumber.provider === 'vonage') {
-            phoneUpdateData.vonage_api_key = selectedNumber.vonage_api_key;
-            phoneUpdateData.vonage_api_secret = selectedNumber.vonage_api_secret;
-          } else if (selectedNumber.provider === 'telnyx') {
-            phoneUpdateData.telnyx_api_key = selectedNumber.telnyx_api_key;
-          }
+              if (!agentError && currentAgent) {
+                // Call unbind webhook
+                try {
+                  const unbindPayload = {
+                    agent_id: currentAgent.id,
+                    owner_user_id: user.id,
+                    ...currentAgent,
+                  };
 
-          // Update agent with phone number data
-          await supabase
-            .from('voice_agents')
-            .update(phoneUpdateData)
-            .eq('id', editingAgent.id)
-            .eq('user_id', user.id);
+                  const controller = new AbortController();
+                  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+                  const unbindResponse = await fetch(unBindWebhookUrl, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Accept': 'application/json',
+                    },
+                    body: JSON.stringify(unbindPayload),
+                    signal: controller.signal,
+                  });
+
+                  clearTimeout(timeoutId);
+
+                  if (!unbindResponse.ok) {
+                    const errorText = await unbindResponse.text().catch(() => 'No error details available');
+                    console.error(`Unbind webhook failed: ${errorText}`);
+                  }
+                } catch (unbindError: any) {
+                  console.error('Error calling unbind webhook:', unbindError);
+                }
+              }
+
+              // Remove assignment from inbound_numbers
+              await supabase
+                .from('inbound_numbers')
+                .update({ assigned_to_agent_id: null, updated_at: new Date().toISOString() })
+                .eq('id', selectedNumber.id);
+            }
+          }
 
           // Assign number to this agent
           await supabase
             .from('inbound_numbers')
             .update({ 
               assigned_to_agent_id: editingAgent.id,
+              is_in_use: true,
               updated_at: new Date().toISOString()
             })
             .eq('id', selectedNumberId);
+
+          // Call bind webhook after successful assignment
+          const bindWebhookUrl = process.env.REACT_APP_BIND_WEBHOOK_URL;
+          if (bindWebhookUrl) {
+            try {
+              const { data: completeAgent } = await supabase
+                .from('voice_agents')
+                .select('*')
+                .eq('id', editingAgent.id)
+                .eq('user_id', user.id)
+                .single();
+
+              if (completeAgent) {
+                const bindPayload = {
+                  agent_id: completeAgent.id,
+                  owner_user_id: user.id,
+                  ...completeAgent,
+                };
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+                const bindResponse = await fetch(bindWebhookUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                  },
+                  body: JSON.stringify(bindPayload),
+                  signal: controller.signal,
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!bindResponse.ok) {
+                  const errorText = await bindResponse.text().catch(() => 'No error details available');
+                  console.error(`Bind webhook failed: ${errorText}`);
+                }
+              }
+            } catch (bindError: any) {
+              console.error('Error calling bind webhook:', bindError);
+            }
+          }
         }
       }
 
@@ -1277,6 +1473,72 @@ IMPORTANT:
     setLoading(true);
 
     try {
+      // Check if selected number is already assigned to another agent
+      const selectedNumber = getSelectedNumber();
+      if (!selectedNumber) {
+        setStatusMessage({ type: 'error', text: 'Selected number not found. Please refresh and try again.' });
+        setLoading(false);
+        return;
+      }
+
+      if (selectedNumber.assigned_to_agent_id) {
+        // If creating new agent or editing different agent, need to unbind first
+        if (!isEditMode || (editingAgent && selectedNumber.assigned_to_agent_id !== editingAgent.id)) {
+          const unBindWebhookUrl = process.env.REACT_APP_UN_BIND_WEBHOOK_URL;
+          if (!unBindWebhookUrl) {
+            throw new Error('Unbind webhook URL is not configured');
+          }
+
+          // Get the agent that currently has this number
+          const { data: currentAgent, error: agentError } = await supabase
+            .from('voice_agents')
+            .select('*')
+            .eq('id', selectedNumber.assigned_to_agent_id)
+            .eq('user_id', user.id)
+            .single();
+
+          if (agentError && agentError.code !== 'PGRST116') {
+            console.error('Error fetching current agent:', agentError);
+          }
+
+          if (currentAgent) {
+            // Prepare unbind webhook payload
+            const unbindPayload = {
+              agent_id: currentAgent.id,
+              owner_user_id: user.id,
+              ...currentAgent,
+            };
+
+            // Call unbind webhook
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+            const unbindResponse = await fetch(unBindWebhookUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify(unbindPayload),
+              signal: controller.signal,
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!unbindResponse.ok) {
+              const errorText = await unbindResponse.text().catch(() => 'No error details available');
+              throw new Error(`Failed to unbind number from existing agent: ${unbindResponse.status} ${unbindResponse.statusText} - ${errorText}`);
+            }
+
+            // Remove assignment from inbound_numbers
+            await supabase
+              .from('inbound_numbers')
+              .update({ assigned_to_agent_id: null, updated_at: new Date().toISOString() })
+              .eq('id', selectedNumber.id);
+          }
+        }
+      }
+
       const currentAgentId = isEditMode && editingAgent ? editingAgent.id : crypto.randomUUID();
       const currentTime = new Date().toISOString();
       
@@ -1307,9 +1569,9 @@ IMPORTANT:
         tone: 'professional',
         model: 'gpt-4o',
         background_noise: 'office',
-        phone_provider: selectedNumber.provider,
-        phone_number: selectedNumber.phone_number,
-        phone_label: selectedNumber.phone_label || '',
+        phone_provider: selectedNumber!.provider,
+        phone_number: selectedNumber!.phone_number,
+        phone_label: selectedNumber!.phone_label || '',
         status: 'active',
         created_at: currentTime,
         updated_at: currentTime,
@@ -1325,15 +1587,15 @@ IMPORTANT:
         },
       };
 
-      if (selectedNumber.provider === 'twilio') {
-        agentData.twilio_sid = selectedNumber.twilio_sid;
-        agentData.twilio_auth_token = selectedNumber.twilio_auth_token;
-        agentData.sms_enabled = selectedNumber.sms_enabled || false;
-      } else if (selectedNumber.provider === 'vonage') {
-        agentData.vonage_api_key = selectedNumber.vonage_api_key;
-        agentData.vonage_api_secret = selectedNumber.vonage_api_secret;
-      } else if (selectedNumber.provider === 'telnyx') {
-        agentData.telnyx_api_key = selectedNumber.telnyx_api_key;
+      if (selectedNumber!.provider === 'twilio') {
+        agentData.twilio_sid = selectedNumber!.twilio_sid;
+        agentData.twilio_auth_token = selectedNumber!.twilio_auth_token;
+        agentData.sms_enabled = selectedNumber!.sms_enabled || false;
+      } else if (selectedNumber!.provider === 'vonage') {
+        agentData.vonage_api_key = selectedNumber!.vonage_api_key;
+        agentData.vonage_api_secret = selectedNumber!.vonage_api_secret;
+      } else if (selectedNumber!.provider === 'telnyx') {
+        agentData.telnyx_api_key = selectedNumber!.telnyx_api_key;
       }
 
       // Fetch knowledge base FAQs and documents if a knowledge base is selected
@@ -1627,6 +1889,56 @@ IMPORTANT:
       
       // Only process if number was assigned to a different agent (not the current one being edited)
       if (previousAgentId && previousAgentId !== data.id) {
+        // Get the previous agent's full data for unbind webhook
+        const { data: previousAgent, error: prevAgentError } = await supabase
+          .from('voice_agents')
+          .select('*')
+          .eq('id', previousAgentId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (prevAgentError && prevAgentError.code !== 'PGRST116') {
+          console.error('Error fetching previous agent:', prevAgentError);
+        }
+
+        // Call unbind webhook if previous agent exists
+        if (previousAgent) {
+          const unBindWebhookUrl = process.env.REACT_APP_UN_BIND_WEBHOOK_URL;
+          if (unBindWebhookUrl) {
+            try {
+              const unbindPayload = {
+                agent_id: previousAgent.id,
+                owner_user_id: user.id,
+                ...previousAgent,
+              };
+
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+              const unbindResponse = await fetch(unBindWebhookUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                },
+                body: JSON.stringify(unbindPayload),
+                signal: controller.signal,
+              });
+
+              clearTimeout(timeoutId);
+
+              if (!unbindResponse.ok) {
+                const errorText = await unbindResponse.text().catch(() => 'No error details available');
+                console.error(`Unbind webhook failed for agent ${previousAgent.id}: ${errorText}`);
+                // Continue with assignment even if unbind fails, but log the error
+              }
+            } catch (unbindError: any) {
+              console.error('Error calling unbind webhook:', unbindError);
+              // Continue with assignment even if unbind fails
+            }
+          }
+        }
+
         // Disable the previous agent
         await supabase
           .from('voice_agents')
@@ -1658,6 +1970,52 @@ IMPORTANT:
           updated_at: new Date().toISOString(),
         })
         .eq('id', selectedNumberId);
+
+      // Call bind webhook after successful assignment
+      const bindWebhookUrl = process.env.REACT_APP_BIND_WEBHOOK_URL;
+      if (bindWebhookUrl) {
+        try {
+          // Get complete agent data for webhook
+          const { data: completeAgent, error: agentFetchError } = await supabase
+            .from('voice_agents')
+            .select('*')
+            .eq('id', data.id)
+            .eq('user_id', user.id)
+            .single();
+
+          if (!agentFetchError && completeAgent) {
+            const bindPayload = {
+              agent_id: completeAgent.id,
+              owner_user_id: user.id,
+              ...completeAgent,
+            };
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+            const bindResponse = await fetch(bindWebhookUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify(bindPayload),
+              signal: controller.signal,
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!bindResponse.ok) {
+              const errorText = await bindResponse.text().catch(() => 'No error details available');
+              console.error(`Bind webhook failed: ${errorText}`);
+              // Don't throw error, just log it - agent is already created
+            }
+          }
+        } catch (bindError: any) {
+          console.error('Error calling bind webhook:', bindError);
+          // Don't throw error, just log it - agent is already created
+        }
+      }
 
       setStatusMessage({ 
         type: 'success', 
