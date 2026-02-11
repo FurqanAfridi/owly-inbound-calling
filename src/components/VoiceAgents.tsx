@@ -1,20 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Phone, Users, Play, Pause } from 'lucide-react';
+import { Plus, Phone, MoreVertical, Eye, Pencil, Trash2, GraduationCap } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
-import { Badge } from './ui/badge';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from './ui/table';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 
 interface VoiceAgent {
   id: string;
@@ -43,6 +40,7 @@ const VoiceAgents: React.FC = () => {
   const [inboundNumbers, setInboundNumbers] = useState<InboundNumber[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -120,62 +118,21 @@ const VoiceAgents: React.FC = () => {
       }
 
       loadAgents();
+      setOpenMenuId(null);
     } catch (err: any) {
       console.error('Error deleting agent:', err);
       alert('Failed to delete agent. Please try again.');
     }
   };
 
-  const handleToggleStatus = async (agentId: string, currentStatus: string, agentName: string) => {
-    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-    const action = newStatus === 'active' ? 'enable' : 'disable';
-    
-    if (!window.confirm(`Are you sure you want to ${action} "${agentName}"?`)) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('voice_agents')
-        .update({ 
-          status: newStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', agentId)
-        .eq('user_id', user?.id);
-
-      if (error) {
-        throw error;
-      }
-      
-      loadAgents(); // Refresh list
-    } catch (err: any) {
-      console.error('Error updating agent status:', err);
-      alert(`Failed to ${action} agent. Please try again.`);
-    }
+  const handleView = (agentId: string) => {
+    navigate(`/edit-agent/${agentId}`);
+    setOpenMenuId(null);
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig: { [key: string]: { variant: 'default' | 'success' | 'warning' | 'destructive'; label: string } } = {
-      active: { variant: 'success', label: 'Active' },
-      inactive: { variant: 'default', label: 'Inactive' },
-      archived: { variant: 'warning', label: 'Archived' },
-      testing: { variant: 'default', label: 'Testing' },
-    };
-
-    const config = statusConfig[status] || { variant: 'default' as const, label: status };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const handleEdit = (agentId: string) => {
+    navigate(`/edit-agent/${agentId}`);
+    setOpenMenuId(null);
   };
 
   if (loading) {
@@ -186,157 +143,136 @@ const VoiceAgents: React.FC = () => {
     );
   }
 
+  // Calculate agent usage (assuming max 30 agents for now)
+  const maxAgents = 30;
+  const agentsUsed = agents.length;
+
   return (
-    <>
-      <div className="space-y-6" style={{ fontFamily: "'Manrope', sans-serif" }}>
-        {/* Action Button */}
-        <div className="flex justify-end">
+    <div className="space-y-[25px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+      {/* Header Section */}
+      <div className="flex items-end justify-between">
+        <div className="flex flex-col gap-[4px]">
+          <h1 className="text-[24px] font-bold text-[#27272b] leading-[32px] tracking-[-0.6px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+            Agents
+          </h1>
+          <p className="text-[16px] font-normal text-[#737373] leading-[24px] max-w-[361px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+            Manage calling agents, update their details, and control availability.
+          </p>
+        </div>
+        <div className="flex gap-[12px] items-center justify-end">
           <Button
             onClick={() => navigate('/create-agent')}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground text-[16px] font-medium"
+            className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white text-[14px] font-medium h-[36px] px-4 rounded-[8px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
             style={{ fontFamily: "'Manrope', sans-serif" }}
           >
-            <Plus className="w-4 h-4 mr-2" />
-            Create Agent
+            <Plus className="w-5 h-5 mr-2" />
+            Add Agent
           </Button>
         </div>
-
-        {error && (
-          <Alert variant="destructive" onClose={() => setError(null)}>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {agents.length === 0 ? (
-          <Card className="rounded-[14px]">
-            <CardContent className="py-12">
-              <div className="flex flex-col items-center gap-4 text-center" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
-                  <Phone className="w-10 h-10 text-primary" />
-                </div>
-                <div>
-                  <h3 className="text-[24px] font-bold text-[#27272b] mb-2" style={{ fontFamily: "'Manrope', sans-serif" }}>No Voice Agents</h3>
-                  <p className="text-[16px] text-[#737373] max-w-md" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                    You haven't created any Owly voice agents yet. Create your first agent to get started.
-                  </p>
-                </div>
-                <Button
-                  onClick={() => navigate('/create-agent')}
-                  className="mt-4 bg-primary hover:bg-primary/90 text-primary-foreground text-[16px] font-medium"
-                  size="lg"
-                  style={{ fontFamily: "'Manrope', sans-serif" }}
-                >
-                  <Plus className="w-5 h-5 mr-2" />
-                  Create Your First Agent
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="rounded-[14px]">
-            <CardHeader className="px-5 pt-5 pb-0">
-              <CardTitle className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Your Agents ({agents.length})</CardTitle>
-            </CardHeader>
-            <CardContent className="px-5 py-5">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Name</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Company</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Phone Number</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Provider</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Type</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Status</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Created</TableHead>
-                      <TableHead className="text-right text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {agents.map((agent) => (
-                      <TableRow key={agent.id}>
-                        <TableCell className="text-[16px] font-medium text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                          <button
-                            onClick={() => navigate(`/edit-agent/${agent.id}`)}
-                            className="hover:text-primary hover:underline cursor-pointer text-left"
-                          >
-                            {agent.name}
-                          </button>
-                        </TableCell>
-                        <TableCell className="text-[16px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                          {agent.company_name || '-'}
-                        </TableCell>
-                        <TableCell>
-                          <div style={{ fontFamily: "'Manrope', sans-serif" }}>
-                            <p className="text-[16px] text-[#27272b]">{agent.phone_number}</p>
-                            {agent.phone_label && (
-                              <p className="text-[14px] text-[#737373]">{agent.phone_label}</p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-[14px]" style={{ fontFamily: "'Manrope', sans-serif" }}>{agent.phone_provider || 'N/A'}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div style={{ fontFamily: "'Manrope', sans-serif" }}>
-                            <p className="text-[16px] text-[#737373]">{agent.agent_type || '-'}</p>
-                            {agent.tool && (
-                              <p className="text-[14px] text-[#737373]">{agent.tool}</p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getStatusBadge(agent.status)}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleToggleStatus(agent.id, agent.status, agent.name)}
-                              title={agent.status === 'active' ? 'Disable Agent' : 'Enable Agent'}
-                              className="h-7 w-7 p-0"
-                            >
-                              {agent.status === 'active' ? (
-                                <Pause className="w-4 h-4" />
-                              ) : (
-                                <Play className="w-4 h-4" />
-                              )}
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-[16px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                          {formatDate(agent.created_at)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => navigate(`/edit-agent/${agent.id}`)}
-                              title="View/Edit Agent"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(agent.id, agent.name)}
-                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              title="Delete Agent"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
-    </>
+
+      {error && (
+        <Alert variant="destructive" onClose={() => setError(null)}>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Agents List Card */}
+      <Card className="bg-[#f8f8f8] border border-[#f0f0f0] rounded-[14px]">
+        <CardContent className="p-5">
+          {/* Agents Header */}
+          <div className="flex items-start justify-between mb-[10px]">
+            <div className="flex gap-[6px] items-center">
+              <GraduationCap className="w-4 h-4 text-[#141414]" />
+              <p className="text-[14px] font-medium text-[#141414] leading-[1.5]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                Agents
+              </p>
+            </div>
+            <p className="text-[14px] font-medium text-[#141414] leading-[1.5]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              {agentsUsed}/{maxAgents} agents used
+            </p>
+          </div>
+
+          {/* Agents List */}
+          {agents.length === 0 ? (
+            <div className="flex flex-col items-center gap-4 text-center py-12">
+              <div className="w-20 h-20 rounded-full bg-[#0b99ff]/20 flex items-center justify-center">
+                <Phone className="w-10 h-10 text-[#0b99ff]" />
+              </div>
+              <div>
+                <h3 className="text-[24px] font-bold text-[#27272b] mb-2" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                  No Voice Agents
+                </h3>
+                <p className="text-[16px] text-[#737373] max-w-md" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                  You haven't created any voice agents yet. Create your first agent to get started.
+                </p>
+              </div>
+              <Button
+                onClick={() => navigate('/create-agent')}
+                className="mt-4 bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white text-[14px] font-medium"
+                style={{ fontFamily: "'Manrope', sans-serif" }}
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Create Your First Agent
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-[10px]">
+              {agents.map((agent) => (
+                <div
+                  key={agent.id}
+                  className="bg-white flex items-center justify-between p-[10px] rounded-[8px]"
+                >
+                  <div className="flex flex-col leading-[1.5] pb-px">
+                    <p className="text-[14px] font-medium text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      {agent.name}
+                    </p>
+                    <p className="text-[12px] font-normal text-[#0b99ff]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      {agent.company_name || 'No company'}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-end">
+                    <DropdownMenu 
+                      open={openMenuId === agent.id} 
+                      onOpenChange={(open) => setOpenMenuId(open ? agent.id : null)}
+                    >
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-[91px] p-1">
+                        <DropdownMenuItem 
+                          onClick={() => handleView(agent.id)} 
+                          className="gap-2 text-[14px] px-2 py-1.5"
+                        >
+                          <Eye className="w-4 h-4" />
+                          View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleEdit(agent.id)} 
+                          className="gap-2 text-[14px] px-2 py-1.5"
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleDelete(agent.id, agent.name)} 
+                          className="gap-2 text-[14px] text-[#e7000b] px-2 py-1.5"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

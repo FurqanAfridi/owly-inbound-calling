@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
-import { User, Building2, Globe, Mic, FileText, Phone, Settings, Plus, Sparkles, X, Play, Volume2, Coins } from 'lucide-react';
+import { User, Building2, Globe, Mic, FileText, Phone, Settings, Plus, Sparkles, X, Play, Volume2, Coins, ArrowLeft, ListCollapse, AudioLines, Settings2, ChevronRight, Search, ChevronLeft, ArrowUpDown, MoreVertical } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { hasEnoughCredits, deductAgentCreationCredits, CREDIT_RATES } from '../services/creditService';
@@ -54,6 +54,7 @@ interface AgentConfig {
   goal?: string;
   backgroundContext?: string;
   welcomeMessage?: string;
+  welcomeMessages?: string[];
   instructionVoice?: string;
   script?: string;
   language?: string;
@@ -90,6 +91,43 @@ const CreateVoiceAgent: React.FC = () => {
   const [autofillPrompt, setAutofillPrompt] = useState('');
   const [autofillLoading, setAutofillLoading] = useState(false);
   const [autofillError, setAutofillError] = useState<string | null>(null);
+  
+  // New state for tabbed interface and sidebar navigation
+  const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'logs'>('edit');
+  const [activeSection, setActiveSection] = useState<'details' | 'voice' | 'settings'>('details');
+  const [welcomeMessages, setWelcomeMessages] = useState<string[]>([]);
+  const [newWelcomeMessage, setNewWelcomeMessage] = useState('');
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [voiceTab, setVoiceTab] = useState<'deepgram' | 'vapi'>('deepgram');
+  
+  // Overview stats state
+  const [overviewStats, setOverviewStats] = useState({
+    totalCalls: 0,
+    answered: 0,
+    avgDuration: { minutes: 0, seconds: 0 },
+    answerRate: 0,
+  });
+  
+  const [callStatusSummary, setCallStatusSummary] = useState({
+    totalCost: 0,
+    forwarded: 0,
+    lead: 0,
+    missed: 0,
+  });
+  
+  const [agentSchedule, setAgentSchedule] = useState<any[]>([]);
+  const [loadingOverview, setLoadingOverview] = useState(false);
+  
+  // Logs state
+  const [callLogs, setCallLogs] = useState<any[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [logsSearch, setLogsSearch] = useState('');
+  const [selectedLog, setSelectedLog] = useState<any | null>(null);
+  const [showLogDetail, setShowLogDetail] = useState(false);
+  const [logsPage, setLogsPage] = useState(1);
+  const [logsPerPage] = useState(10);
+  const [logsStatusFilter, setLogsStatusFilter] = useState<string>('all');
+  const [logsDateFilter, setLogsDateFilter] = useState<string>('all');
 
   const [formData, setFormData] = useState({
     agentName: '',
@@ -117,6 +155,207 @@ const CreateVoiceAgent: React.FC = () => {
   });
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+
+  // Function to load overview stats
+  const loadOverviewStats = async () => {
+    if (!isEditMode || !editingAgent || !user) return;
+    
+    setLoadingOverview(true);
+    try {
+      // Fetch call statistics for this agent
+      const { data: statsData, error: statsError } = await supabase.rpc('get_call_statistics', {
+        p_user_id: user.id,
+        p_start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 30 days
+        p_end_date: new Date().toISOString().split('T')[0],
+        p_agent_id: editingAgent.id,
+      });
+
+      if (statsError) {
+        console.error('Error fetching overview stats:', statsError);
+        // Set defaults on error
+        setOverviewStats({
+          totalCalls: 0,
+          answered: 0,
+          avgDuration: { minutes: 0, seconds: 0 },
+          answerRate: 0,
+        });
+        setCallStatusSummary({
+          totalCost: 0,
+          forwarded: 0,
+          lead: 0,
+          missed: 0,
+        });
+        return;
+      }
+
+      if (statsData && statsData.length > 0) {
+        const stats = statsData[0];
+        const totalCalls = Number(stats.total_calls) || 0;
+        const answered = Number(stats.answered_calls) || 0;
+        const avgDurationSeconds = Number(stats.average_duration_seconds) || 0;
+        const answerRate = totalCalls > 0 ? Math.round((answered / totalCalls) * 100) : 0;
+
+        setOverviewStats({
+          totalCalls,
+          answered,
+          avgDuration: {
+            minutes: Math.floor(avgDurationSeconds / 60),
+            seconds: Math.floor(avgDurationSeconds % 60),
+          },
+          answerRate,
+        });
+
+        // Calculate call status summary
+        const forwarded = Number(stats.forwarded_calls) || 0;
+        const missed = Number(stats.missed_calls) || 0;
+        
+        // Fetch leads count
+        const { data: leadsData } = await supabase
+          .from('call_history')
+          .select('id', { count: 'exact' })
+          .eq('user_id', user.id)
+          .eq('agent_id', editingAgent.id)
+          .eq('is_lead', true)
+          .is('deleted_at', null);
+
+        const lead = leadsData?.length || 0;
+        const totalCost = Number(stats.total_cost) || 0;
+
+        setCallStatusSummary({
+          totalCost,
+          forwarded,
+          lead,
+          missed,
+        });
+      } else {
+        // Set defaults if no data
+        setOverviewStats({
+          totalCalls: 0,
+          answered: 0,
+          avgDuration: { minutes: 0, seconds: 0 },
+          answerRate: 0,
+        });
+        setCallStatusSummary({
+          totalCost: 0,
+          forwarded: 0,
+          lead: 0,
+          missed: 0,
+        });
+      }
+
+      // Fetch agent schedule (call history for this agent)
+      const { data: scheduleData } = await supabase
+        .from('call_history')
+        .select('id, call_start_time, caller_number, called_number, call_status, call_duration, is_lead, metadata')
+        .eq('user_id', user.id)
+        .eq('agent_id', editingAgent.id)
+        .is('deleted_at', null)
+        .order('call_start_time', { ascending: false })
+        .limit(10);
+
+      if (scheduleData) {
+        setAgentSchedule(scheduleData);
+      } else {
+        setAgentSchedule([]);
+      }
+    } catch (err: any) {
+      console.error('Error loading overview stats:', err);
+      // Set defaults on error
+      setOverviewStats({
+        totalCalls: 0,
+        answered: 0,
+        avgDuration: { minutes: 0, seconds: 0 },
+        answerRate: 0,
+      });
+      setCallStatusSummary({
+        totalCost: 0,
+        forwarded: 0,
+        lead: 0,
+        missed: 0,
+      });
+      setAgentSchedule([]);
+    } finally {
+      setLoadingOverview(false);
+    }
+  };
+
+  // Function to load call logs
+  const loadCallLogs = async () => {
+    if (!isEditMode || !editingAgent || !user) return;
+    
+    setLoadingLogs(true);
+    try {
+      let query = supabase
+        .from('call_history')
+        .select('id, call_start_time, call_end_time, caller_number, called_number, call_status, call_duration, call_cost, recording_url, transcript, notes, is_lead, metadata')
+        .eq('user_id', user.id)
+        .eq('agent_id', editingAgent.id)
+        .is('deleted_at', null)
+        .order('call_start_time', { ascending: false });
+
+      // Apply search filter
+      if (logsSearch) {
+        query = query.or(`caller_number.ilike.%${logsSearch}%,called_number.ilike.%${logsSearch}%,transcript.ilike.%${logsSearch}%`);
+      }
+
+      // Apply status filter
+      if (logsStatusFilter !== 'all') {
+        if (logsStatusFilter === 'completed') {
+          query = query.in('call_status', ['answered', 'completed']);
+        } else if (logsStatusFilter === 'failed') {
+          query = query.in('call_status', ['failed', 'missed']);
+        } else {
+          query = query.eq('call_status', logsStatusFilter);
+        }
+      }
+
+      // Apply date filter
+      if (logsDateFilter !== 'all') {
+        const now = new Date();
+        let startDate: Date;
+        if (logsDateFilter === 'today') {
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        } else if (logsDateFilter === 'week') {
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        } else if (logsDateFilter === 'month') {
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        } else {
+          startDate = new Date(0);
+        }
+        query = query.gte('call_start_time', startDate.toISOString());
+      }
+
+      const { data: logsData, error: logsError } = await query
+        .range((logsPage - 1) * logsPerPage, logsPage * logsPerPage - 1);
+
+      if (logsError) {
+        console.error('Error fetching call logs:', logsError);
+        setCallLogs([]);
+        return;
+      }
+
+      setCallLogs(logsData || []);
+    } catch (err: any) {
+      console.error('Error loading call logs:', err);
+      setCallLogs([]);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  // Load overview stats when overview tab is active
+  useEffect(() => {
+    if (isEditMode && editingAgent && activeTab === 'overview') {
+      loadOverviewStats();
+    }
+  }, [isEditMode, editingAgent, activeTab]);
+
+  // Load logs when logs tab is active or search/page/filters change
+  useEffect(() => {
+    if (isEditMode && editingAgent && activeTab === 'logs') {
+      loadCallLogs();
+    }
+  }, [isEditMode, editingAgent, activeTab, logsPage, logsSearch, logsStatusFilter, logsDateFilter]);
 
   // Helper function to format phone number display (avoid duplicate country code)
   // phone_number in database already includes country_code, so we just display phone_number
@@ -279,31 +518,59 @@ const CreateVoiceAgent: React.FC = () => {
 
       if (data) {
         setEditingAgent(data);
-        // Populate form with agent data
+        // Populate form with agent data - use actual data, no defaults
         setFormData({
           agentName: data.name || '',
-          companyName: data.company_name || 'DNAI', // Default to DNAI if not set
-          websiteUrl: data.website_url || 'https://duhanashrah.ai', // Default to duhanashrah.ai if not set
+          companyName: data.company_name ?? '',
+          websiteUrl: data.website_url ?? '',
           goal: data.goal || '',
           backgroundContext: data.background || '',
           welcomeMessage: data.welcome_message || '',
           instructionVoice: data.instruction_voice || '',
           script: data.script || '',
-          language: data.language || 'en-US',
+          language: data.language || '',
           timezone: data.timezone || '',
           agentType: data.agent_type || '',
           tool: data.tool || '',
-          voice: data.voice || 'helena',
-          temperature: data.temperature || 0.7,
-          confidence: data.confidence || 0.8,
-          verbosity: data.verbosity || 0.7,
-          fallbackEnabled: data.fallback_enabled || false,
+          voice: data.voice || '',
+          temperature: data.temperature ?? 0.7, // Use nullish coalescing to allow 0
+          confidence: data.confidence ?? 0.8, // Use nullish coalescing to allow 0
+          verbosity: data.verbosity ?? 0.7, // Use nullish coalescing to allow 0
+          fallbackEnabled: data.fallback_enabled ?? false,
           fallbackNumber: data.fallback_number || '',
           knowledgeBaseId: data.knowledge_base_id || '',
-          callAvailabilityStart: data.metadata?.call_availability_start || '09:00',
-          callAvailabilityEnd: data.metadata?.call_availability_end || '17:00',
-          callAvailabilityDays: data.metadata?.call_availability_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+          callAvailabilityStart: data.metadata?.call_availability_start || '',
+          callAvailabilityEnd: data.metadata?.call_availability_end || '',
+          callAvailabilityDays: data.metadata?.call_availability_days || [],
         });
+
+        // Set the voice tab based on the selected voice's provider
+        if (data.voice) {
+          const selectedVoice = allVoices.find(v => v.value === data.voice);
+          if (selectedVoice) {
+            setVoiceTab(selectedVoice.provider === 'vapi' ? 'vapi' : 'deepgram');
+          }
+        }
+        
+        // Handle welcome messages - could be string or array
+        // If it's a string, convert to array; if array, use it; if empty, use empty array
+        if (data.welcome_message) {
+          try {
+            // Try to parse as JSON array first
+            const parsed = JSON.parse(data.welcome_message);
+            if (Array.isArray(parsed)) {
+              setWelcomeMessages(parsed);
+            } else {
+              // If it's a string, convert to array
+              setWelcomeMessages([data.welcome_message]);
+            }
+          } catch {
+            // If parsing fails, treat as string and convert to array
+            setWelcomeMessages([data.welcome_message]);
+          }
+        } else {
+          setWelcomeMessages([]);
+        }
 
         // Find and set the selected inbound number
         // Re-fetch inbound numbers to ensure we have the latest data
@@ -339,6 +606,14 @@ const CreateVoiceAgent: React.FC = () => {
 
   const handleSelectChange = (name: string, value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // If voice is changed, update the voice tab to show the correct provider
+    if (name === 'voice') {
+      const selectedVoice = allVoices.find(v => v.value === value);
+      if (selectedVoice) {
+        setVoiceTab(selectedVoice.provider === 'vapi' ? 'vapi' : 'deepgram');
+      }
+    }
   };
 
   const handleTemperatureChange = (value: number[]) => {
@@ -392,9 +667,10 @@ Return ONLY a valid JSON object with the following structure:
   "websiteUrl": "string (valid URL)",
   "goal": "string (primary business objectives, can be multi-line)",
   "backgroundContext": "string (company history, mission, product description, can be multi-line)",
-  "welcomeMessage": "string (friendly greeting message)",
-  "instructionVoice": "string (tone and style instructions for the agent)",
-  "script": "string (agent's role and behavior description)",
+  "welcomeMessage": "string (ONE friendly greeting message - this will be used as the first welcome message)",
+  "welcomeMessages": ["array of 5-7 different greeting messages", "each should be unique and natural", "use {name} placeholder for personalization"],
+  "instructionVoice": "string (tone and style instructions for the agent, 2-3 sentences)",
+  "script": "string (comprehensive agent's role and behavior description, include identity, mission, opening script, and conversation guidelines)",
   "language": "string (ISO language code like en-US, es-ES, fr-FR, de-DE, zh-CN)",
   "timezone": "string (IANA timezone like America/New_York, America/Los_Angeles, UTC)",
   "agentType": "string (one of: sales, support, booking, general)",
@@ -408,7 +684,12 @@ Return ONLY a valid JSON object with the following structure:
   "callAvailabilityDays": ["array of strings", "monday", "tuesday", "wednesday", "thursday", "friday"]
 }
 
-Make the content professional, realistic, and tailored to the user's business description.`;
+IMPORTANT:
+- Generate 5-7 unique welcome messages in the "welcomeMessages" array
+- Each welcome message should be different, natural, and use {name} for personalization
+- Make the script comprehensive and detailed, including full opening script
+- Make the content professional, realistic, and tailored to the user's business description
+- Be creative but professional with the welcome messages`;
 
     try {
       console.log('Sending request to OpenAI API...');
@@ -498,6 +779,15 @@ Make the content professional, realistic, and tailored to the user's business de
           : prev.callAvailabilityDays,
       }));
 
+      // Handle welcome messages - prioritize welcomeMessages array, fallback to welcomeMessage
+      if (agentConfig.welcomeMessages && Array.isArray(agentConfig.welcomeMessages) && agentConfig.welcomeMessages.length > 0) {
+        setWelcomeMessages(agentConfig.welcomeMessages);
+      } else if (agentConfig.welcomeMessage) {
+        setWelcomeMessages([agentConfig.welcomeMessage]);
+      } else {
+        setWelcomeMessages([]);
+      }
+
       // Auto-select first available number if none selected
       if (!selectedNumberId && inboundNumbers.length > 0) {
         setSelectedNumberId(inboundNumbers[0].id);
@@ -510,6 +800,25 @@ Make the content professional, realistic, and tailored to the user's business de
       console.error('Error generating agent details:', error);
       setAutofillError(error.message || 'Failed to generate agent details. Please try again.');
       throw error;
+    }
+  };
+
+  // Welcome messages handlers
+  const handleAddWelcomeMessage = () => {
+    if (newWelcomeMessage.trim()) {
+      setWelcomeMessages([...welcomeMessages, newWelcomeMessage.trim()]);
+      setNewWelcomeMessage('');
+    }
+  };
+
+  const handleRemoveWelcomeMessage = (index: number) => {
+    setWelcomeMessages(welcomeMessages.filter((_, i) => i !== index));
+  };
+
+  const handleWelcomeMessageKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      handleAddWelcomeMessage();
     }
   };
 
@@ -598,6 +907,340 @@ Make the content professional, realistic, and tailored to the user's business de
     return allVoices.find(v => v.value === formData.voice);
   };
 
+  // Separate update handlers for each section
+  const handleUpdateDetails = async () => {
+    if (!isEditMode || !editingAgent || !user) return;
+    
+    setLoading(true);
+    setStatusMessage(null);
+
+    try {
+      const updateData: any = {
+        name: formData.agentName,
+        company_name: formData.companyName,
+        website_url: formData.websiteUrl,
+        goal: formData.goal,
+        background: formData.backgroundContext,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Update metadata for call availability
+      const existingMetadata = editingAgent?.metadata || {};
+      const updatedMetadata = {
+        ...existingMetadata,
+        call_availability_start: formData.callAvailabilityStart,
+        call_availability_end: formData.callAvailabilityEnd,
+        call_availability_days: formData.callAvailabilityDays,
+      };
+      
+      updateData.metadata = updatedMetadata;
+
+      const { error: updateError } = await supabase
+        .from('voice_agents')
+        .update(updateData)
+        .eq('id', editingAgent.id)
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      // Get complete updated agent data for webhook
+      const { data: updatedAgent } = await supabase
+        .from('voice_agents')
+        .select('*')
+        .eq('id', editingAgent.id)
+        .eq('user_id', user.id)
+        .single();
+
+      // Call webhook with complete data
+      if (updatedAgent) {
+        await callEditWebhook(editingAgent.id, {
+          ...updatedAgent,
+          ...updateData,
+        });
+      }
+      
+      setStatusMessage({ type: 'success', text: 'Details updated successfully!' });
+      loadAgentForEdit(editingAgent.id);
+    } catch (error: any) {
+      setStatusMessage({ type: 'error', text: error.message || 'Failed to update details' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateVoice = async () => {
+    if (!isEditMode || !editingAgent || !user) return;
+    
+    setLoading(true);
+    setStatusMessage(null);
+
+    try {
+      // Combine welcome messages - if multiple, store as JSON array; if single, store as string
+      const welcomeMessageValue = welcomeMessages.length > 0 
+        ? (welcomeMessages.length === 1 ? welcomeMessages[0] : JSON.stringify(welcomeMessages))
+        : formData.welcomeMessage || '';
+
+      const updateData: any = {
+        welcome_message: welcomeMessageValue,
+        instruction_voice: formData.instructionVoice,
+        script: formData.script,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Update metadata for call availability if needed
+      const existingMetadata = editingAgent?.metadata || {};
+      const updatedMetadata = {
+        ...existingMetadata,
+        call_availability_start: formData.callAvailabilityStart,
+        call_availability_end: formData.callAvailabilityEnd,
+        call_availability_days: formData.callAvailabilityDays,
+      };
+      
+      updateData.metadata = updatedMetadata;
+
+      const { error: updateError } = await supabase
+        .from('voice_agents')
+        .update(updateData)
+        .eq('id', editingAgent.id)
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      // Get complete updated agent data for webhook
+      const { data: updatedAgent } = await supabase
+        .from('voice_agents')
+        .select('*')
+        .eq('id', editingAgent.id)
+        .eq('user_id', user.id)
+        .single();
+
+      // Call webhook with complete data
+      if (updatedAgent) {
+        await callEditWebhook(editingAgent.id, {
+          ...updatedAgent,
+          ...updateData,
+        });
+      }
+      
+      setStatusMessage({ type: 'success', text: 'Voice configuration updated successfully!' });
+      loadAgentForEdit(editingAgent.id);
+    } catch (error: any) {
+      setStatusMessage({ type: 'error', text: error.message || 'Failed to update voice configuration' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateSettings = async () => {
+    if (!isEditMode || !editingAgent || !user) return;
+    
+    setLoading(true);
+    setStatusMessage(null);
+
+    try {
+      // Get existing metadata and merge with updates
+      const existingMetadata = editingAgent?.metadata || {};
+      const updateData: any = {
+        voice: formData.voice,
+        language: formData.language,
+        agent_type: formData.agentType,
+        tool: formData.tool,
+        timezone: formData.timezone,
+        tone: 'professional', // Default tone
+        temperature: formData.temperature,
+        confidence: formData.confidence,
+        verbosity: formData.verbosity,
+        fallback_enabled: formData.fallbackEnabled,
+        fallback_number: formData.fallbackEnabled ? formData.fallbackNumber : null,
+        knowledge_base_id: formData.knowledgeBaseId || null,
+        metadata: {
+          ...existingMetadata,
+          call_availability_start: formData.callAvailabilityStart,
+          call_availability_end: formData.callAvailabilityEnd,
+          call_availability_days: formData.callAvailabilityDays,
+          fallback_config: {
+            enabled: formData.fallbackEnabled,
+            number: formData.fallbackNumber,
+          },
+        },
+        updated_at: new Date().toISOString(),
+      };
+
+      // Update inbound number assignment if changed
+      if (selectedNumberId && selectedNumberId !== editingAgent.phone_number) {
+        const selectedNumber = getSelectedNumber();
+        if (selectedNumber) {
+          updateData.phone_provider = selectedNumber.provider;
+          updateData.phone_number = selectedNumber.phone_number;
+          updateData.phone_label = selectedNumber.phone_label || '';
+          
+          // Add provider-specific fields
+          if (selectedNumber.provider === 'twilio') {
+            updateData.twilio_sid = selectedNumber.twilio_sid;
+            updateData.twilio_auth_token = selectedNumber.twilio_auth_token;
+            updateData.sms_enabled = selectedNumber.sms_enabled || false;
+          } else if (selectedNumber.provider === 'vonage') {
+            updateData.vonage_api_key = selectedNumber.vonage_api_key;
+            updateData.vonage_api_secret = selectedNumber.vonage_api_secret;
+          } else if (selectedNumber.provider === 'telnyx') {
+            updateData.telnyx_api_key = selectedNumber.telnyx_api_key;
+          }
+        }
+      }
+
+      const { error: updateError } = await supabase
+        .from('voice_agents')
+        .update(updateData)
+        .eq('id', editingAgent.id)
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      // Update inbound number assignment if changed
+      if (selectedNumberId) {
+        const selectedNumber = getSelectedNumber();
+        if (selectedNumber) {
+          // Check if number is assigned to another agent
+          if (selectedNumber.assigned_to_agent_id && selectedNumber.assigned_to_agent_id !== editingAgent.id) {
+            // Remove assignment from previous agent
+            await supabase
+              .from('inbound_numbers')
+              .update({ assigned_to_agent_id: null, updated_at: new Date().toISOString() })
+              .eq('id', selectedNumber.id);
+          }
+
+          // Update agent's phone number fields
+          const phoneUpdateData: any = {
+            phone_provider: selectedNumber.provider,
+            phone_number: selectedNumber.phone_number,
+            phone_label: selectedNumber.phone_label || '',
+          };
+          
+          // Add provider-specific fields
+          if (selectedNumber.provider === 'twilio') {
+            phoneUpdateData.twilio_sid = selectedNumber.twilio_sid;
+            phoneUpdateData.twilio_auth_token = selectedNumber.twilio_auth_token;
+            phoneUpdateData.sms_enabled = selectedNumber.sms_enabled || false;
+          } else if (selectedNumber.provider === 'vonage') {
+            phoneUpdateData.vonage_api_key = selectedNumber.vonage_api_key;
+            phoneUpdateData.vonage_api_secret = selectedNumber.vonage_api_secret;
+          } else if (selectedNumber.provider === 'telnyx') {
+            phoneUpdateData.telnyx_api_key = selectedNumber.telnyx_api_key;
+          }
+
+          // Update agent with phone number data
+          await supabase
+            .from('voice_agents')
+            .update(phoneUpdateData)
+            .eq('id', editingAgent.id)
+            .eq('user_id', user.id);
+
+          // Assign number to this agent
+          await supabase
+            .from('inbound_numbers')
+            .update({ 
+              assigned_to_agent_id: editingAgent.id,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', selectedNumberId);
+        }
+      }
+
+      // Get complete updated agent data for webhook
+      const { data: updatedAgent } = await supabase
+        .from('voice_agents')
+        .select('*')
+        .eq('id', editingAgent.id)
+        .eq('user_id', user.id)
+        .single();
+
+      // Call webhook with complete data
+      if (updatedAgent) {
+        await callEditWebhook(editingAgent.id, {
+          ...updatedAgent,
+          ...updateData,
+        });
+      }
+      
+      setStatusMessage({ type: 'success', text: 'Agent settings updated successfully!' });
+      loadAgentForEdit(editingAgent.id);
+    } catch (error: any) {
+      setStatusMessage({ type: 'error', text: error.message || 'Failed to update settings' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper function to call edit webhook
+  const callEditWebhook = async (agentId: string, updateData: any) => {
+    if (!user) return;
+
+    const editWebhookUrl = process.env.REACT_APP_EDIT_AGENT_WEBHOOK_URL;
+    if (!editWebhookUrl) {
+      console.warn('Edit agent webhook URL is not configured');
+      return;
+    }
+
+    try {
+      const cleanWebhookUrl = (() => {
+        try {
+          const url = new URL(editWebhookUrl);
+          url.port = '';
+          return url.toString();
+        } catch {
+          return editWebhookUrl;
+        }
+      })();
+
+      // Get full agent data for webhook to ensure we send complete data
+      const { data: currentAgent } = await supabase
+        .from('voice_agents')
+        .select('*')
+        .eq('id', agentId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (!currentAgent) {
+        throw new Error('Agent not found');
+      }
+
+      // Merge current agent data with updates for complete webhook payload
+      const webhookPayload = {
+        agent_id: agentId,
+        owner_user_id: user.id,
+        ...currentAgent,
+        ...updateData,
+        voice_provider: getSelectedVoice()?.provider || currentAgent.voice_provider || 'deepgram',
+        executionMode: 'production',
+      };
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      const webhookResponse = await fetch(cleanWebhookUrl, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(webhookPayload),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!webhookResponse.ok) {
+        const errorText = await webhookResponse.text().catch(() => 'No error details available');
+        throw new Error(`Edit webhook failed: ${webhookResponse.status} ${webhookResponse.statusText} - ${errorText}`);
+      }
+    } catch (webhookError: any) {
+      if (webhookError.name === 'AbortError' || webhookError.message.includes('timeout')) {
+        throw new Error('Webhook request timed out. Please try again.');
+      }
+      throw webhookError;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatusMessage(null);
@@ -645,7 +1288,9 @@ Make the content professional, realistic, and tailored to the user's business de
         website_url: formData.websiteUrl,
         goal: formData.goal,
         background: formData.backgroundContext,
-        welcome_message: formData.welcomeMessage,
+        welcome_message: welcomeMessages.length > 0 
+          ? (welcomeMessages.length === 1 ? welcomeMessages[0] : JSON.stringify(welcomeMessages))
+          : formData.welcomeMessage || '',
         instruction_voice: formData.instructionVoice,
         script: formData.script,
         language: formData.language,
@@ -1071,6 +1716,1662 @@ Make the content professional, realistic, and tailored to the user's business de
     setPlayingAudio(null);
   };
 
+  // Only show new design in edit mode, keep old design for create mode
+  if (isEditMode) {
+    return (
+      <div className="space-y-[25px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+        {/* Header Section */}
+        <div className="flex items-end justify-between">
+          <div className="flex flex-col gap-[4px]">
+            <h1 className="text-[24px] font-bold text-[#27272b] leading-[32px] tracking-[-0.6px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              {formData.agentName || editingAgent?.name || 'Agent'}
+            </h1>
+            <p className="text-[16px] font-normal text-[#0b99ff] leading-[24px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              {formData.companyName || editingAgent?.company_name || ''}
+            </p>
+          </div>
+          <div className="flex gap-[12px] items-center justify-end">
+            <Button
+              variant="outline"
+              onClick={handleOpenAutofillDialog}
+              className="h-[36px] px-4 rounded-[8px]"
+              style={{ fontFamily: "'Manrope', sans-serif" }}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              AI Autofill
+            </Button>
+            <Button
+              onClick={() => navigate('/agents')}
+              className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white h-[36px] px-4 rounded-[8px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+              style={{ fontFamily: "'Manrope', sans-serif" }}
+            >
+              <ArrowLeft className="w-5 h-5 mr-2" />
+              Back
+            </Button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="bg-[#f4f4f6] flex gap-[16px] items-center px-4 py-1 rounded-[8px]">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-2 py-1 rounded-[6px] text-[14px] ${
+              activeTab === 'overview'
+                ? 'bg-white shadow-[0px_0px_5px_0px_rgba(0,0,0,0.2)] font-semibold text-[#27272b]'
+                : 'font-normal text-[#737373]'
+            }`}
+            style={{ fontFamily: "'Manrope', sans-serif" }}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('edit')}
+            className={`px-2 py-1 rounded-[6px] text-[14px] ${
+              activeTab === 'edit'
+                ? 'bg-white shadow-[0px_0px_5px_0px_rgba(0,0,0,0.2)] font-semibold text-[#27272b]'
+                : 'font-normal text-[#737373]'
+            }`}
+            style={{ fontFamily: "'Manrope', sans-serif" }}
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => setActiveTab('logs')}
+            className={`px-2 py-1 rounded-[6px] text-[14px] ${
+              activeTab === 'logs'
+                ? 'bg-white shadow-[0px_0px_5px_0px_rgba(0,0,0,0.2)] font-semibold text-[#27272b]'
+                : 'font-normal text-[#737373]'
+            }`}
+            style={{ fontFamily: "'Manrope', sans-serif" }}
+          >
+            Logs
+          </button>
+        </div>
+
+        {statusMessage && (
+          <Alert variant={statusMessage.type === 'success' ? 'success' : 'destructive'}>
+            <AlertDescription>{statusMessage.text}</AlertDescription>
+          </Alert>
+        )}
+
+        {activeTab === 'edit' && (
+          <div className="flex gap-5 items-start">
+            {/* Sidebar Navigation */}
+            <div className="bg-white border border-[#e4e4e8] rounded-[12px] p-[9px] w-[256px] flex flex-col gap-[6px]">
+              <button
+                onClick={() => setActiveSection('details')}
+                className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${
+                  activeSection === 'details'
+                    ? 'bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                    : 'font-medium text-[#27272b] hover:bg-gray-50'
+                }`}
+                style={{ fontFamily: "'Manrope', sans-serif" }}
+              >
+                <ListCollapse className="w-4 h-4" />
+                <span className="text-[14px]">Details</span>
+              </button>
+              <button
+                onClick={() => setActiveSection('voice')}
+                className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${
+                  activeSection === 'voice'
+                    ? 'bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                    : 'font-medium text-[#27272b] hover:bg-gray-50'
+                }`}
+                style={{ fontFamily: "'Manrope', sans-serif" }}
+              >
+                <AudioLines className="w-4 h-4" />
+                <span className="text-[14px]">Voice Configuration</span>
+              </button>
+              <button
+                onClick={() => setActiveSection('settings')}
+                className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${
+                  activeSection === 'settings'
+                    ? 'bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                    : 'font-medium text-[#27272b] hover:bg-gray-50'
+                }`}
+                style={{ fontFamily: "'Manrope', sans-serif" }}
+              >
+                <Settings2 className="w-4 h-4" />
+                <span className="text-[14px]">Agent Settings</span>
+              </button>
+            </div>
+
+            {/* Main Content Area */}
+            <div className="bg-white border border-[#e4e4e8] rounded-[12px] px-6 py-6 flex-1">
+              {loadingAgent ? (
+                <div className="flex justify-center items-center min-h-[60vh]">
+                  <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <>
+                  {/* Details Section */}
+                  {activeSection === 'details' && (
+                    <div className="flex flex-col gap-[30px]">
+                      <div className="flex flex-col gap-[23px]">
+                        <h2 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Details
+                        </h2>
+                        
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="agentName" className="text-[14px] font-medium text-[#27272b]">
+                            Agent Name*:
+                          </Label>
+                          <Input
+                            id="agentName"
+                            name="agentName"
+                            value={formData.agentName}
+                            onChange={handleInputChange}
+                            className="border border-[#0b99ff] rounded-[6px] px-3 py-2"
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          />
+                        </div>
+
+                        <Separator />
+
+                        <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Company Information
+                        </h3>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="companyName" className="text-[14px] font-medium text-[#27272b]">
+                            Company Name*:
+                          </Label>
+                          <Input
+                            id="companyName"
+                            name="companyName"
+                            value={formData.companyName}
+                            onChange={handleInputChange}
+                            className="border border-[#d4d4da] rounded-[6px] px-3 py-2"
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="websiteUrl" className="text-[14px] font-medium text-[#27272b]">
+                            Website URL*:
+                          </Label>
+                          <Input
+                            id="websiteUrl"
+                            name="websiteUrl"
+                            value={formData.websiteUrl}
+                            onChange={handleInputChange}
+                            className="border border-[#d4d4da] rounded-[6px] px-3 py-2"
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          />
+                        </div>
+
+                        <Separator />
+
+                        <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Goals & Context
+                        </h3>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="goal" className="text-[14px] font-medium text-[#27272b]">
+                            Goal*:
+                          </Label>
+                          <Textarea
+                            id="goal"
+                            name="goal"
+                            value={formData.goal}
+                            onChange={handleInputChange}
+                            className="border border-[#d4d4da] rounded-[6px] px-3 py-2 min-h-[80px]"
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="backgroundContext" className="text-[14px] font-medium text-[#27272b]">
+                            Background / Context*:
+                          </Label>
+                          <Textarea
+                            id="backgroundContext"
+                            name="backgroundContext"
+                            value={formData.backgroundContext}
+                            onChange={handleInputChange}
+                            className="border border-[#d4d4da] rounded-[6px] px-3 py-2 min-h-[120px]"
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center">
+                        <Button
+                          onClick={handleUpdateDetails}
+                          disabled={loading}
+                          className="bg-[#000b28] hover:bg-[#000b28]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                          style={{ fontFamily: "'Manrope', sans-serif" }}
+                        >
+                          {loading ? 'Updating...' : 'Update details'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Voice Configuration Section */}
+                  {activeSection === 'voice' && (
+                    <div className="flex flex-col gap-[30px]">
+                      <div className="flex flex-col gap-[23px]">
+                        <h2 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Voice Configuration
+                        </h2>
+                        
+                        <div className="flex flex-col gap-2">
+                          <Label className="text-[14px] font-medium text-[#27272b]">
+                            Welcome Messages *: <span className="text-[#737373] font-normal">(Minimum 5 messages)</span>
+                          </Label>
+                          <div className="border border-[#0b99ff] rounded-[6px] p-2 min-h-[100px] flex flex-wrap gap-2">
+                            {welcomeMessages.map((msg, index) => (
+                              <div
+                                key={index}
+                                className="border border-[#0b99ff] rounded-[9px] px-2.5 py-1.5 flex items-center gap-2.5 bg-white"
+                              >
+                                <span className="text-[14px] text-[#0b99ff]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                  {msg}
+                                </span>
+                                <button
+                                  onClick={() => handleRemoveWelcomeMessage(index)}
+                                  className="text-[#0b99ff] hover:text-[#0b99ff]/70"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex gap-2 items-center">
+                            <Input
+                              value={newWelcomeMessage}
+                              onChange={(e) => setNewWelcomeMessage(e.target.value)}
+                              onKeyDown={handleWelcomeMessageKeyDown}
+                              placeholder="Type message and press Enter or comma"
+                              className="flex-1 border border-[#0b99ff] rounded-[6px] px-3 py-2"
+                              style={{ fontFamily: "'Manrope', sans-serif" }}
+                            />
+                            <Button
+                              type="button"
+                              onClick={handleAddWelcomeMessage}
+                              disabled={!newWelcomeMessage.trim()}
+                              className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white px-2.5 py-1.5 rounded-[9px] text-[14px] font-semibold h-auto"
+                              style={{ fontFamily: "'Manrope', sans-serif" }}
+                            >
+                              + Add Welcome Message
+                            </Button>
+                          </div>
+                          <p className="text-[12px] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                            Press Enter or comma to add each message.
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="instructionVoice" className="text-[14px] font-medium text-[#27272b]">
+                            Instruction Voice*:
+                          </Label>
+                          <Textarea
+                            id="instructionVoice"
+                            name="instructionVoice"
+                            value={formData.instructionVoice}
+                            onChange={handleInputChange}
+                            className="border border-[#d4d4da] rounded-[6px] px-3 py-2 min-h-[120px]"
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="script" className="text-[14px] font-medium text-[#27272b]">
+                            Description (Optional):
+                          </Label>
+                          <div className="border border-[#e5e5e5] rounded-[10px] shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_0px_rgba(0,0,0,0.1)]">
+                            <Textarea
+                              id="script"
+                              name="script"
+                              value={formData.script}
+                              onChange={handleInputChange}
+                              className="border-0 rounded-[10px] px-5 py-4 min-h-[300px] resize-none focus:ring-0 focus-visible:ring-0"
+                              style={{ fontFamily: "'Manrope', sans-serif" }}
+                              placeholder="Enter a comprehensive description of your agent's identity, mission, and conversation guidelines..."
+                            />
+                            <div className="border-t border-[#e5e5e5] px-5 py-3 flex items-center justify-between">
+                              <span className="text-[12px] text-[#6a7282]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                {formData.script.length} characters | {formData.script.split(/\s+/).filter(Boolean).length} words
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center">
+                        <Button
+                          onClick={handleUpdateVoice}
+                          disabled={loading}
+                          className="bg-[#000b28] hover:bg-[#000b28]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                          style={{ fontFamily: "'Manrope', sans-serif" }}
+                        >
+                          {loading ? 'Updating...' : 'Update voice'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Agent Settings Section */}
+                  {activeSection === 'settings' && (
+                    <div className="flex flex-col gap-[30px]">
+                      <div className="flex flex-col gap-[23px]">
+                        <h2 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Agent Settings
+                        </h2>
+                        
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="voice" className="text-[14px] font-medium text-[#27272b]">
+                            Voice*:
+                          </Label>
+                          <Tabs 
+                            value={voiceTab} 
+                            onValueChange={(value) => setVoiceTab(value as 'deepgram' | 'vapi')}
+                            className="w-full"
+                          >
+                            <TabsList className="grid w-full grid-cols-2 bg-[#f4f4f6]">
+                              <TabsTrigger value="deepgram" className="text-[#27272b] data-[state=active]:bg-white">
+                                Deepgram Voices
+                              </TabsTrigger>
+                              <TabsTrigger value="vapi" className="text-[#27272b] data-[state=active]:bg-white">
+                                VAPI Voices
+                              </TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="deepgram" className="mt-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto p-2">
+                                {deepgramVoices.map((voice) => (
+                                  <button
+                                    key={voice.value}
+                                    type="button"
+                                    onClick={() => handleSelectChange('voice', voice.value)}
+                                    className={`p-3 rounded-[6px] border-2 transition-all text-left ${
+                                      formData.voice === voice.value
+                                        ? 'border-[#0b99ff] bg-[rgba(11,153,255,0.1)]'
+                                        : 'border-[#d4d4da] bg-white hover:border-[#0b99ff]/50'
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <p className="font-semibold text-[14px] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                            {voice.label}
+                                          </p>
+                                          <Badge variant="outline" className="text-[12px]">
+                                            {voice.gender === 'masculine' ? 'Male' : 'Female'}
+                                          </Badge>
+                                        </div>
+                                        {voice.description && (
+                                          <p className="text-[12px] text-[#737373] mb-1" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                            {voice.description}
+                                          </p>
+                                        )}
+                                        {voice.useCase && (
+                                          <p className="text-[12px] text-[#737373] italic" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                            Use: {voice.useCase}
+                                          </p>
+                                        )}
+                                      </div>
+                                      {voice.audioUrl && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handlePlayAudio(voice.audioUrl!, voice.value);
+                                          }}
+                                          className="p-1.5 rounded-full bg-[rgba(11,153,255,0.2)] hover:bg-[rgba(11,153,255,0.3)] transition-colors"
+                                        >
+                                          {playingAudio === voice.value ? (
+                                            <Volume2 className="w-4 h-4 text-[#0b99ff]" />
+                                          ) : (
+                                            <Play className="w-4 h-4 text-[#0b99ff]" />
+                                          )}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </TabsContent>
+                            <TabsContent value="vapi" className="mt-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto p-2">
+                                {vapiVoices.map((voice) => (
+                                  <button
+                                    key={voice.value}
+                                    type="button"
+                                    onClick={() => handleSelectChange('voice', voice.value)}
+                                    className={`p-3 rounded-[6px] border-2 transition-all text-left ${
+                                      formData.voice === voice.value
+                                        ? 'border-[#0b99ff] bg-[rgba(11,153,255,0.1)]'
+                                        : 'border-[#d4d4da] bg-white hover:border-[#0b99ff]/50'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <p className="font-semibold text-[14px] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                            {voice.label}
+                                          </p>
+                                          <Badge variant="outline" className="text-[12px]">
+                                            {voice.gender === 'masculine' ? 'Male' : 'Female'}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </TabsContent>
+                          </Tabs>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="language" className="text-[14px] font-medium text-[#27272b]">
+                            Language*:
+                          </Label>
+                          <Select value={formData.language} onValueChange={(value) => handleSelectChange('language', value)}>
+                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="en-US">English</SelectItem>
+                              <SelectItem value="es-ES">Spanish</SelectItem>
+                              <SelectItem value="fr-FR">French</SelectItem>
+                              <SelectItem value="de-DE">German</SelectItem>
+                              <SelectItem value="zh-CN">Chinese</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="agentType" className="text-[14px] font-medium text-[#27272b]">
+                            Agent Type*:
+                          </Label>
+                          <Select value={formData.agentType} onValueChange={(value) => handleSelectChange('agentType', value)}>
+                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="sales">Sales</SelectItem>
+                              <SelectItem value="support">Support</SelectItem>
+                              <SelectItem value="booking">Booking</SelectItem>
+                              <SelectItem value="general">General</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="timezone" className="text-[14px] font-medium text-[#27272b]">
+                            Timezone*:
+                          </Label>
+                          <Select value={formData.timezone} onValueChange={(value) => handleSelectChange('timezone', value)}>
+                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                              <SelectValue placeholder="Select timezone" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
+                              <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
+                              <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
+                              <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
+                              <SelectItem value="UTC">UTC</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="tool" className="text-[14px] font-medium text-[#27272b]">
+                            Tool*:
+                          </Label>
+                          <Select value={formData.tool} onValueChange={(value) => handleSelectChange('tool', value)}>
+                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                              <SelectValue placeholder="Select tool" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="calendar">Calendar Integration</SelectItem>
+                              <SelectItem value="crm">CRM Integration</SelectItem>
+                              <SelectItem value="email">Email Integration</SelectItem>
+                              <SelectItem value="sms">SMS Integration</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <Separator />
+
+                        <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Model Controls
+                        </h3>
+
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="temperature" className="text-[14px] font-medium text-[#27272b]">
+                              Temperature*:
+                            </Label>
+                            <span className="text-[14px] font-semibold text-[#0b99ff] bg-[rgba(11,153,255,0.1)] px-3 py-1 rounded-md">
+                              {formData.temperature.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="px-2">
+                            <Slider
+                              value={[formData.temperature]}
+                              onValueChange={handleTemperatureChange}
+                              min={0}
+                              max={1}
+                              step={0.01}
+                              className="w-full"
+                            />
+                          </div>
+                          <p className="text-[12px] text-[#737373]">
+                            Controls randomness: Lower = focused, Higher = creative
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="confidence" className="text-[14px] font-medium text-[#27272b]">
+                              Confidence*:
+                            </Label>
+                            <span className="text-[14px] font-semibold text-[#0b99ff] bg-[rgba(11,153,255,0.1)] px-3 py-1 rounded-md">
+                              {formData.confidence.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="px-2">
+                            <Slider
+                              value={[formData.confidence]}
+                              onValueChange={handleConfidenceChange}
+                              min={0}
+                              max={1}
+                              step={0.01}
+                              className="w-full"
+                            />
+                          </div>
+                          <p className="text-[12px] text-[#737373]">
+                            Controls how confident the agent should be before responding
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="verbosity" className="text-[14px] font-medium text-[#27272b]">
+                              Verbosity*:
+                            </Label>
+                            <span className="text-[14px] font-semibold text-[#0b99ff] bg-[rgba(11,153,255,0.1)] px-3 py-1 rounded-md">
+                              {formData.verbosity.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="px-2">
+                            <Slider
+                              value={[formData.verbosity]}
+                              onValueChange={handleVerbosityChange}
+                              min={0}
+                              max={1}
+                              step={0.01}
+                              className="w-full"
+                            />
+                          </div>
+                          <p className="text-[12px] text-[#737373]">
+                            Controls response length: Lower = brief, Higher = detailed
+                          </p>
+                        </div>
+
+                        <Separator />
+
+                        <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Call Availability
+                        </h3>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="flex flex-col gap-2">
+                            <Label htmlFor="callAvailabilityStart" className="text-[14px] font-medium text-[#27272b]">
+                              Start Time*:
+                            </Label>
+                            <Input
+                              id="callAvailabilityStart"
+                              name="callAvailabilityStart"
+                              type="time"
+                              value={formData.callAvailabilityStart}
+                              onChange={handleInputChange}
+                              className="border border-[#d4d4da] rounded-[6px] px-3 py-2"
+                              style={{ fontFamily: "'Manrope', sans-serif" }}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <Label htmlFor="callAvailabilityEnd" className="text-[14px] font-medium text-[#27272b]">
+                              End Time*:
+                            </Label>
+                            <Input
+                              id="callAvailabilityEnd"
+                              name="callAvailabilityEnd"
+                              type="time"
+                              value={formData.callAvailabilityEnd}
+                              onChange={handleInputChange}
+                              className="border border-[#d4d4da] rounded-[6px] px-3 py-2"
+                              style={{ fontFamily: "'Manrope', sans-serif" }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label className="text-[14px] font-medium text-[#27272b]">
+                            Available Days*:
+                          </Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { value: 'monday', label: 'Monday' },
+                              { value: 'tuesday', label: 'Tuesday' },
+                              { value: 'wednesday', label: 'Wednesday' },
+                              { value: 'thursday', label: 'Thursday' },
+                              { value: 'friday', label: 'Friday' },
+                              { value: 'saturday', label: 'Saturday' },
+                              { value: 'sunday', label: 'Sunday' },
+                            ].map((day) => (
+                              <button
+                                key={day.value}
+                                type="button"
+                                onClick={() => {
+                                  const currentDays = [...formData.callAvailabilityDays];
+                                  const index = currentDays.indexOf(day.value);
+                                  if (index > -1) {
+                                    currentDays.splice(index, 1);
+                                  } else {
+                                    currentDays.push(day.value);
+                                  }
+                                  setFormData(prev => ({ ...prev, callAvailabilityDays: currentDays }));
+                                }}
+                                className={`p-2 rounded-[6px] border-2 text-[12px] transition-all ${
+                                  formData.callAvailabilityDays.includes(day.value)
+                                    ? 'border-[#0b99ff] bg-[rgba(11,153,255,0.1)] text-[#27272b]'
+                                    : 'border-[#d4d4da] bg-white text-[#737373] hover:border-[#0b99ff]/50'
+                                }`}
+                                style={{ fontFamily: "'Manrope', sans-serif" }}
+                              >
+                                {day.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <Separator />
+
+                        <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Fallback Configuration
+                        </h3>
+
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="fallbackEnabled"
+                            checked={formData.fallbackEnabled}
+                            onChange={(e) => setFormData(prev => ({ ...prev, fallbackEnabled: e.target.checked }))}
+                            className="rounded"
+                          />
+                          <Label htmlFor="fallbackEnabled" className="text-[14px] font-medium text-[#27272b]">
+                            Enable Fallback Number
+                          </Label>
+                        </div>
+                        
+                        {formData.fallbackEnabled && (
+                          <div className="flex flex-col gap-2">
+                            <Label htmlFor="fallbackNumber" className="text-[14px] font-medium text-[#27272b]">
+                              Fallback Phone Number:
+                            </Label>
+                            <Input
+                              id="fallbackNumber"
+                              name="fallbackNumber"
+                              value={formData.fallbackNumber}
+                              onChange={handleInputChange}
+                              placeholder="+1234567890"
+                              className="border border-[#d4d4da] rounded-[6px] px-3 py-2"
+                              style={{ fontFamily: "'Manrope', sans-serif" }}
+                            />
+                            <p className="text-[12px] text-[#737373]">
+                              Number to call if the agent fails or after retries are exhausted
+                            </p>
+                          </div>
+                        )}
+
+                        <Separator />
+
+                        <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Knowledge Base
+                        </h3>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="knowledgeBase" className="text-[14px] font-medium text-[#27272b]">
+                            Assign Knowledge Base (Optional):
+                          </Label>
+                          <Select 
+                            value={formData.knowledgeBaseId || 'none'} 
+                            onValueChange={(value) => handleSelectChange('knowledgeBaseId', value === 'none' ? '' : value)}
+                          >
+                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                              <SelectValue placeholder="Select a knowledge base" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {knowledgeBases.map((kb) => (
+                                <SelectItem key={kb.id} value={kb.id}>
+                                  {kb.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[12px] text-[#737373]">
+                            Select a knowledge base to provide FAQs and documents to this agent
+                          </p>
+                        </div>
+
+                        <Separator />
+
+                        <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Phone Number
+                        </h3>
+
+                        {loadingNumbers ? (
+                          <p className="text-[14px] text-[#737373]">Loading inbound numbers...</p>
+                        ) : inboundNumbers.length === 0 ? (
+                          <div className="flex flex-col gap-2">
+                            <Alert variant="default">
+                              <AlertDescription>No inbound numbers available. Please import a number first.</AlertDescription>
+                            </Alert>
+                            <Button
+                              type="button"
+                              onClick={() => navigate('/inbound-numbers')}
+                              variant="outline"
+                              className="w-fit"
+                            >
+                              Go to Inbound Numbers
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            <Label htmlFor="phoneNumber" className="text-[14px] font-medium text-[#27272b]">
+                              Select Inbound Number*:
+                            </Label>
+                            <Select value={selectedNumberId} onValueChange={handleNumberSelection}>
+                              <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                                <SelectValue placeholder="Select a phone number" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {inboundNumbers.map((number) => {
+                                  const assignedAgent = number.assigned_to_agent_id 
+                                    ? agents.find(a => a.id === number.assigned_to_agent_id)
+                                    : null;
+                                  const isAssignedToCurrentAgent = isEditMode && editingAgent && number.assigned_to_agent_id === editingAgent.id;
+                                  
+                                  return (
+                                    <SelectItem key={number.id} value={number.id}>
+                                      <div className="flex items-center justify-between w-full">
+                                        <span>
+                                          {formatPhoneDisplay(number.phone_number, number.country_code)}
+                                          {number.phone_label && ` - ${number.phone_label}`}
+                                        </span>
+                                        {assignedAgent && !isAssignedToCurrentAgent && (
+                                          <Badge variant="outline" className="ml-2 text-xs">
+                                            Assigned to {assignedAgent.name}
+                                          </Badge>
+                                        )}
+                                        {isAssignedToCurrentAgent && (
+                                          <Badge variant="default" className="ml-2 text-xs">
+                                            Current
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
+                            {selectedNumberId && (() => {
+                              const selected = getSelectedNumber();
+                              if (!selected) return null;
+                              return (
+                                <div className="p-3 rounded-[6px] bg-[#f4f4f6] border border-[#e4e4e8] space-y-2">
+                                  <div className="flex gap-2">
+                                    <Badge variant="default">{selected.provider}</Badge>
+                                    {selected.provider === 'twilio' && selected.sms_enabled && (
+                                      <Badge variant="outline">SMS Enabled</Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-[14px] text-[#27272b]">
+                                    <strong>Number:</strong> {formatPhoneDisplay(selected.phone_number, selected.country_code)}
+                                  </p>
+                                  {selected.phone_label && (
+                                    <p className="text-[14px] text-[#737373]">
+                                      <strong>Label:</strong> {selected.phone_label}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center">
+                        <Button
+                          onClick={handleUpdateSettings}
+                          disabled={loading}
+                          className="bg-[#000b28] hover:bg-[#000b28]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                          style={{ fontFamily: "'Manrope', sans-serif" }}
+                        >
+                          {loading ? 'Updating...' : 'Update settings'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'overview' && (
+          <div className="space-y-[25px]">
+            {/* Stats Cards */}
+            <div className="flex gap-[25px] items-center">
+              {/* Total Call */}
+              <div className="bg-[#f8f8f8] border border-[#f0f0f0] flex-1 flex flex-col gap-[6px] items-start overflow-hidden p-4 relative rounded-[24px]">
+                <div className="flex gap-[6px] items-center p-1">
+                  <User className="w-4 h-4 text-[#141414]" />
+                  <p className="text-[14px] font-normal text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Total Call
+                  </p>
+                </div>
+                <div className="flex items-center p-1">
+                  <p className="text-[32px] font-normal text-[#141414] leading-[1.2]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    {loadingOverview ? '...' : overviewStats.totalCalls}
+                  </p>
+                </div>
+                {/* Mini bar chart */}
+                <div className="absolute bottom-0 flex items-end right-[-0.38px]">
+                  {[26, 37, 66, 54, 43, 26].map((height, i) => (
+                    <div
+                      key={i}
+                      className={`h-[${height}px] rounded-tl-full rounded-tr-full w-4 ${
+                        i === 2 ? 'bg-gradient-to-b from-[rgba(11,153,255,0.5)] to-[rgba(48,134,255,0.05)]' : 'bg-gradient-to-b from-white/20 to-transparent'
+                      }`}
+                      style={{ height: `${height}px` }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Answered */}
+              <div className="bg-[#f8f8f8] border border-[#f0f0f0] flex-1 flex flex-col gap-[6px] items-start overflow-hidden p-4 relative rounded-[24px]">
+                <div className="flex gap-[6px] items-center p-1">
+                  <Phone className="w-4 h-4 text-[#141414]" />
+                  <p className="text-[14px] font-normal text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Answered
+                  </p>
+                </div>
+                <div className="flex items-center p-1">
+                  <p className="text-[32px] font-normal text-[#141414] leading-[1.2]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    {loadingOverview ? '...' : overviewStats.answered}
+                  </p>
+                </div>
+                {/* Mini bar chart */}
+                <div className="absolute bottom-0 flex items-end right-[-0.38px]">
+                  {[26, 37, 66, 54, 43, 26].map((height, i) => (
+                    <div
+                      key={i}
+                      className={`h-[${height}px] rounded-tl-full rounded-tr-full w-4 ${
+                        i === 2 ? 'bg-gradient-to-b from-[rgba(11,153,255,0.5)] to-[rgba(48,134,255,0.05)]' : 'bg-gradient-to-b from-white/20 to-transparent'
+                      }`}
+                      style={{ height: `${height}px` }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Avg Duration */}
+              <div className="bg-[#f8f8f8] border border-[#f0f0f0] flex-1 flex flex-col gap-[6px] items-start overflow-hidden p-4 relative rounded-[24px]">
+                <div className="flex gap-[6px] items-center p-1">
+                  <Settings className="w-4 h-4 text-[#141414]" />
+                  <p className="text-[14px] font-normal text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Avg Duration
+                  </p>
+                </div>
+                <div className="flex items-center p-1">
+                  <p className="text-[32px] font-normal text-[#141414] leading-[1.2]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    {loadingOverview ? '...' : (
+                      <>
+                        <span>{overviewStats.avgDuration.minutes}</span>
+                        <span className="text-[14px]"> min </span>
+                        <span>{overviewStats.avgDuration.seconds}</span>
+                        <span className="text-[14px]"> sec</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+                {/* Mini bar chart */}
+                <div className="absolute bottom-0 flex items-end right-[-0.38px]">
+                  {[26, 37, 66, 54, 43, 26].map((height, i) => (
+                    <div
+                      key={i}
+                      className={`h-[${height}px] rounded-tl-full rounded-tr-full w-4 ${
+                        i === 2 ? 'bg-gradient-to-b from-[rgba(11,153,255,0.5)] to-[rgba(48,134,255,0.05)]' : 'bg-gradient-to-b from-white/20 to-transparent'
+                      }`}
+                      style={{ height: `${height}px` }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Answer Rate */}
+              <div className="bg-[#f8f8f8] border border-[#f0f0f0] flex-1 flex flex-col gap-[6px] items-start overflow-hidden p-4 relative rounded-[24px]">
+                <div className="flex gap-[6px] items-center p-1">
+                  <Settings className="w-4 h-4 text-[#141414]" />
+                  <p className="text-[14px] font-normal text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Answer Rate
+                  </p>
+                </div>
+                <div className="flex items-center p-1">
+                  <p className="text-[32px] font-normal text-[#141414] leading-[1.2]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    {loadingOverview ? '...' : `${overviewStats.answerRate}%`}
+                  </p>
+                </div>
+                {/* Mini bar chart */}
+                <div className="absolute bottom-0 flex items-end right-[-0.38px]">
+                  {[26, 37, 66, 54, 43, 26].map((height, i) => (
+                    <div
+                      key={i}
+                      className={`h-[${height}px] rounded-tl-full rounded-tr-full w-4 ${
+                        i === 2 ? 'bg-gradient-to-b from-[rgba(11,153,255,0.5)] to-[rgba(48,134,255,0.05)]' : 'bg-gradient-to-b from-white/20 to-transparent'
+                      }`}
+                      style={{ height: `${height}px` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Call Status Summary and Agent Schedule */}
+            <div className="flex gap-[25px] items-start">
+              {/* Call Status Summary */}
+              <div className="bg-[#f8f8f8] border border-[#f0f0f0] flex-1 flex flex-col gap-[10px] items-center justify-center min-w-[487px] overflow-hidden px-5 py-4 rounded-[14px]">
+                <div className="flex gap-[6px] items-center">
+                  <Settings className="w-4 h-4 text-[#141414]" />
+                  <p className="text-[14px] font-medium text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Call Status Summary
+                  </p>
+                </div>
+                <div className="flex flex-col gap-[40px] items-center justify-center w-full">
+                  {/* Pie Chart Placeholder */}
+                  <div className="flex items-center">
+                    <div className="relative size-[143.623px]">
+                      <svg viewBox="0 0 100 100" className="w-full h-full">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="#e5e5e5" strokeWidth="10" />
+                        {/* You can add actual pie chart slices here */}
+                      </svg>
+                    </div>
+                  </div>
+                  {/* Legend */}
+                  <div className="flex items-start justify-between w-[159px]">
+                    <div className="flex flex-col gap-[10px] items-start w-[102px]">
+                      <div className="flex gap-[10px] items-center w-full">
+                        <div className="bg-[#ccc2ff] shrink-0 size-[9px]" />
+                        <p className="text-[14px] font-normal text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Total Cost
+                        </p>
+                      </div>
+                      <div className="flex gap-[10px] items-center w-full">
+                        <div className="bg-[#0b99ff] shrink-0 size-[9px]" />
+                        <p className="text-[14px] font-normal text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Forwarded
+                        </p>
+                      </div>
+                      <div className="flex gap-[10px] items-center w-full">
+                        <div className="bg-[rgba(11,153,255,0.6)] shrink-0 size-[9px]" />
+                        <p className="text-[14px] font-normal text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Lead
+                        </p>
+                      </div>
+                      <div className="flex gap-[10px] items-center w-full">
+                        <div className="bg-[#fe9191] shrink-0 size-[9px]" />
+                        <p className="text-[14px] font-normal text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Missed
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-[10px] items-end text-[14px] font-semibold text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      <p>${loadingOverview ? '0.00' : callStatusSummary.totalCost.toFixed(2)}</p>
+                      <p>{loadingOverview ? '0' : callStatusSummary.forwarded}</p>
+                      <p>{loadingOverview ? '0' : callStatusSummary.lead}</p>
+                      <p>{loadingOverview ? '0' : callStatusSummary.missed}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Agent Schedule Table */}
+              <div className="bg-[#f8f8f8] border border-[#f0f0f0] flex flex-col gap-[10px] items-center justify-center min-w-[487px] overflow-hidden px-5 py-4 rounded-[14px] flex-1">
+                <div className="flex items-start justify-between pb-4 w-full">
+                  <p className="text-[14px] font-medium text-[#0a0a0a]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Agent Schedule
+                  </p>
+                  <div className="flex gap-3 items-center justify-end">
+                    <Button variant="outline" size="sm" className="h-9 px-4">
+                      List: All Lists
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-9 px-4">
+                      Status: All Status
+                    </Button>
+                  </div>
+                </div>
+                <div className="border border-[#e5e5e5] flex items-start overflow-hidden rounded-[8px] w-full">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-white border-b border-[#e5e5e5]">
+                        <th className="h-10 px-5 text-left">
+                          <div className="flex gap-2 items-center">
+                            <span className="text-[14px] font-medium text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                              Date
+                            </span>
+                            <Settings className="w-4 h-4" />
+                          </div>
+                        </th>
+                        <th className="h-10 px-2 text-left">
+                          <span className="text-[14px] font-medium text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                            Time
+                          </span>
+                        </th>
+                        <th className="h-10 px-2 text-left">
+                          <span className="text-[14px] font-medium text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                            List
+                          </span>
+                        </th>
+                        <th className="h-10 px-2 text-left">
+                          <span className="text-[14px] font-medium text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                            Contacts
+                          </span>
+                        </th>
+                        <th className="h-10 px-2 text-left">
+                          <span className="text-[14px] font-medium text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                            Status
+                          </span>
+                        </th>
+                        <th className="h-10 w-16"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingOverview ? (
+                        <tr>
+                          <td colSpan={6} className="h-[53px] px-5 text-center text-[#737373]">
+                            Loading...
+                          </td>
+                        </tr>
+                      ) : agentSchedule.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="h-[53px] px-5 text-center text-[#737373]">
+                            No schedule data available
+                          </td>
+                        </tr>
+                      ) : (
+                        agentSchedule.map((schedule) => {
+                          const date = schedule.call_start_time ? new Date(schedule.call_start_time) : null;
+                          const formattedDate = date ? `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}` : '-';
+                          const formattedTime = date ? date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '-';
+                          const status = schedule.call_status || 'pending';
+                          const isComplete = status === 'answered' || status === 'completed';
+                          const isFailed = status === 'failed' || status === 'missed';
+                          const isPending = status === 'pending' || status === 'initiated';
+
+                          return (
+                            <tr key={schedule.id} className="bg-white border-b border-[#e5e5e5]">
+                              <td className="h-[53px] px-5 py-2">
+                                <p className="text-[14px] font-normal text-[#0a0a0a]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                  {formattedDate}
+                                </p>
+                              </td>
+                              <td className="h-[53px] px-2 py-2">
+                                <p className="text-[14px] font-normal text-[#0a0a0a]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                  {formattedTime}
+                                </p>
+                              </td>
+                              <td className="h-[53px] px-2 py-2">
+                                <p className="text-[14px] font-normal text-[#0a0a0a]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                  {schedule.metadata?.list_id || '-'}
+                                </p>
+                              </td>
+                              <td className="h-[53px] px-2 py-2">
+                                <p className="text-[14px] font-normal text-[#0a0a0a]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                  {schedule.caller_number || '-'}
+                                </p>
+                              </td>
+                              <td className="h-[53px] px-2 py-2">
+                                <Badge
+                                  className={`text-[12px] font-medium ${
+                                    isComplete
+                                      ? 'bg-[#f0fdf4] border border-[#05df72] text-[#016630]'
+                                      : isFailed
+                                      ? 'bg-[#fef2f2] border border-[#ff6467] text-[#9f0712]'
+                                      : 'bg-[#fff7ed] border border-[#ff8904] text-[#9f2d00]'
+                                  }`}
+                                  style={{ fontFamily: "'Manrope', sans-serif" }}
+                                >
+                                  {isComplete ? 'Complete' : isFailed ? 'Failed' : 'Pending'}
+                                </Badge>
+                              </td>
+                              <td className="h-[53px] px-2 py-2 w-16">
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <Settings className="w-4 h-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex h-[52px] items-center justify-between pb-4 pt-[30px] w-full">
+                  <Button className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white h-9 px-4">
+                    <Plus className="w-5 h-5 mr-2" />
+                    Add New Schedule
+                  </Button>
+                  <div className="flex gap-1 items-center">
+                    <Button variant="ghost" size="sm" className="h-9 px-4">
+                      Previous
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-9 w-9">
+                      1
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-9 w-9">
+                      2
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-9 w-9">
+                      3
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-9 w-9">
+                      ...
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-9 px-4 border-[#0b99ff] text-[#0b99ff]">
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'logs' && (
+          <div className="border border-[#f0f0f0] flex flex-col items-start relative rounded-[14px] w-full">
+            {/* Header with Search and Filters */}
+            <div className="flex items-end justify-between p-5 w-full">
+              <div className="flex flex-[1_0_0] flex-col gap-[22px] items-start max-w-[384px]">
+                <p className="text-[14px] font-medium text-[#0a0a0a]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                  Call Logs
+                </p>
+                <div className="bg-white border border-[#e5e5e5] flex gap-1 h-9 items-center overflow-hidden px-3 py-1 relative rounded-[8px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] w-full">
+                  <Search className="w-4 h-4 text-[#737373]" />
+                  <Input
+                    type="text"
+                    placeholder="Search"
+                    value={logsSearch}
+                    onChange={(e) => setLogsSearch(e.target.value)}
+                    className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-[14px] text-[#737373]"
+                    style={{ fontFamily: "'Manrope', sans-serif" }}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 items-center justify-end">
+                <Select value={logsDateFilter} onValueChange={setLogsDateFilter}>
+                  <SelectTrigger className="bg-white border border-[#e5e5e5] h-9 px-4 text-[14px] font-medium text-[#27272b] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
+                    <div className="flex items-center justify-center relative shrink-0 size-4 mr-2">
+                      <ChevronRight className="w-4 h-4 rotate-90" />
+                    </div>
+                    <SelectValue placeholder="Date Range: All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Dates</SelectItem>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="week">Last 7 Days</SelectItem>
+                    <SelectItem value="month">Last 30 Days</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={logsStatusFilter} onValueChange={setLogsStatusFilter}>
+                  <SelectTrigger className="bg-white border border-[#e5e5e5] h-9 px-4 text-[14px] font-medium text-[#27272b] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
+                    <div className="flex items-center justify-center relative shrink-0 size-4 mr-2">
+                      <ChevronRight className="w-4 h-4 rotate-90" />
+                    </div>
+                    <SelectValue placeholder="Status: All Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="answered">Answered</SelectItem>
+                    <SelectItem value="missed">Missed</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm" className="h-9 px-4">
+                  <div className="flex items-center justify-center relative shrink-0 size-4 mr-2">
+                    <ChevronRight className="w-4 h-4 rotate-90" />
+                  </div>
+                  Edit Column
+                </Button>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="flex h-[581px] items-start relative w-full">
+              <div className="flex flex-col h-full items-start relative shrink-0 w-[140px]">
+                {/* Date Header */}
+                <div className="bg-[#f8f8f8] flex flex-[1_0_0] gap-1 items-center min-h-0 min-w-0 overflow-hidden px-5 relative w-full">
+                  <p className="text-[14px] font-bold text-black text-center" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Date
+                  </p>
+                  <ArrowUpDown className="w-4 h-4" />
+                </div>
+                {/* Date Rows */}
+                {loadingLogs ? (
+                  <div className="bg-white flex flex-[1_0_0] items-center min-h-0 min-w-0 px-5 relative w-full">
+                    <p className="text-[14px] text-center">Loading...</p>
+                  </div>
+                ) : callLogs.length === 0 ? (
+                  <div className="bg-white flex flex-[1_0_0] items-center min-h-0 min-w-0 px-5 relative w-full">
+                    <p className="text-[14px] text-center">No logs found</p>
+                  </div>
+                ) : (
+                  callLogs.map((log, index) => {
+                    const date = log.call_start_time ? new Date(log.call_start_time) : null;
+                    const formattedDate = date ? `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}` : '-';
+                    return (
+                      <div
+                        key={log.id}
+                        className={`flex flex-[1_0_0] items-center min-h-0 min-w-0 px-5 relative w-full ${
+                          index % 2 === 0 ? 'bg-white' : 'bg-[#f8f8f8]'
+                        }`}
+                      >
+                        <p className="text-[14px] font-medium text-[#0a0a0a] text-center" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          {formattedDate}
+                        </p>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Time Column */}
+              <div className="flex flex-col h-full items-start relative shrink-0 w-[118px]">
+                <div className="bg-[#f8f8f8] flex flex-[1_0_0] items-center min-h-0 min-w-0 overflow-hidden relative w-full">
+                  <p className="text-[14px] font-bold text-black text-center leading-normal" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Time
+                  </p>
+                </div>
+                {callLogs.map((log, index) => {
+                  const date = log.call_start_time ? new Date(log.call_start_time) : null;
+                  const formattedTime = date ? date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '-';
+                  return (
+                    <div
+                      key={log.id}
+                      className={`flex flex-[1_0_0] items-center min-h-0 min-w-0 relative w-full ${
+                        index % 2 === 0 ? 'bg-white' : 'bg-[#f8f8f8]'
+                      }`}
+                    >
+                      <p className="text-[14px] font-medium text-black text-center leading-normal" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        {formattedTime}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Contacts Column */}
+              <div className="flex flex-[1_0_0] flex-col h-full items-start min-h-0 min-w-0 relative">
+                <div className="bg-[#f8f8f8] flex flex-[1_0_0] gap-1 items-center min-h-0 min-w-0 overflow-hidden relative w-full">
+                  <p className="text-[14px] font-bold text-black text-center" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Contacts
+                  </p>
+                  <ArrowUpDown className="w-4 h-4" />
+                </div>
+                {callLogs.map((log, index) => (
+                  <div
+                    key={log.id}
+                    className={`flex flex-[1_0_0] items-center min-h-0 min-w-0 relative w-full ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-[#f8f8f8]'
+                    }`}
+                  >
+                    <p className="text-[14px] font-medium text-black text-center leading-normal" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      {log.metadata?.contact_name || log.caller_number || '-'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Type Column */}
+              <div className="flex flex-[1_0_0] flex-col h-full items-start min-h-0 min-w-0 relative">
+                <div className="bg-[#f8f8f8] flex flex-[1_0_0] gap-2 items-center min-h-0 min-w-0 relative w-full">
+                  <p className="text-[14px] font-bold text-black leading-normal" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Type
+                  </p>
+                </div>
+                {callLogs.map((log, index) => (
+                  <div
+                    key={log.id}
+                    className={`flex flex-[1_0_0] items-center min-h-0 min-w-0 relative w-full ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-[#f8f8f8]'
+                    }`}
+                  >
+                    <div className="border border-[#737373] border-solid flex items-center justify-center overflow-hidden px-2 py-[3px] rounded-[6px] shrink-0">
+                      <p className="text-[12px] font-medium text-[#737373] text-center whitespace-nowrap leading-[16px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        outboundPhoneCall
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Phone Column */}
+              <div className="flex flex-[1_0_0] flex-col h-full items-start min-h-0 min-w-0 relative">
+                <div className="bg-[#f8f8f8] flex flex-[1_0_0] items-center min-h-0 min-w-0 relative w-full">
+                  <p className="text-[14px] font-bold text-black leading-normal" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Phone
+                  </p>
+                </div>
+                {callLogs.map((log, index) => (
+                  <div
+                    key={log.id}
+                    className={`flex flex-[1_0_0] items-center min-h-0 min-w-0 relative w-full ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-[#f8f8f8]'
+                    }`}
+                  >
+                    <p className="text-[14px] font-medium text-black leading-normal" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      {log.caller_number || '-'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* List Column */}
+              <div className="flex flex-[1_0_0] flex-col h-full items-start min-h-0 min-w-0 relative">
+                <div className="bg-[#f8f8f8] flex flex-[1_0_0] items-center min-h-0 min-w-0 py-[10px] relative w-full">
+                  <p className="text-[14px] font-bold text-black leading-normal" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    List
+                  </p>
+                </div>
+                {callLogs.map((log, index) => (
+                  <div
+                    key={log.id}
+                    className={`flex flex-[1_0_0] items-center min-h-0 min-w-0 relative w-full ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-[#f8f8f8]'
+                    }`}
+                  >
+                    <p className="text-[14px] font-medium text-black leading-normal" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      {log.metadata?.list_name || 'DEMO LIST 10'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Status Column */}
+              <div className="flex flex-col h-full items-center relative shrink-0 w-[119px]">
+                <div className="bg-[#f8f8f8] flex flex-[1_0_0] gap-2 items-center min-h-0 min-w-0 relative w-full">
+                  <p className="text-[14px] font-bold text-black leading-normal" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Status
+                  </p>
+                </div>
+                {callLogs.map((log, index) => {
+                  const isComplete = log.call_status === 'answered' || log.call_status === 'completed';
+                  const isFailed = log.call_status === 'failed' || log.call_status === 'missed';
+                  return (
+                    <div
+                      key={log.id}
+                      className={`flex flex-[1_0_0] items-center min-h-0 min-w-0 relative w-full ${
+                        index % 2 === 0 ? 'bg-white' : 'bg-[#f8f8f8]'
+                      }`}
+                    >
+                      <div
+                        className={`border border-solid flex items-center justify-center overflow-hidden pl-[3px] pr-2 py-[3px] rounded-[6px] shrink-0 ${
+                          isComplete
+                            ? 'bg-[#f0fdf4] border-[#05df72] text-[#016630]'
+                            : isFailed
+                            ? 'bg-[#fef2f2] border-[#ff6467] text-[#9f0712]'
+                            : 'bg-[#fff7ed] border-[#ff8904] text-[#9f2d00]'
+                        }`}
+                      >
+                        <p className="text-[12px] font-medium text-center whitespace-nowrap leading-[16px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          {isComplete ? 'Complete' : isFailed ? 'Failed' : 'Pending'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Action Column */}
+              <div className="flex flex-col h-full items-center relative shrink-0 w-[117px]">
+                <div className="bg-[#f8f8f8] flex flex-[1_0_0] gap-2 items-center justify-end min-h-0 min-w-0 overflow-hidden px-5 relative w-full">
+                  <p className="text-[14px] font-bold text-black leading-normal" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Action
+                  </p>
+                </div>
+                {callLogs.map((log, index) => (
+                  <div
+                    key={log.id}
+                    className={`flex flex-[1_0_0] items-center justify-end min-h-0 min-w-0 px-5 relative w-full ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-[#f8f8f8]'
+                    }`}
+                  >
+                    <button
+                      onClick={() => {
+                        setSelectedLog(log);
+                        setShowLogDetail(true);
+                      }}
+                      className="text-[12px] font-medium text-[#0b99ff] underline decoration-solid leading-[16px]"
+                      style={{ fontFamily: "'Manrope', sans-serif" }}
+                    >
+                      View Detail
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Pagination */}
+            <div className="flex h-[74px] items-center justify-center px-[25px] py-[55px] relative w-full">
+              <div className="flex gap-1 items-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 px-4"
+                  onClick={() => setLogsPage(prev => Math.max(1, prev - 1))}
+                  disabled={logsPage === 1}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-2" />
+                  Previous
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 w-9"
+                  onClick={() => setLogsPage(1)}
+                >
+                  1
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 w-9"
+                  onClick={() => setLogsPage(2)}
+                >
+                  2
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 w-9"
+                  onClick={() => setLogsPage(3)}
+                >
+                  3
+                </Button>
+                <Button variant="ghost" size="sm" className="h-9 w-9">
+                  ...
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-4 border-[#0b99ff] text-[#0b99ff]"
+                  onClick={() => setLogsPage(prev => prev + 1)}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Log Detail Dialog */}
+        {showLogDetail && selectedLog && (
+          <Dialog open={showLogDetail} onOpenChange={setShowLogDetail}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <div className="flex items-center justify-between">
+                  <DialogTitle className="text-[18px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Call ID: {selectedLog.id.substring(0, 8)}
+                  </DialogTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowLogDetail(false)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-6 mt-4">
+                {/* Call Details */}
+                <div>
+                  <h3 className="text-[16px] font-bold text-[#27272b] mb-3" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    Call Details
+                  </h3>
+                  <div className="space-y-2 text-[14px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">Call Status:</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                        <span>{selectedLog.call_status === 'answered' || selectedLog.call_status === 'completed' ? 'Completed' : selectedLog.call_status}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="font-medium">Call Duration:</span>{' '}
+                      {selectedLog.call_duration
+                        ? `${Math.floor(selectedLog.call_duration / 60)}:${String(selectedLog.call_duration % 60).padStart(2, '0')}:00`
+                        : '00:00:00'}
+                    </div>
+                    {selectedLog.call_start_time && (
+                      <>
+                        <div>
+                          <span className="font-medium">Call Date:</span>{' '}
+                          {new Date(selectedLog.call_start_time).toLocaleDateString()}
+                        </div>
+                        <div>
+                          <span className="font-medium">Call Time:</span>{' '}
+                          {new Date(selectedLog.call_start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                        </div>
+                      </>
+                    )}
+                    <div>
+                      <span className="font-medium">Customer Number:</span> {selectedLog.caller_number || '-'}
+                    </div>
+                    <div>
+                      <span className="font-medium">Agent Number:</span> {selectedLog.called_number || '-'}
+                    </div>
+                    <div>
+                      <span className="font-medium">Call Cost:</span> ${selectedLog.call_cost ? Number(selectedLog.call_cost).toFixed(2) : '0.00'}
+                    </div>
+                    {selectedLog.recording_url && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Recording:</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (currentAudio) {
+                              currentAudio.pause();
+                              setCurrentAudio(null);
+                              setPlayingAudio(null);
+                            }
+                            const audio = new Audio(selectedLog.recording_url);
+                            audio.play();
+                            setCurrentAudio(audio);
+                            setPlayingAudio(selectedLog.id);
+                            audio.onended = () => {
+                              setCurrentAudio(null);
+                              setPlayingAudio(null);
+                            };
+                          }}
+                          className="h-8"
+                        >
+                          <Play className="w-4 h-4 mr-2" />
+                          Play Recording
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Agent Details */}
+                {editingAgent && (
+                  <div>
+                    <h3 className="text-[16px] font-bold text-[#27272b] mb-3" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      Agent Details
+                    </h3>
+                    <div className="space-y-2 text-[14px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      <div>
+                        <span className="font-medium">Agent Name:</span> {editingAgent.name || '-'}
+                      </div>
+                      <div>
+                        <span className="font-medium">Agent ID:</span> {editingAgent.id.substring(0, 8) || '-'}
+                      </div>
+                      <div>
+                        <span className="font-medium">Agent Type:</span> Voice Agent
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Transcript */}
+                {selectedLog.transcript && (
+                  <div>
+                    <h3 className="text-[16px] font-bold text-[#27272b] mb-3" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      Transcript
+                    </h3>
+                    <div className="bg-[#f8f8f8] rounded-lg p-4 max-h-[400px] overflow-y-auto">
+                      <div className="space-y-3 text-[14px] whitespace-pre-wrap" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        {selectedLog.transcript.split('\n').map((line: string, idx: number) => {
+                          if (line.includes('Agent:') || line.includes('Customer:')) {
+                            const parts = line.split(':');
+                            const speaker = parts[0];
+                            const text = parts.slice(1).join(':');
+                            const timestamp = line.match(/\[(\d{2}:\d{2}:\d{2})\]/)?.[1] || '';
+                            return (
+                              <div key={idx} className="mb-2">
+                                <span className="font-bold text-[#27272b]">{speaker}:</span>
+                                {timestamp && <span className="text-[#737373] ml-2">[{timestamp}]</span>}
+                                <p className="text-[#27272b] mt-1">{text.trim()}</p>
+                              </div>
+                            );
+                          }
+                          return <p key={idx} className="text-[#27272b]">{line}</p>;
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+    );
+  }
+
+  // Original create mode UI
   return (
     <>
       <div className="space-y-6" style={{ fontFamily: "'Manrope', sans-serif" }}>
@@ -1328,7 +3629,7 @@ Make the content professional, realistic, and tailored to the user's business de
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="script" className="text-foreground">Script *</Label>
+                <Label htmlFor="script" className="text-foreground">Script (Optional)</Label>
                 <div className="relative">
                   <FileText className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
                   <Textarea
@@ -1816,28 +4117,65 @@ Make the content professional, realistic, and tailored to the user's business de
                 <Label htmlFor="autofillPrompt" className="text-foreground">
                   Describe your agent or business
                 </Label>
-                <Textarea
-                  id="autofillPrompt"
-                  value={autofillPrompt}
-                  onChange={(e) => {
-                    setAutofillPrompt(e.target.value);
-                    setAutofillError(null); // Clear error when user types
-                  }}
-                  onKeyDown={(e) => {
-                    // Allow Ctrl+Enter or Cmd+Enter to submit
-                    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && autofillPrompt.trim() && !autofillLoading) {
-                      e.preventDefault();
-                      handleGenerateAutofill();
-                    }
-                  }}
-                  placeholder="Example: I run an online tutoring platform called EduCare. We offer 1-on-1 live classes for students. I need a voice agent that can answer inquiries, schedule trial classes, and capture lead information. The agent should be friendly and professional."
-                  rows={6}
-                  className="bg-background text-foreground border-border resize-none"
-                  disabled={autofillLoading}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Be as detailed as possible. Include your company name, business type, services offered, and what you want the agent to do. Press Ctrl+Enter (or Cmd+Enter on Mac) to generate.
-                </p>
+                <div className="space-y-2">
+                  <Textarea
+                    id="autofillPrompt"
+                    value={autofillPrompt}
+                    onChange={(e) => {
+                      setAutofillPrompt(e.target.value);
+                      setAutofillError(null); // Clear error when user types
+                    }}
+                    onKeyDown={(e) => {
+                      // Allow Ctrl+Enter or Cmd+Enter to submit
+                      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && autofillPrompt.trim() && !autofillLoading) {
+                        e.preventDefault();
+                        handleGenerateAutofill();
+                      }
+                    }}
+                    placeholder="Describe your business and what you need the agent to do. For example: 'I run a real estate agency. I need an agent that can answer property inquiries, schedule viewings, and qualify leads. The agent should be professional, knowledgeable about our listings, and able to capture contact information.'"
+                    rows={6}
+                    className="bg-background text-foreground border-border resize-none"
+                    disabled={autofillLoading}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-xs text-muted-foreground">Quick suggestions:</span>
+                    <button
+                      type="button"
+                      onClick={() => setAutofillPrompt('Real estate agency - answer property inquiries, schedule viewings, qualify leads')}
+                      className="text-xs px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20"
+                      disabled={autofillLoading}
+                    >
+                      Real Estate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAutofillPrompt('E-commerce store - handle product questions, process orders, provide shipping updates')}
+                      className="text-xs px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20"
+                      disabled={autofillLoading}
+                    >
+                      E-commerce
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAutofillPrompt('Healthcare clinic - schedule appointments, answer questions about services, provide clinic information')}
+                      className="text-xs px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20"
+                      disabled={autofillLoading}
+                    >
+                      Healthcare
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAutofillPrompt('Restaurant - take reservations, answer menu questions, provide hours and location')}
+                      className="text-xs px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20"
+                      disabled={autofillLoading}
+                    >
+                      Restaurant
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Be as detailed as possible. Include your company name, business type, services offered, and what you want the agent to do. Press Ctrl+Enter (or Cmd+Enter on Mac) to generate.
+                  </p>
+                </div>
               </div>
               
               {autofillError && (
