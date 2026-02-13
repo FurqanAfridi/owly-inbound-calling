@@ -101,9 +101,9 @@ const SignUp: React.FC = () => {
       });
 
       if (signUpError) {
-        if (signUpError.message?.includes('already registered') || 
-            signUpError.message?.includes('User already registered') ||
-            signUpError.message?.includes('email address is already registered')) {
+        if (signUpError.message?.includes('already registered') ||
+          signUpError.message?.includes('User already registered') ||
+          signUpError.message?.includes('email address is already registered')) {
           setError('An account with this email already exists. Please sign in instead.');
         } else {
           setError(signUpError.message || 'Failed to create account');
@@ -120,10 +120,10 @@ const SignUp: React.FC = () => {
           return;
         }
 
-        const phoneNumber = formData.phone.startsWith(countryCode) 
-          ? formData.phone 
+        const phoneNumber = formData.phone.startsWith(countryCode)
+          ? formData.phone
           : `${countryCode}${formData.phone}`;
-        
+
         const profileData = {
           id: signUpData.user.id,
           first_name: formData.firstName || null,
@@ -178,18 +178,18 @@ const SignUp: React.FC = () => {
       {/* Left Panel - Blue Section */}
       <div className="signin-left-panel">
         <div className="signin-left-gradient"></div>
-        <div 
+        <div
           className="signin-left-pattern"
           style={{ backgroundImage: `url(${rectangle1281Image})` }}
         ></div>
         <div className="signin-left-content">
           <h1 className="signin-hero-title">
-            Build your Owly<br />
+            Build your Genie<br />
             powered social<br />
             growth engine
           </h1>
           <p className="signin-hero-description">
-            Launch your personal Owly agent to handle content, insights, and<br />
+            Launch your personal Genie agent to handle content, insights, and<br />
             execution across platforms. Stop reacting. Start controlling your<br />
             social media with data-driven automation.
           </p>
@@ -203,7 +203,7 @@ const SignUp: React.FC = () => {
       <div className="signin-logo">
         <img src={mode === 'dark' ? logoImageDark : logoImage} alt="DNAI Logo" />
       </div>
-      
+
       <div className="signup-form-wrapper">
         <div className="signup-welcome">
           <h2 className="signin-welcome-title">Create your account!</h2>
@@ -379,12 +379,12 @@ const SignUp: React.FC = () => {
             </div>
 
             <div className="signin-divider">
-              <div 
+              <div
                 className="signin-divider-line"
                 style={{ backgroundImage: `url(${vector10Icon})` }}
               ></div>
               <span className="signin-divider-text">or</span>
-              <div 
+              <div
                 className="signin-divider-line"
                 style={{ backgroundImage: `url(${vector10Icon})` }}
               ></div>
@@ -392,14 +392,14 @@ const SignUp: React.FC = () => {
 
             <div className="signin-social-buttons">
               <button type="button" className="signin-social-button">
-                <div 
+                <div
                   className="signin-social-icon"
                   style={{ backgroundImage: `url(${googleIcon})` }}
                 ></div>
                 <span className="signin-social-button-text">Google</span>
               </button>
               <button type="button" className="signin-social-button">
-                <div 
+                <div
                   className="signin-social-icon"
                   style={{ backgroundImage: `url(${appleIcon})` }}
                 ></div>
@@ -407,7 +407,7 @@ const SignUp: React.FC = () => {
               </button>
               <button type="button" className="signin-social-button">
                 <div className="signin-facebook-icon">
-                  <div 
+                  <div
                     className="signin-facebook-icon-inner"
                     style={{ backgroundImage: `url(${facebookIcon})` }}
                   ></div>

@@ -8,7 +8,7 @@ import TimeFilterTabs from './dashboard/TimeFilterTabs';
 import RecentCallsTable from './dashboard/RecentCallsTable';
 import CallStatusSummary from './dashboard/CallStatusSummary';
 import TimeUsageCard from './dashboard/TimeUsageCard';
-import OwlyCard from './dashboard/OwlyCard';
+import GenieCard from './dashboard/GenieCard';
 import StatCardWithChart from './dashboard/StatCardWithChart';
 import ContactListsTable from './dashboard/ContactListsTable';
 import AgentsList from './dashboard/AgentsList';
@@ -378,13 +378,13 @@ const Dashboard: React.FC = () => {
 
       // ── Call Status Summary (from ALL calls, not time-filtered) ──
       const totalAllCalls = allCalls.length;
-      
+
       // Calculate leads first
       const leads = allCalls.filter(c => {
         const val = c.is_lead;
         return val === true || val === 'true' || val === 1 || val === 't';
       }).length;
-      
+
       // Completed = calls with status 'answered' or 'completed' (excluding leads for pie chart)
       // For pie chart: show completed (non-leads), missed (non-leads), and leads separately
       const completedNonLeads = allCalls.filter(c => {
@@ -392,26 +392,26 @@ const Dashboard: React.FC = () => {
         const isCompleted = c.call_status === 'answered' || c.call_status === 'completed';
         return isCompleted && !isLead;
       }).length;
-      
+
       // Missed = everything else that's not completed and not a lead
       const missedNonLeads = allCalls.filter(c => {
         const isLead = c.is_lead === true || c.is_lead === 'true' || c.is_lead === 1 || c.is_lead === 't';
         const isCompleted = c.call_status === 'answered' || c.call_status === 'completed';
         return !isCompleted && !isLead;
       }).length;
-      
+
       // For display: show total completed and missed (including leads)
-      const completed = allCalls.filter(c => 
+      const completed = allCalls.filter(c =>
         c.call_status === 'answered' || c.call_status === 'completed'
       ).length;
       const missed = allCalls.filter(
         c => !c.call_status || (c.call_status !== 'answered' && c.call_status !== 'completed')
       ).length;
 
-      setCallStatusStats({ 
-        completed, 
-        missed, 
-        leads, 
+      setCallStatusStats({
+        completed,
+        missed,
+        leads,
         total: totalAllCalls,
         // For pie chart visualization
         completedNonLeads,
@@ -504,7 +504,7 @@ const Dashboard: React.FC = () => {
             calledNumber: call.called_number || '-',
             duration: formatDurationStr(call.call_duration),
             status: call.call_forwarded_to ? 'forwarded' :
-                    call.call_status === 'answered' ? 'answered' : 'missed',
+              call.call_status === 'answered' ? 'answered' : 'missed',
             time: formatRelativeTime(call.call_start_time),
             cost: call.call_cost ? `$${Number(call.call_cost).toFixed(4)}` : '$0.00',
             isLead: call.is_lead === true || call.is_lead === 'true' || call.is_lead === 1,
@@ -577,34 +577,34 @@ const Dashboard: React.FC = () => {
       const contactData: ContactCallData[] = Array.from(callsByCaller.entries()).map(([phone, calls]) => {
         // Get the most recent call
         const latestCall = calls[0];
-        
+
         // Extract name from metadata or use phone as fallback
         const name = latestCall.metadata?.name || latestCall.metadata?.caller_name || phone;
-        
+
         // Extract email from metadata
         const email = latestCall.metadata?.email || latestCall.metadata?.caller_email || '-';
-        
+
         // Get list name from inbound number
         const inboundNumber = inboundNumbers.find(n => n.id === latestCall.inbound_number_id);
         const list = inboundNumber?.phone_label || 'Unassigned';
-        
+
         // Determine status (use is_lead or call_status)
-        const status = latestCall.is_lead === true || latestCall.is_lead === 'true' || latestCall.is_lead === 1 
-          ? 'Lead' 
-          : latestCall.call_status === 'answered' 
-            ? 'Answered' 
+        const status = latestCall.is_lead === true || latestCall.is_lead === 'true' || latestCall.is_lead === 1
+          ? 'Lead'
+          : latestCall.call_status === 'answered'
+            ? 'Answered'
             : 'Missed';
-        
+
         // Format last call time
-        const lastCall = latestCall.call_start_time 
-          ? formatRelativeTime(latestCall.call_start_time) 
+        const lastCall = latestCall.call_start_time
+          ? formatRelativeTime(latestCall.call_start_time)
           : '-';
-        
+
         // Format last call duration
-        const lastCallDuration = latestCall.call_duration 
-          ? formatDurationStr(latestCall.call_duration) 
+        const lastCallDuration = latestCall.call_duration
+          ? formatDurationStr(latestCall.call_duration)
           : '-';
-        
+
         // End reason
         const endReason = latestCall.call_status || '-';
 
@@ -710,8 +710,8 @@ const Dashboard: React.FC = () => {
   const remainingMinutes = (totalTimeHours * 60 - usedMinutes) % 60;
 
   // Calculate success rate: completed calls / total calls
-  const successRate = callStatusStats.total > 0 
-    ? Math.round((callStatusStats.completed / callStatusStats.total) * 100) 
+  const successRate = callStatusStats.total > 0
+    ? Math.round((callStatusStats.completed / callStatusStats.total) * 100)
     : 0;
 
   return (
@@ -738,9 +738,9 @@ const Dashboard: React.FC = () => {
         </div>
 
 
-        {/* Owly Card and Time Usage Row */}
+        {/* Genie Card and Time Usage Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <OwlyCard />
+          <GenieCard />
           <TimeUsageCard
             totalTime={`${totalTimeHours} hours`}
             used={`${usedMinutes} mins`}
@@ -801,10 +801,10 @@ const Dashboard: React.FC = () => {
           <div className="mb-8">
             <ContactListsTable
               inboundNumbers={inboundNumbers.map(number => {
-                const assignedAgent = number.assigned_to_agent_id 
+                const assignedAgent = number.assigned_to_agent_id
                   ? voiceAgents.find(agent => agent.id === number.assigned_to_agent_id)
                   : null;
-                
+
                 return {
                   id: number.id,
                   phone_number: number.phone_number,
@@ -850,8 +850,8 @@ const Dashboard: React.FC = () => {
                 <div style={{ fontFamily: "'Manrope', sans-serif" }}>
                   <h3 className="text-2xl font-bold text-foreground mb-2">No Voice Agents Yet</h3>
                   <p className="text-muted-foreground max-w-md text-[16px]">
-                    Create your first Owly voice agent to start receiving and managing inbound calls.
-                    Owly voice agents can handle customer inquiries, schedule appointments, and more.
+                    Create your first Genie voice agent to start receiving and managing inbound calls.
+                    Genie voice agents can handle customer inquiries, schedule appointments, and more.
                   </p>
                 </div>
                 <Button
@@ -870,7 +870,7 @@ const Dashboard: React.FC = () => {
         {/* Recent Calls Table - Full Width */}
         {!showEmptyState && (
           <div className="w-full">
-            <RecentCallsTable 
+            <RecentCallsTable
               calls={recentCalls.slice(0, 5).map(call => ({
                 id: call.id,
                 dateTime: call.callStartTime ? new Date(call.callStartTime).toLocaleString('en-US', {
@@ -891,8 +891,8 @@ const Dashboard: React.FC = () => {
                 cost: call.cost,
                 agentName: call.agentName,
                 isLead: call.isLead,
-              }))} 
-              onViewMore={() => navigate('/call-history')} 
+              }))}
+              onViewMore={() => navigate('/call-history')}
             />
           </div>
         )}
