@@ -403,3 +403,11 @@ storybook-static
 # Temporary folders
 tmp/
 temp/
+
+# ===========================================
+# Deployment & Misc
+# ===========================================
+.vercel
+.serverless
+*.rej
+

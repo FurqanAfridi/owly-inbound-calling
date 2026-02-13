@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Upload, X, Camera, CheckCircle } from 'lucide-react';
+import { User, Upload, X, Camera } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Button } from './ui/button';
-import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
 

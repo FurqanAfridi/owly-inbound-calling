@@ -204,7 +204,7 @@ const SignUp: React.FC = () => {
       <div className="signup-form-wrapper">
         <div className="signup-welcome">
           <h2 className="signin-welcome-title">Create your account!</h2>
-          <p className="signin-welcome-subtitle" style={{ marginBottom: '10px !important' }}>Tell us a bit about yourself to get started.</p>
+          <p className="signin-welcome-subtitle">Tell us a bit about yourself to get started.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="signin-form">

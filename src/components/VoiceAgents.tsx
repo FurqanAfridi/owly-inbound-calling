@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
+import { Badge } from './ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -107,6 +108,63 @@ const VoiceAgents: React.FC = () => {
     }
 
     try {
+      // Fetch the full agent data before deletion for webhook
+      const { data: agentData, error: fetchError } = await supabase
+        .from('voice_agents')
+        .select('*')
+        .eq('id', agentId)
+        .eq('user_id', user?.id)
+        .single();
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      // Call delete webhook if configured
+      const deleteWebhookUrl = process.env.REACT_APP_DELETE_AGENT_WEBHOOK_URL;
+      if (deleteWebhookUrl && agentData) {
+        try {
+          const deletePayload = {
+            agent_id: agentData.id,
+            owner_user_id: user?.id,
+            ...agentData,
+          };
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+          const deleteResponse = await fetch(deleteWebhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(deletePayload),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!deleteResponse.ok) {
+            const errorText = await deleteResponse.text().catch(() => 'No error details available');
+            console.error(`Delete webhook failed: ${deleteResponse.status} ${deleteResponse.statusText} - ${errorText}`);
+            // Continue with deletion even if webhook fails, but log the error
+          } else {
+            try {
+              const responseData = await deleteResponse.json();
+              console.log('Delete webhook success response:', responseData);
+            } catch (parseError) {
+              const textResponse = await deleteResponse.text();
+              console.log('Delete webhook success response (text):', textResponse);
+            }
+          }
+        } catch (webhookError: any) {
+          console.error('Error calling delete webhook:', webhookError);
+          // Continue with deletion even if webhook fails
+        }
+      }
+
+      // Delete the agent from database
       const { error: deleteError } = await supabase
         .from('voice_agents')
         .update({ deleted_at: new Date().toISOString() })
@@ -300,13 +358,28 @@ const VoiceAgents: React.FC = () => {
                   key={agent.id}
                   className="bg-white flex items-center justify-between p-[10px] rounded-[8px]"
                 >
-                  <div className="flex flex-col leading-[1.5] pb-px">
-                    <p className="text-[14px] font-medium text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                      {agent.name}
-                    </p>
-                    <p className="text-[12px] font-normal text-[#0b99ff]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                      {agent.company_name || 'No company'}
-                    </p>
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="flex flex-col leading-[1.5] pb-px flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-[14px] font-medium text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          {agent.name}
+                        </p>
+                        <Badge
+                          variant={agent.status === 'active' ? 'default' : 'secondary'}
+                          className={`text-[11px] font-medium px-2 py-0.5 ${
+                            agent.status === 'active'
+                              ? 'bg-[#f0fdf4] border border-[#05df72] text-[#016630]'
+                              : 'bg-[#fef2f2] border border-[#ff6467] text-[#9f0712]'
+                          }`}
+                          style={{ fontFamily: "'Manrope', sans-serif" }}
+                        >
+                          {agent.status === 'active' ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </div>
+                      <p className="text-[12px] font-normal text-[#0b99ff]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        {agent.company_name || 'No company'}
+                      </p>
+                    </div>
                   </div>
                   <div className="flex items-center justify-end">
                     <DropdownMenu 

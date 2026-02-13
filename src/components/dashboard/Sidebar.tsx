@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
+import {
   LayoutTemplate,
   GraduationCap,
   PhoneIncoming,
@@ -10,11 +10,15 @@ import {
   BookOpen,
   CreditCard,
   User,
+  Mail,
+  Sparkles,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import logoImage from '../../assest/DNAI-Logo 1 (1).png';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarItem {
   id: string;
@@ -31,22 +35,34 @@ interface SidebarSection {
 
 const sidebarSections: SidebarSection[] = [
   {
-    title: 'Owly',
+    title: 'Overview',
     items: [
-      { id: 'overview', label: 'Overview', icon: <LayoutTemplate className="w-5 h-5" />, path: '/dashboard' },
+      { id: 'overview', label: 'Dashboard', icon: <LayoutTemplate className="w-5 h-5" />, path: '/dashboard' },
+    ],
+  },
+  {
+    title: 'Operations',
+    items: [
       { id: 'agents', label: 'Agents', icon: <GraduationCap className="w-5 h-5" />, path: '/agents' },
-      { id: 'inbound-numbers', label: 'Inbound Numbers', icon: <PhoneIncoming className="w-5 h-5" />, path: '/inbound-numbers' },
+      { id: 'inbound-numbers', label: 'Phone Numbers', icon: <PhoneIncoming className="w-5 h-5" />, path: '/inbound-numbers' },
       { id: 'knowledge-bases', label: 'Knowledge Bases', icon: <BookOpen className="w-5 h-5" />, path: '/knowledge-bases' },
+      { id: 'email', label: 'Emails', icon: <Mail className="w-5 h-5" />, path: '/email' },
+      { id: 'ai-prompt', label: 'AI Prompt', icon: <Sparkles className="w-5 h-5" />, path: '/ai-prompt' },
       { id: 'calendar', label: 'Calendar', icon: <CalendarFold className="w-5 h-5" />, path: '/call-schedules' },
-      { id: 'call-logs', label: 'Call logs', icon: <Headset className="w-5 h-5" />, path: '/call-history' },
+    ],
+  },
+  {
+    title: 'Analytics',
+    items: [
+      { id: 'call-logs', label: 'Call History', icon: <Headset className="w-5 h-5" />, path: '/call-history' },
       { id: 'leads', label: 'Leads', icon: <FileUser className="w-5 h-5" />, path: '/leads' },
     ],
   },
   {
-    title: 'Settings',
+    title: 'Account',
     items: [
       { id: 'billing', label: 'Billing', icon: <CreditCard className="w-5 h-5" />, path: '/billing' },
-      { id: 'profile', label: 'Profile', icon: <User className="w-5 h-5" />, path: '/profile' },
+      { id: 'profile', label: 'Settings', icon: <User className="w-5 h-5" />, path: '/profile' },
     ],
   },
 ];
@@ -56,6 +72,7 @@ const Sidebar = () => {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const { signOut } = useAuth();
 
   const getActiveItem = () => {
     const currentPath = location.pathname;
@@ -90,130 +107,144 @@ const Sidebar = () => {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error("Logout failed", error);
+    }
+  };
+
   return (
-    <aside 
+    <aside
       className={cn(
-        "fixed left-0 top-0 h-screen bg-white flex flex-col transition-all duration-500 ease-out z-50",
-        isCollapsed ? "w-20" : "w-[224px]"
+        "fixed left-0 top-0 h-screen bg-sidebar-background flex flex-col transition-all duration-300 ease-in-out z-50 border-r border-sidebar-border",
+        isCollapsed ? "w-20" : "w-[240px]"
       )}
-      style={{ 
-        fontFamily: "'Manrope', sans-serif",
-        borderRight: '2px solid #e5e5e5',
-        boxShadow: '1px 0 0 0 rgba(229, 229, 229, 0.5)'
-      }}
+      style={{ fontFamily: "'Manrope', sans-serif" }}
     >
       {/* Logo */}
-      <div className="px-4 py-4">
+      <div className="h-20 flex items-center px-6 border-b border-sidebar-border/50">
         <div className={cn(
-          "flex items-center overflow-hidden transition-all duration-300",
-          isCollapsed && "justify-center"
+          "flex items-center gap-2 overflow-hidden transition-all duration-300",
+          isCollapsed ? "justify-center w-full px-0" : ""
         )}>
-          <img 
-            src={logoImage} 
-            alt="DNAI Logo" 
-            className={cn(
-              "h-14 w-auto object-contain transition-all duration-300",
-              isCollapsed && "h-10"
-            )}
-          />
+          {isCollapsed ? (
+            <div className="h-10 w-10 bg-sidebar-primary/10 rounded-lg flex items-center justify-center text-sidebar-primary">
+              <Sparkles className="w-6 h-6" />
+            </div>
+          ) : (
+            <img
+              src={logoImage}
+              alt="DNAI Logo"
+              className="h-10 w-auto object-contain"
+            />
+          )}
         </div>
       </div>
 
       {/* Navigation Sections */}
-      <div className="flex-1 overflow-y-auto px-4">
+      <div className="flex-1 overflow-y-auto px-3 py-6 scrollbar-thin scrollbar-thumb-sidebar-border">
         {sidebarSections.map((section, sectionIndex) => (
-          <div key={section.title} className={cn("flex flex-col gap-[15px] items-start", sectionIndex > 0 && "mt-[25px]")}>
+          <div key={section.title} className="flex flex-col gap-[0rem]">
             {/* Section Header */}
-            <div className="flex items-center px-2 py-[2px] w-full">
-              <p 
-                className="text-[16px] font-semibold text-[rgba(39,39,43,0.7)] leading-[20px]"
-                style={{ fontFamily: "'Manrope', sans-serif" }}
-              >
-                {section.title}
-              </p>
-            </div>
+            {!isCollapsed && (
+              <div className="px-3">
+                <p className="text-[13px] font-bold text-sidebar-foreground/50 uppercase tracking-wider">
+                  {section.title}
+                </p>
+              </div>
+            )}
 
             {/* Section Menu Items */}
-            <div className="flex flex-col gap-[4px] items-start w-full">
+            <div className="space-y-1">
               {section.items.map((item) => {
                 const isActive = activeItem === item.id;
                 const isExpanded = expandedItems.has(item.id);
 
                 return (
-                  <div key={item.id} className="flex flex-col w-full">
-                    {item.hasSubmenu ? (
-                      <div className="flex flex-col items-start pl-2 py-1.5 w-full">
-                        <button
-                          onClick={() => handleItemClick(item.path, item.hasSubmenu, item.id)}
-                          className={cn(
-                            "flex items-center justify-between w-full gap-2 rounded-[6px] px-2",
-                            isActive && "bg-[rgba(48,134,255,0.1)]"
-                          )}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className="w-5 h-5 shrink-0 flex items-center justify-center">
-                              {item.icon}
-                            </div>
-                            {!isCollapsed && (
-                              <p 
-                                className={cn(
-                                  "text-[16px] leading-[24px] text-[#27272b]",
-                                  isActive ? "font-semibold" : "font-medium"
-                                )}
-                                style={{ fontFamily: "'Manrope', sans-serif" }}
-                              >
-                                {item.label}
-                              </p>
-                            )}
-                          </div>
-                          {!isCollapsed && (
-                            <div className="w-5 h-5 shrink-0 flex items-center justify-center">
+                  <div key={item.id} className="w-full">
+                    <button
+                      onClick={() => handleItemClick(item.path, item.hasSubmenu, item.id)}
+                      className={cn(
+                        "flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-200 group relative",
+                        isActive
+                          ? "bg-sidebar-accent text-sidebar-foreground font-semibold shadow-sm"
+                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground font-medium",
+                        isCollapsed && "justify-center px-2"
+                      )}
+                      title={isCollapsed ? item.label : undefined}
+                    >
+                      <div className={cn(
+                        "w-[22px] h-[22px] flex items-center justify-center shrink-0",
+                        isActive ? "text-sidebar-primary" : "text-sidebar-foreground/70 group-hover:text-sidebar-foreground"
+                      )}>
+                        {item.icon}
+                      </div>
+
+                      {!isCollapsed && (
+                        <>
+                          <span className="text-[15px] truncate flex-1 text-left leading-[22px] tracking-tight">
+                            {item.label}
+                          </span>
+                          {item.hasSubmenu && (
+                            <div className="w-4 h-4 shrink-0">
                               {isExpanded ? (
-                                <ChevronDown className="w-5 h-5 text-[#27272b]" />
+                                <ChevronDown className="w-4 h-4" />
                               ) : (
-                                <ChevronRight className="w-5 h-5 text-[#27272b]" />
+                                <ChevronRight className="w-4 h-4" />
                               )}
                             </div>
                           )}
-                        </button>
+                        </>
+                      )}
+
+                      {/* Active Indicator Strip for Collapsed Mode */}
+                      {isCollapsed && isActive && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-sidebar-primary rounded-r-full" />
+                      )}
+                    </button>
+
+                    {/* Submenu (if needed in future) */}
+                    {item.hasSubmenu && isExpanded && !isCollapsed && (
+                      <div className="ml-9 mt-1 space-y-1 border-l-2 border-sidebar-border pl-2">
+                        {/* Submenu items would go here */}
                       </div>
-                    ) : (
-                      <button
-                        onClick={() => handleItemClick(item.path, item.hasSubmenu, item.id)}
-                        className={cn(
-                          "flex items-center gap-2 px-2 py-1.5 rounded-[6px] transition-all duration-200 w-full overflow-hidden",
-                          isActive 
-                            ? "bg-[rgba(48,134,255,0.1)]" 
-                            : "hover:bg-[rgba(0,0,0,0.02)]"
-                        )}
-                      >
-                        <div className="w-5 h-5 shrink-0 flex items-center justify-center">
-                          {item.icon}
-                        </div>
-                        {!isCollapsed && (
-                          <p 
-                            className={cn(
-                              "text-[16px] leading-[24px] text-[#27272b] whitespace-nowrap",
-                              isActive ? "font-semibold" : "font-medium"
-                            )}
-                            style={{ fontFamily: "'Manrope', sans-serif" }}
-                          >
-                            {item.label}
-                          </p>
-                        )}
-                      </button>
                     )}
                   </div>
                 );
               })}
             </div>
 
-            {/* Divider */}
+            {/* Divider between sections if not last */}
             {sectionIndex < sidebarSections.length - 1 && (
-              <div className="h-px bg-[#e5e5e5] w-full" style={{ marginTop: '10px', marginBottom: '10px' }} />
+              <div className="h-px bg-sidebar-border/50 mx-2 my-2" />
             )}
           </div>
         ))}
+      </div>
+
+      {/* Footer / User Profile */}
+      <div className="p-4 border-t border-sidebar-border bg-sidebar-background">
+        <button
+          onClick={handleLogout}
+          className={cn(
+            "flex items-center gap-3 w-full px-3 py-2 rounded-xl transition-all duration-200 group text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive",
+            isCollapsed && "justify-center px-2"
+          )}
+          title="Logout"
+        >
+          <LogOut className="w-5 h-5 shrink-0" />
+          {!isCollapsed && <span className="text-sm font-medium">Logout</span>}
+        </button>
+
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="absolute -right-3 top-10 bg-sidebar-background border border-sidebar-border rounded-full p-1 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent shadow-sm z-50 hidden md:flex"
+        >
+          {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3 rotate-90" />}
+        </button>
       </div>
     </aside>
   );

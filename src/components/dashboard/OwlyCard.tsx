@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import videoframeImage from '@/assest/videoframe_0 (1) 1.png';
+import videoframeImage from '@/assest/Owly.png';
 
 const OwlyCard: React.FC = () => {
   return (
@@ -10,9 +10,9 @@ const OwlyCard: React.FC = () => {
           <h2 className="text-[24px] font-bold text-[#27272b] tracking-[-0.6px] leading-[32px]" style={{ fontFamily: "'Manrope', sans-serif" }}>Owly</h2>
           <div className="flex gap-14 items-center justify-center pl-[23px]">
             <div className="relative w-[164px] h-[236px] shrink-0">
-              <img 
-                src={videoframeImage} 
-                alt="Owly Character" 
+              <img
+                src={videoframeImage}
+                alt="Owly Character"
                 className="absolute h-[126.27%] left-[-43.9%] top-[-12.71%] w-[181.71%] object-contain"
               />
             </div>

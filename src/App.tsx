@@ -25,6 +25,8 @@ import KnowledgeBases from './components/KnowledgeBases';
 import TwoFactorAuth from './components/TwoFactorAuth';
 import LoginActivity from './components/LoginActivity';
 import AccountDeactivation from './components/AccountDeactivation';
+import Email from './components/Email';
+import AIPrompt from './components/AIPrompt';
 import ProtectedLayout from './components/layout/ProtectedLayout';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -76,6 +78,8 @@ const App: React.FC = () => {
                   <Route path="/leads" element={<Leads />} />
                   <Route path="/billing" element={<Billing />} />
                   <Route path="/knowledge-bases" element={<KnowledgeBases />} />
+                  <Route path="/email" element={<Email />} />
+                  <Route path="/ai-prompt" element={<AIPrompt />} />
                 </Route>
               </Routes>
             </Router>

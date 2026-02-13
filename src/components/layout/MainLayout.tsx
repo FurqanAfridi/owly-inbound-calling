@@ -23,6 +23,8 @@ const routeToTitle: Record<string, string> = {
   '/call-history': 'Call History',
   '/leads': 'Leads',
   '/billing': 'Billing',
+  '/email': 'Email Management',
+  '/ai-prompt': 'AI Prompt Generator',
 };
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children, title }) => {
@@ -67,7 +69,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, title }) => {
       <Sidebar />
 
       {/* Main Content */}
-      <main className={`${sidebarCollapsed ? 'ml-20' : 'ml-[224px]'} p-8 transition-all duration-500`}>
+      <main className={`${sidebarCollapsed ? 'ml-20' : 'ml-[240px]'} p-8 transition-all duration-500`}>
         <DashboardHeader title={pageTitle} />
         {children || <Outlet />}
       </main>

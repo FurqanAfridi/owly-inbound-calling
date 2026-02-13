@@ -22,7 +22,9 @@ import {
   Divider,
   Stack,
   Tooltip,
+  ListSubheader,
 } from '@mui/material';
+import { timezones, getTimezonesByGroup } from '../data/timezones';
 import {
   Add as AddIcon,
   Edit as EditIcon,
@@ -79,7 +81,7 @@ const CallSchedules: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [schedules, setSchedules] = useState<CallSchedule[]>([]);
-  const [agents, setAgents] = useState<any[]>([]);
+  // Agents removed - schedules are now assigned via agent creation/editing form
   const [selectedSchedule, setSelectedSchedule] = useState<CallSchedule | null>(null);
   const [tabValue, setTabValue] = useState(0);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
@@ -98,7 +100,6 @@ const CallSchedules: React.FC = () => {
 
   useEffect(() => {
     fetchSchedules();
-    fetchAgents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -130,23 +131,7 @@ const CallSchedules: React.FC = () => {
     }
   };
 
-  const fetchAgents = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('voice_agents')
-        .select('id, name')
-        .eq('user_id', user.id)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setAgents(data || []);
-    } catch (err: any) {
-      console.error('Error fetching agents:', err);
-    }
-  };
+  // fetchAgents removed - schedules are now assigned via agent creation/editing form
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -162,7 +147,7 @@ const CallSchedules: React.FC = () => {
       setEditingSchedule(schedule);
       setScheduleForm({
         schedule_name: schedule.schedule_name,
-        agent_id: schedule.agent_id || '',
+        agent_id: '', // Schedules are now assigned via junction table, not directly
         timezone: schedule.timezone,
         is_active: schedule.is_active,
       });
@@ -170,7 +155,7 @@ const CallSchedules: React.FC = () => {
       setEditingSchedule(null);
       setScheduleForm({
         schedule_name: '',
-        agent_id: '',
+        agent_id: '', // Schedules are now assigned via junction table, not directly
         timezone: 'America/New_York',
         is_active: true,
       });
@@ -190,7 +175,7 @@ const CallSchedules: React.FC = () => {
         schedule_name: scheduleForm.schedule_name,
         timezone: scheduleForm.timezone,
         is_active: scheduleForm.is_active,
-        agent_id: scheduleForm.agent_id || null,
+        // Note: agent_id is no longer set here - schedules are assigned to agents via agent_schedules junction table
       };
 
       if (editingSchedule) {
@@ -397,21 +382,7 @@ const CallSchedules: React.FC = () => {
               required
               placeholder="e.g., Business Hours, 24/7 Support"
             />
-            <TextField
-              select
-              label="Apply to Agent (Optional)"
-              value={scheduleForm.agent_id}
-              onChange={(e) => setScheduleForm({ ...scheduleForm, agent_id: e.target.value })}
-              fullWidth
-              helperText="Leave empty to apply to all agents"
-            >
-              <MenuItem value="">All Agents</MenuItem>
-              {agents.map((agent) => (
-                <MenuItem key={agent.id} value={agent.id}>
-                  {agent.name}
-                </MenuItem>
-              ))}
-            </TextField>
+            {/* Agent assignment removed - schedules are now assigned to agents via the agent creation/editing form */}
             <TextField
               select
               label="Timezone"
@@ -419,15 +390,33 @@ const CallSchedules: React.FC = () => {
               onChange={(e) => setScheduleForm({ ...scheduleForm, timezone: e.target.value })}
               fullWidth
               required
+              SelectProps={{
+                MenuProps: {
+                  PaperProps: {
+                    style: {
+                      maxHeight: 400,
+                    },
+                  },
+                },
+              }}
             >
-              <MenuItem value="America/New_York">Eastern Time (ET)</MenuItem>
-              <MenuItem value="America/Chicago">Central Time (CT)</MenuItem>
-              <MenuItem value="America/Denver">Mountain Time (MT)</MenuItem>
-              <MenuItem value="America/Los_Angeles">Pacific Time (PT)</MenuItem>
-              <MenuItem value="UTC">UTC</MenuItem>
-              <MenuItem value="Europe/London">London (GMT)</MenuItem>
-              <MenuItem value="Asia/Dubai">Dubai (GST)</MenuItem>
-              <MenuItem value="Asia/Tokyo">Tokyo (JST)</MenuItem>
+              {getTimezonesByGroup().UTC.map(tz => (
+                <MenuItem key={tz.value} value={tz.value}>
+                  {tz.label}
+                </MenuItem>
+              ))}
+              {Object.entries(getTimezonesByGroup())
+                .filter(([group]) => group !== 'UTC')
+                .flatMap(([group, tzs]) => [
+                  <ListSubheader key={`header-${group}`} sx={{ fontWeight: 'bold', backgroundColor: 'rgba(0, 0, 0, 0.04)' }}>
+                    {group}
+                  </ListSubheader>,
+                  ...tzs.map(tz => (
+                    <MenuItem key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </MenuItem>
+                  )),
+                ])}
             </TextField>
             <FormControlLabel
               control={

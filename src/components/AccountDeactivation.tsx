@@ -30,12 +30,6 @@ const AccountDeactivation: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (user) {
-      loadDeactivationRequest();
-    }
-  }, [user]);
-
   const loadDeactivationRequest = async () => {
     if (!user) return;
 
@@ -61,6 +55,13 @@ const AccountDeactivation: React.FC = () => {
       console.error('Error loading deactivation request:', err);
     }
   };
+
+  useEffect(() => {
+    if (user) {
+      loadDeactivationRequest();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const handleDeactivateAccount = async () => {
     if (!user) return;
