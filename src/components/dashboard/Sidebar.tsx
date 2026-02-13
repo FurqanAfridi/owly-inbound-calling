@@ -18,7 +18,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import logoImage from '../../assest/DNAI-Logo 1 (1).png';
+import logoImageDark from '../../assest/DNAI LOGO@2x.png';
 import { useAuth } from '@/contexts/AuthContext';
+import { useThemeMode } from '@/contexts/ThemeContext';
 
 interface SidebarItem {
   id: string;
@@ -63,6 +65,7 @@ const sidebarSections: SidebarSection[] = [
     items: [
       { id: 'billing', label: 'Billing', icon: <CreditCard className="w-5 h-5" />, path: '/billing' },
       { id: 'profile', label: 'Settings', icon: <User className="w-5 h-5" />, path: '/profile' },
+      { id: 'documentation', label: 'Documentation', icon: <BookOpen className="w-5 h-5" />, path: '/documentation' },
     ],
   },
 ];
@@ -73,6 +76,7 @@ const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const { signOut } = useAuth();
+  const { mode } = useThemeMode();
 
   const getActiveItem = () => {
     const currentPath = location.pathname;
@@ -127,7 +131,7 @@ const Sidebar = () => {
       {/* Logo */}
       <div className="h-20 flex items-center px-6 border-b border-sidebar-border/50">
         <div className={cn(
-          "flex items-center gap-2 overflow-hidden transition-all duration-300",
+          "flex items-center align-self: anchor-center gap-2 overflow-hidden transition-all duration-300",
           isCollapsed ? "justify-center w-full px-0" : ""
         )}>
           {isCollapsed ? (
@@ -136,9 +140,9 @@ const Sidebar = () => {
             </div>
           ) : (
             <img
-              src={logoImage}
+              src={mode === 'dark' ? logoImageDark : logoImage}
               alt="DNAI Logo"
-              className="h-10 w-auto object-contain"
+              className="h-14 w-auto object-contain"
             />
           )}
         </div>

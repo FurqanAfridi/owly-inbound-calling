@@ -2285,7 +2285,7 @@ IMPORTANT:
       {/* Header Section */}
       <div className="flex items-end justify-between">
         <div className="flex flex-col gap-[4px]">
-          <h1 className="text-[24px] font-bold text-[#27272b] leading-[32px] tracking-[-0.6px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+          <h1 className="text-[24px] font-bold dark:text-[#f9fafb] text-[#27272b] leading-[32px] tracking-[-0.6px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
             {isEditMode ? (formData.agentName || editingAgent?.name || 'Agent') : 'Create New Agent'}
           </h1>
           <p className="text-[16px] font-normal text-[#0b99ff] leading-[24px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
@@ -2324,12 +2324,12 @@ IMPORTANT:
 
       {/* Tabs - Only show in edit mode */}
       {isEditMode && (
-        <div className="bg-[#f4f4f6] flex gap-[16px] items-center px-4 py-1 rounded-[8px]">
+        <div className="dark:bg-[#2f3541] bg-[#f4f4f6] flex gap-[16px] items-center px-4 py-1 rounded-[8px]">
           <button
             onClick={() => setActiveTab('overview')}
             className={`px-2 py-1 rounded-[6px] text-[14px] ${activeTab === 'overview'
-              ? 'bg-white shadow-[0px_0px_5px_0px_rgba(0,0,0,0.2)] font-semibold text-[#27272b]'
-              : 'font-normal text-[#737373]'
+              ? 'dark:bg-[#1d212b] dark:text-[#f9fafb] bg-white shadow-[0px_0px_5px_0px_rgba(0,0,0,0.2)] font-semibold text-[#27272b]'
+              : 'dark:text-[#818898] font-normal text-[#737373]'
               }`}
             style={{ fontFamily: "'Manrope', sans-serif" }}
           >
@@ -2338,8 +2338,8 @@ IMPORTANT:
           <button
             onClick={() => setActiveTab('edit')}
             className={`px-2 py-1 rounded-[6px] text-[14px] ${activeTab === 'edit'
-              ? 'bg-white shadow-[0px_0px_5px_0px_rgba(0,0,0,0.2)] font-semibold text-[#27272b]'
-              : 'font-normal text-[#737373]'
+              ? 'dark:bg-[#1d212b] dark:text-[#f9fafb] bg-white shadow-[0px_0px_5px_0px_rgba(0,0,0,0.2)] font-semibold text-[#27272b]'
+              : 'dark:text-[#818898] font-normal text-[#737373]'
               }`}
             style={{ fontFamily: "'Manrope', sans-serif" }}
           >
@@ -2348,8 +2348,8 @@ IMPORTANT:
           <button
             onClick={() => setActiveTab('logs')}
             className={`px-2 py-1 rounded-[6px] text-[14px] ${activeTab === 'logs'
-              ? 'bg-white shadow-[0px_0px_5px_0px_rgba(0,0,0,0.2)] font-semibold text-[#27272b]'
-              : 'font-normal text-[#737373]'
+              ? 'dark:bg-[#1d212b] dark:text-[#f9fafb] bg-white shadow-[0px_0px_5px_0px_rgba(0,0,0,0.2)] font-semibold text-[#27272b]'
+              : 'dark:text-[#818898] font-normal text-[#737373]'
               }`}
             style={{ fontFamily: "'Manrope', sans-serif" }}
           >
@@ -2367,12 +2367,12 @@ IMPORTANT:
       {(activeTab === 'edit' || !isEditMode) && (
         <div className="flex gap-5 items-start">
           {/* Sidebar Navigation */}
-          <div className="bg-white border border-[#e4e4e8] rounded-[12px] p-[9px] w-[256px] flex flex-col gap-[6px]">
+          <div className="dark:bg-[#1d212b] dark:border-[#2f3541] bg-white border border-[#e4e4e8] rounded-[12px] p-[9px] w-[256px] flex flex-col gap-[6px]">
             <button
               onClick={() => setActiveSection('details')}
               className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'details'
-                ? 'bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
-                : 'font-medium text-[#27272b] hover:bg-gray-50'
+                ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
                 }`}
               style={{ fontFamily: "'Manrope', sans-serif" }}
             >
@@ -2382,8 +2382,8 @@ IMPORTANT:
             <button
               onClick={() => setActiveSection('voice')}
               className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'voice'
-                ? 'bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
-                : 'font-medium text-[#27272b] hover:bg-gray-50'
+                ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
                 }`}
               style={{ fontFamily: "'Manrope', sans-serif" }}
             >
@@ -2393,8 +2393,8 @@ IMPORTANT:
             <button
               onClick={() => setActiveSection('settings')}
               className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'settings'
-                ? 'bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
-                : 'font-medium text-[#27272b] hover:bg-gray-50'
+                ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
                 }`}
               style={{ fontFamily: "'Manrope', sans-serif" }}
             >
@@ -2404,8 +2404,8 @@ IMPORTANT:
             <button
               onClick={() => setActiveSection('schedules')}
               className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'schedules'
-                ? 'bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
-                : 'font-medium text-[#27272b] hover:bg-gray-50'
+                ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
                 }`}
               style={{ fontFamily: "'Manrope', sans-serif" }}
             >
@@ -2415,7 +2415,7 @@ IMPORTANT:
           </div>
 
           {/* Main Content Area */}
-          <div className="bg-white border border-[#e4e4e8] rounded-[12px] px-6 py-6 flex-1">
+          <div className="dark:bg-[#1d212b] dark:border-[#2f3541] bg-white border border-[#e4e4e8] rounded-[12px] px-6 py-6 flex-1">
             {loadingAgent ? (
               <div className="flex justify-center items-center min-h-[60vh]">
                 <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -2426,12 +2426,12 @@ IMPORTANT:
                 {activeSection === 'details' && (
                   <div className="flex flex-col gap-[30px]">
                     <div className="flex flex-col gap-[23px]">
-                      <h2 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      <h2 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                         Details
                       </h2>
 
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="agentName" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="agentName" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Agent Name*:
                         </Label>
                         <Input
@@ -2446,12 +2446,12 @@ IMPORTANT:
 
                       <Separator />
 
-                      <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      <h3 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                         Company Information
                       </h3>
 
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="companyName" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="companyName" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Company Name*:
                         </Label>
                         <Input
@@ -2465,7 +2465,7 @@ IMPORTANT:
                       </div>
 
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="websiteUrl" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="websiteUrl" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Website URL*:
                         </Label>
                         <Input
@@ -2480,12 +2480,12 @@ IMPORTANT:
 
                       <Separator />
 
-                      <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      <h3 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                         Goals & Context
                       </h3>
 
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="goal" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="goal" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Goal*:
                         </Label>
                         <Textarea
@@ -2499,7 +2499,7 @@ IMPORTANT:
                       </div>
 
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="backgroundContext" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="backgroundContext" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Background / Context*:
                         </Label>
                         <Textarea
@@ -2530,12 +2530,12 @@ IMPORTANT:
                 {activeSection === 'voice' && (
                   <div className="flex flex-col gap-[30px]">
                     <div className="flex flex-col gap-[23px]">
-                      <h2 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      <h2 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                         Voice Configuration
                       </h2>
 
                       <div className="flex flex-col gap-2">
-                        <Label className="text-[14px] font-medium text-[#27272b]">
+                        <Label className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Welcome Messages *: <span className="text-[#737373] font-normal">(Minimum 5 messages)</span>
                         </Label>
                         <div className={`border rounded-[6px] p-2 min-h-[100px] flex flex-wrap gap-2 ${highlightEmptyFields && welcomeMessages.length === 0 ? "border-red-500 ring-1 ring-red-500" : "border-[#0b99ff]"}`}>
@@ -2581,7 +2581,7 @@ IMPORTANT:
                       </div>
 
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="instructionVoice" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="instructionVoice" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Instruction Voice*:
                         </Label>
                         <Textarea
@@ -2595,7 +2595,7 @@ IMPORTANT:
                       </div>
 
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="script" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="script" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Description (Optional):
                         </Label>
                         <div className="border border-[#e5e5e5] rounded-[10px] shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_0px_rgba(0,0,0,0.1)]">
@@ -2643,12 +2643,12 @@ IMPORTANT:
                 {activeSection === 'settings' && (
                   <div className="flex flex-col gap-[30px]">
                     <div className="flex flex-col gap-[23px]">
-                      <h2 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      <h2 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                         Agent Settings
                       </h2>
 
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="voice" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="voice" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Voice*:
                         </Label>
                         <Tabs
@@ -2750,7 +2750,7 @@ IMPORTANT:
                       </div>
 
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="language" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="language" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Language*:
                         </Label>
                         <Select value={formData.language} onValueChange={(value) => handleSelectChange('language', value)}>
@@ -2768,7 +2768,7 @@ IMPORTANT:
                       </div>
 
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="agentType" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="agentType" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Agent Type*:
                         </Label>
                         <Select value={formData.agentType} onValueChange={(value) => handleSelectChange('agentType', value)}>
@@ -2785,7 +2785,7 @@ IMPORTANT:
                       </div>
 
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="timezone" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="timezone" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Timezone*:
                         </Label>
                         <Select value={formData.timezone} onValueChange={(value) => handleSelectChange('timezone', value)}>
@@ -2821,7 +2821,7 @@ IMPORTANT:
                       </div>
 
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="tool" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="tool" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Tool*:
                         </Label>
                         <Select value={formData.tool} onValueChange={(value) => handleSelectChange('tool', value)}>
@@ -2851,14 +2851,14 @@ IMPORTANT:
                           onChange={(e) => setFormData(prev => ({ ...prev, fallbackEnabled: e.target.checked }))}
                           className="rounded"
                         />
-                        <Label htmlFor="fallbackEnabled" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="fallbackEnabled" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Enable Fallback Number
                         </Label>
                       </div>
 
                       {formData.fallbackEnabled && (
                         <div className="flex flex-col gap-2">
-                          <Label htmlFor="fallbackNumber" className="text-[14px] font-medium text-[#27272b]">
+                          <Label htmlFor="fallbackNumber" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                             Fallback Phone Number:
                           </Label>
                           <Input
@@ -2883,7 +2883,7 @@ IMPORTANT:
                       </h3>
 
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="knowledgeBase" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="knowledgeBase" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Assign Knowledge Base (Optional):
                         </Label>
                         <Select
@@ -2931,7 +2931,7 @@ IMPORTANT:
                         </div>
                       ) : (
                         <div className="flex flex-col gap-2">
-                          <Label htmlFor="phoneNumber" className="text-[14px] font-medium text-[#27272b]">
+                          <Label htmlFor="phoneNumber" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                             Select Inbound Number*:
                           </Label>
                           <Select value={selectedNumberId} onValueChange={handleNumberSelection}>
@@ -3020,7 +3020,7 @@ IMPORTANT:
                 {activeSection === 'schedules' && (
                   <div className="flex flex-col gap-[30px]">
                     <div className="flex flex-col gap-[23px]">
-                      <h2 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      <h2 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                         Schedule Selection
                       </h2>
                       <p className="text-[14px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
@@ -3028,7 +3028,7 @@ IMPORTANT:
                       </p>
 
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="schedules" className="text-[14px] font-medium text-[#27272b]">
+                        <Label htmlFor="schedules" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                           Available Schedules:
                         </Label>
                         <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto border border-[#d4d4da] rounded-[6px] p-4">
@@ -3809,7 +3809,7 @@ IMPORTANT:
             <div className="space-y-6 mt-4">
               {/* Call Details */}
               <div>
-                <h3 className="text-[16px] font-bold text-[#27272b] mb-3" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                <h3 className="text-[16px] font-bold dark:text-[#f9fafb] text-[#27272b] mb-3" style={{ fontFamily: "'Manrope', sans-serif" }}>
                   Call Details
                 </h3>
                 <div className="space-y-2 text-[14px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
@@ -3881,7 +3881,7 @@ IMPORTANT:
               {/* Agent Details */}
               {editingAgent && (
                 <div>
-                  <h3 className="text-[16px] font-bold text-[#27272b] mb-3" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                  <h3 className="text-[16px] font-bold dark:text-[#f9fafb] text-[#27272b] mb-3" style={{ fontFamily: "'Manrope', sans-serif" }}>
                     Agent Details
                   </h3>
                   <div className="space-y-2 text-[14px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
@@ -3901,7 +3901,7 @@ IMPORTANT:
               {/* Transcript */}
               {selectedLog.transcript && (
                 <div>
-                  <h3 className="text-[16px] font-bold text-[#27272b] mb-3" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                  <h3 className="text-[16px] font-bold dark:text-[#f9fafb] text-[#27272b] mb-3" style={{ fontFamily: "'Manrope', sans-serif" }}>
                     Transcript
                   </h3>
                   <div className="bg-[#f8f8f8] rounded-lg p-4 max-h-[400px] overflow-y-auto">

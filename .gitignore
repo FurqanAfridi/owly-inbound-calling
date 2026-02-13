@@ -411,3 +411,31 @@ temp/
 .serverless
 *.rej
 
+# ===========================================
+# Project Specific / Local Cleanup
+# ===========================================
+# Prevent documentation and database scripts from being pushed
+*.md
+*.sql
+!README.md
+
+# Old documentation files (now in src/components/Documentation.tsx)
+dnai-docs.tsx
+
+# Local HTML exports and evaluations
+voice-agent-complete.html
+*-complete.html
+evaluation/
+benchmarks/
+*.eval.json
+
+# Local scripts and experiments
+scripts/temp/
+experimentation/
+*.local.tsx
+*.dev.tsx
+
+# Backup files potentially missed
+*.bak.tsx
+*.old.tsx
+

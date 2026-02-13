@@ -471,7 +471,7 @@ export default function Email() {
               <div className="grid md:grid-cols-3 gap-6">
                 {/* Video Tutorial Box - Side Panel */}
                 <div className={`transition-all duration-300 ${isVideoExpanded ? 'md:col-span-3 order-first' : 'md:col-span-1'}`}>
-                  <Card className="border-slate-200 shadow-sm sticky top-4">
+                  <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] border-slate-200 shadow-sm sticky top-4">
                     <CardHeader className="border-b border-slate-100 pb-3">
                       <div className="flex items-center justify-between">
                         <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900">

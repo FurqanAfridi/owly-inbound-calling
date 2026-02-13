@@ -659,10 +659,10 @@ const Profile: React.FC = () => {
           )}
 
           {/* Profile Information Card */}
-        <Card className="rounded-[14px] border border-[#e5e5e5]">
+        <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] rounded-[14px] border border-[#e5e5e5]">
           <CardHeader className="px-5 pt-5 pb-0">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Profile Information</CardTitle>
+              <CardTitle className="text-[18px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Profile Information</CardTitle>
               {isEditMode && (
                 <Badge variant="default">Edit Mode</Badge>
               )}

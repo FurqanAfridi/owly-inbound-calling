@@ -39,6 +39,9 @@ interface RecentCall {
   agentName: string;
   hasRecording: boolean;
   hasTranscript: boolean;
+  callStartTime: string | null;
+  transcript: string | null;
+  recordingUrl: string | null;
 }
 
 interface ContactCallData {
@@ -114,10 +117,11 @@ const Dashboard: React.FC = () => {
   const [avgDurationChange, setAvgDurationChange] = useState<number | undefined>(undefined);
   const [callStatusStats, setCallStatusStats] = useState({
     completed: 0,
-    failed: 0,
-    inProgress: 0,
-    forwarded: 0,
+    missed: 0,
+    leads: 0,
     total: 0,
+    completedNonLeads: 0,
+    missedNonLeads: 0,
   });
   const [inboundNumbers, setInboundNumbers] = useState<InboundNumber[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('all');
@@ -374,14 +378,45 @@ const Dashboard: React.FC = () => {
 
       // ── Call Status Summary (from ALL calls, not time-filtered) ──
       const totalAllCalls = allCalls.length;
-      const completed = allCalls.filter(c => c.call_status === 'answered' && c.call_end_time).length;
-      const failed = allCalls.filter(
-        c => c.call_status === 'failed' || c.call_status === 'busy' || c.call_status === 'no-answer' || c.call_status === 'canceled' || c.call_status === 'missed'
+      
+      // Calculate leads first
+      const leads = allCalls.filter(c => {
+        const val = c.is_lead;
+        return val === true || val === 'true' || val === 1 || val === 't';
+      }).length;
+      
+      // Completed = calls with status 'answered' or 'completed' (excluding leads for pie chart)
+      // For pie chart: show completed (non-leads), missed (non-leads), and leads separately
+      const completedNonLeads = allCalls.filter(c => {
+        const isLead = c.is_lead === true || c.is_lead === 'true' || c.is_lead === 1 || c.is_lead === 't';
+        const isCompleted = c.call_status === 'answered' || c.call_status === 'completed';
+        return isCompleted && !isLead;
+      }).length;
+      
+      // Missed = everything else that's not completed and not a lead
+      const missedNonLeads = allCalls.filter(c => {
+        const isLead = c.is_lead === true || c.is_lead === 'true' || c.is_lead === 1 || c.is_lead === 't';
+        const isCompleted = c.call_status === 'answered' || c.call_status === 'completed';
+        return !isCompleted && !isLead;
+      }).length;
+      
+      // For display: show total completed and missed (including leads)
+      const completed = allCalls.filter(c => 
+        c.call_status === 'answered' || c.call_status === 'completed'
       ).length;
-      const inProgress = allCalls.filter(c => c.call_status === 'answered' && !c.call_end_time).length;
-      const forwarded = allCalls.filter(c => c.call_forwarded_to !== null && c.call_forwarded_to !== '').length;
+      const missed = allCalls.filter(
+        c => !c.call_status || (c.call_status !== 'answered' && c.call_status !== 'completed')
+      ).length;
 
-      setCallStatusStats({ completed, failed, inProgress, forwarded, total: totalAllCalls });
+      setCallStatusStats({ 
+        completed, 
+        missed, 
+        leads, 
+        total: totalAllCalls,
+        // For pie chart visualization
+        completedNonLeads,
+        missedNonLeads
+      });
 
       // ── Previous period stats for comparison ──
       const prevTotalCalls = prevPeriodCalls.length;
@@ -420,7 +455,7 @@ const Dashboard: React.FC = () => {
         totalCalls: 0, answeredCalls: 0, missedCalls: 0, forwardedCalls: 0,
         averageDuration: 0, totalDuration: 0, totalCost: 0, leadsCount: 0, answerRate: 0,
       });
-      setCallStatusStats({ completed: 0, failed: 0, inProgress: 0, forwarded: 0, total: 0 });
+      setCallStatusStats({ completed: 0, missed: 0, leads: 0, total: 0, completedNonLeads: 0, missedNonLeads: 0 });
       setTotalCallsChange(undefined);
       setAnsweredCallsChange(undefined);
       setMissedCallsChange(undefined);
@@ -454,7 +489,7 @@ const Dashboard: React.FC = () => {
         }
       }
 
-      query = query.order('call_start_time', { ascending: false }).limit(15);
+      query = query.order('call_start_time', { ascending: false }).limit(5);
 
       const { data, error } = await query;
 
@@ -476,6 +511,9 @@ const Dashboard: React.FC = () => {
             agentName: agent?.name || 'Unassigned',
             hasRecording: !!call.recording_url,
             hasTranscript: !!call.transcript,
+            callStartTime: call.call_start_time,
+            transcript: call.transcript || null,
+            recordingUrl: call.recording_url || null,
           };
         });
         setRecentCalls(formattedCalls);
@@ -671,26 +709,24 @@ const Dashboard: React.FC = () => {
   const remainingHours = Math.floor((totalTimeHours * 60 - usedMinutes) / 60);
   const remainingMinutes = (totalTimeHours * 60 - usedMinutes) % 60;
 
-  // Calculate success rate
-  const successRate = callStats.totalCalls > 0 
-    ? Math.round((callStats.answeredCalls / callStats.totalCalls) * 100) 
+  // Calculate success rate: completed calls / total calls
+  const successRate = callStatusStats.total > 0 
+    ? Math.round((callStatusStats.completed / callStatusStats.total) * 100) 
     : 0;
 
   return (
-    <div>
-      <div>
-        {/* Overview Header */}
-        <div className="mb-6" style={{ fontFamily: "'Manrope', sans-serif" }}>
-          <h1 className="text-[28px] font-bold text-[#27272b] tracking-[-0.6px] leading-[36px] mb-2">
-            Overview
-          </h1>
-          <p className="text-[18px] font-normal text-[#737373] leading-[26px]">
-            View overall calling activity, performance metrics, and system status at a glance.
-          </p>
-        </div>
-
-        {/* Add Agent Button */}
-        <div className="mb-6 flex justify-end">
+    <div className="w-full max-w-full overflow-x-hidden">
+      <div className="w-full">
+        {/* Overview Header and Add Agent Button */}
+        <div className="mb-6 flex items-start justify-between" style={{ fontFamily: "'Manrope', sans-serif" }}>
+          <div className="flex-1 max-w-2xl">
+            <h1 className="text-[28px] font-bold dark:text-[#f9fafb] text-[#27272b] tracking-[-0.6px] leading-[36px] mb-2">
+              Overview
+            </h1>
+            <p className="text-[18px] font-normal dark:text-[#818898] text-[#737373] leading-[26px]">
+              View overall calling activity, performance metrics, and system status at a glance.
+            </p>
+          </div>
           <Button
             onClick={() => navigate('/create-agent')}
             className="h-10 bg-[#0b99ff] text-white rounded-[8px] text-[16px] font-semibold hover:bg-[#0b99ff]/90"
@@ -716,8 +752,8 @@ const Dashboard: React.FC = () => {
         {/* New Stat Cards with Charts */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <StatCardWithChart
-            title="Total Contacts"
-            value={callStats.leadsCount || 1909}
+            title="Leads Generated"
+            value={callStats.leadsCount || 0}
             icon={Contact}
           />
           <StatCardWithChart
@@ -732,64 +768,76 @@ const Dashboard: React.FC = () => {
           />
         </div>
 
-        {/* Call Status Summary */}
+        {/* Call Status Summary and Agents - Side by Side with Equal Heights */}
         {!showEmptyState && (
-          <div className="mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 items-stretch">
             <CallStatusSummary
               totalCalls={callStatusStats.total}
               completed={callStatusStats.completed}
-              failed={callStatusStats.failed}
-              inProgress={callStatusStats.inProgress}
+              missed={callStatusStats.missed}
+              leads={callStatusStats.leads}
+              completedNonLeads={callStatusStats.completedNonLeads}
+              missedNonLeads={callStatusStats.missedNonLeads}
+            />
+            <AgentsList
+              agents={voiceAgents.map(agent => ({
+                id: agent.id,
+                name: agent.name,
+                label: agent.phone_number || 'No number',
+              }))}
+              onViewAll={() => navigate('/agents')}
+              onView={(id) => navigate(`/edit-agent/${id}`)}
+              onEdit={(id) => navigate(`/edit-agent/${id}`)}
+              onDelete={(id) => {
+                // Handle delete
+                console.log('Delete agent:', id);
+              }}
             />
           </div>
         )}
 
-        {/* Agents List and Contact Lists Table */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <AgentsList
-            agents={voiceAgents.map(agent => ({
-              id: agent.id,
-              name: agent.name,
-              label: agent.phone_number || 'No number',
-            }))}
-            onViewAll={() => navigate('/voice-agents')}
-            onView={(id) => navigate(`/voice-agents/${id}`)}
-            onEdit={(id) => navigate(`/voice-agents/${id}/edit`)}
-            onDelete={(id) => {
-              // Handle delete
-              console.log('Delete agent:', id);
-            }}
-          />
-          <ContactListsTable
-            inboundNumbers={inboundNumbers.map(number => {
-              const assignedAgent = number.assigned_to_agent_id 
-                ? voiceAgents.find(agent => agent.id === number.assigned_to_agent_id)
-                : null;
-              
-              return {
-                id: number.id,
-                phone_number: number.phone_number,
-                phone_label: number.phone_label,
-                assignedAgentName: assignedAgent?.name || null,
-              };
-            })}
-            onViewAll={() => navigate('/inbound-numbers')}
-            onAdd={() => {
-              navigate('/inbound-numbers');
-            }}
-            onView={(id) => navigate(`/inbound-numbers/${id}`)}
-            onEdit={(id) => {
-              const number = inboundNumbers.find(n => n.id === id);
-              if (number) {
-                window.dispatchEvent(new CustomEvent('openAddInboundNumber', { detail: { editingNumber: number } }));
-              }
-            }}
-            onDelete={(id) => {
-              // Handle delete - you can implement this
-              console.log('Delete inbound number:', id);
-            }}
-          />
-        </div>
+        {/* Inbound Numbers */}
+        {!showEmptyState && (
+          <div className="mb-8">
+            <ContactListsTable
+              inboundNumbers={inboundNumbers.map(number => {
+                const assignedAgent = number.assigned_to_agent_id 
+                  ? voiceAgents.find(agent => agent.id === number.assigned_to_agent_id)
+                  : null;
+                
+                return {
+                  id: number.id,
+                  phone_number: number.phone_number,
+                  phone_label: number.phone_label,
+                  assignedAgentName: assignedAgent?.name || null,
+                };
+              })}
+              onViewAll={() => navigate('/inbound-numbers')}
+              onAdd={() => {
+                navigate('/inbound-numbers');
+              }}
+              onView={(id) => {
+                // Navigate to inbound numbers page - view functionality can be handled there
+                navigate('/inbound-numbers');
+              }}
+              onEdit={(id) => {
+                const number = inboundNumbers.find(n => n.id === id);
+                if (number) {
+                  // Navigate to inbound numbers page and trigger edit dialog
+                  navigate('/inbound-numbers');
+                  // Dispatch event to open edit dialog
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('openAddInboundNumber', { detail: { editingNumber: number } }));
+                  }, 100);
+                }
+              }}
+              onDelete={(id) => {
+                // Handle delete - you can implement this
+                console.log('Delete inbound number:', id);
+              }}
+            />
+          </div>
+        )}
 
         {/* Empty State */}
         {showEmptyState && (
@@ -819,8 +867,35 @@ const Dashboard: React.FC = () => {
           </Card>
         )}
 
-        {/* Recent Calls Table */}
-        {!showEmptyState && <RecentCallsTable calls={contactCallsData} />}
+        {/* Recent Calls Table - Full Width */}
+        {!showEmptyState && (
+          <div className="w-full">
+            <RecentCallsTable 
+              calls={recentCalls.slice(0, 5).map(call => ({
+                id: call.id,
+                dateTime: call.callStartTime ? new Date(call.callStartTime).toLocaleString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }) : call.time,
+                caller: call.callerNumber,
+                called: call.calledNumber,
+                status: call.status === 'answered' ? 'Answered' : call.status === 'forwarded' ? 'Forwarded' : 'Missed',
+                duration: call.duration,
+                hasRecording: call.hasRecording,
+                hasTranscript: call.hasTranscript,
+                transcript: call.transcript,
+                recordingUrl: call.recordingUrl,
+                cost: call.cost,
+                agentName: call.agentName,
+                isLead: call.isLead,
+              }))} 
+              onViewMore={() => navigate('/call-history')} 
+            />
+          </div>
+        )}
       </div>
     </div>
   );

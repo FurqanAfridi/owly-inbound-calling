@@ -16,10 +16,12 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import TwoFactorLogin from './TwoFactorLogin';
+import { useThemeMode } from '../contexts/ThemeContext';
 
 // Import assets
 import characterImage from '../assest/Gemini_Generated_Image_ppyqz2ppyqz2ppyq (1) 1.png';
 import logoImage from '../assest/DNAI-Logo 1.png';
+import logoImageDark from '../assest/DNAI LOGO@2x.png';
 import googleIcon from '../assest/google.svg';
 import appleIcon from '../assest/Apple.svg';
 import facebookIcon from '../assest/Symbol.png.png';
@@ -30,10 +32,11 @@ import rectangle1281Image from '../assest/Rectangle 1281.png';
 const SignIn: React.FC = () => {
   const navigate = useNavigate();
   const { signIn, updatePassword } = useAuth();
+  const { mode } = useThemeMode();
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const [agreeTerms, setAgreeTerms] = useState<boolean>(false);
+  const [rememberMe, setRememberMe] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [show2FA, setShow2FA] = useState<boolean>(false);
@@ -56,11 +59,6 @@ const SignIn: React.FC = () => {
 
     if (!email || !password) {
       setError('Please enter email and password');
-      return;
-    }
-
-    if (!agreeTerms) {
-      setError('Please agree to the Terms & Privacy');
       return;
     }
 
@@ -462,7 +460,7 @@ const SignIn: React.FC = () => {
 
         {/* Right Panel - Form Section */}
         <div className="signin-logo">
-          <img src={logoImage} alt="DNAI Logo" />
+          <img src={mode === 'dark' ? logoImageDark : logoImage} alt="DNAI Logo" />
         </div>
         
         <div className="signin-form-wrapper">
@@ -517,13 +515,13 @@ const SignIn: React.FC = () => {
               <div className="signin-checkbox-group">
                 <input
                   type="checkbox"
-                  id="terms"
-                  checked={agreeTerms}
-                  onChange={(e) => setAgreeTerms(e.target.checked)}
+                  id="rememberMe"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
                   className="signin-checkbox"
                 />
-                <Label htmlFor="terms" className="signin-checkbox-label">
-                  I agree to the <Link to="/terms" className="signin-terms-link">Terms & Privacy</Link>
+                <Label htmlFor="rememberMe" className="signin-checkbox-label">
+                  Remember me
                 </Label>
               </div>
             </div>

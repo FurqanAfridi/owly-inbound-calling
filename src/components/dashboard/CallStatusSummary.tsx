@@ -1,22 +1,33 @@
 import React, { useEffect, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { PieChart } from 'lucide-react';
+import { useThemeMode } from '@/contexts/ThemeContext';
 
 interface CallStatusSummaryProps {
   totalCalls: number;
   completed: number;
-  failed: number;
-  inProgress: number;
+  missed: number;
+  leads: number;
+  completedNonLeads?: number;
+  missedNonLeads?: number;
 }
 
 const CallStatusSummary: React.FC<CallStatusSummaryProps> = ({
   totalCalls,
   completed,
-  failed,
-  inProgress,
+  missed,
+  leads,
+  completedNonLeads,
+  missedNonLeads,
 }) => {
+  const { mode } = useThemeMode();
   const svgRef = useRef<SVGSVGElement>(null);
-  const prevDataRef = useRef({ totalCalls, completed, failed, inProgress });
+  const prevDataRef = useRef({ totalCalls, completed, missed, leads });
+  
+  const isDark = mode === 'dark';
+  const emptyFill = isDark ? '#2f3541' : '#e5e5e5';
+  const backgroundStroke = isDark ? '#2f3541' : '#e5e5e5';
+  const innerFill = isDark ? '#1d212b' : '#f8f8f8';
 
   // Animate chart when data changes
   useEffect(() => {
@@ -24,8 +35,8 @@ const CallStatusSummary: React.FC<CallStatusSummaryProps> = ({
     const hasChanged = 
       prev.totalCalls !== totalCalls ||
       prev.completed !== completed ||
-      prev.failed !== failed ||
-      prev.inProgress !== inProgress;
+      prev.missed !== missed ||
+      prev.leads !== leads;
 
     if (hasChanged && svgRef.current) {
       // Add a subtle animation class
@@ -38,11 +49,11 @@ const CallStatusSummary: React.FC<CallStatusSummaryProps> = ({
       }, 300);
     }
 
-    prevDataRef.current = { totalCalls, completed, failed, inProgress };
-  }, [totalCalls, completed, failed, inProgress]);
+    prevDataRef.current = { totalCalls, completed, missed, leads };
+  }, [totalCalls, completed, missed, leads]);
 
-  // SVG donut chart configuration
-  const size = 143.623;
+  // SVG donut chart configuration - increased size to reduce empty space
+  const size = 160;
   const center = size / 2;
   const outerRadius = size / 2 - 5;
   const innerRadius = size / 2 - 25; // Donut hole radius
@@ -50,12 +61,12 @@ const CallStatusSummary: React.FC<CallStatusSummaryProps> = ({
   // Calculate angles for donut chart
   const total = totalCalls || 1;
   const completedPercent = total > 0 ? (completed / total) * 100 : 0;
-  const failedPercent = total > 0 ? (failed / total) * 100 : 0;
-  const inProgressPercent = total > 0 ? (inProgress / total) * 100 : 0;
+  const missedPercent = total > 0 ? (missed / total) * 100 : 0;
+  const leadsPercent = total > 0 ? (leads / total) * 100 : 0;
 
   const completedAngle = (completedPercent / 100) * 360;
-  const failedAngle = (failedPercent / 100) * 360;
-  const inProgressAngle = (inProgressPercent / 100) * 360;
+  const missedAngle = (missedPercent / 100) * 360;
+  const leadsAngle = (leadsPercent / 100) * 360;
 
   // Helper function to create path for donut slice
   const createDonutSlice = (startAngle: number, endAngle: number, color: string) => {
@@ -107,73 +118,78 @@ const CallStatusSummary: React.FC<CallStatusSummaryProps> = ({
         cx={center}
         cy={center}
         r={outerRadius}
-        fill="#e5e5e5"
+        fill={emptyFill}
         stroke="none"
       />
     );
   } else {
     // Calculate actual slice angles based on percentages
+    // For pie chart: show completed (non-leads), missed (non-leads), and leads as separate non-overlapping segments
     const totalAngle = 360;
-    const completedSliceAngle = (completed / totalCalls) * totalAngle;
-    const failedSliceAngle = (failed / totalCalls) * totalAngle;
-    const inProgressSliceAngle = (inProgress / totalCalls) * totalAngle;
+    
+    // Use non-lead counts for pie chart visualization to avoid overlap
+    const compNonLeads = completedNonLeads ?? 0;
+    const missNonLeads = missedNonLeads ?? 0;
+    
+    const completedSliceAngle = totalCalls > 0 ? (compNonLeads / totalCalls) * totalAngle : 0;
+    const missedSliceAngle = totalCalls > 0 ? (missNonLeads / totalCalls) * totalAngle : 0;
+    const leadsSliceAngle = totalCalls > 0 ? (leads / totalCalls) * totalAngle : 0;
     
     // Start from top (0 degrees, which is -90 in our coordinate system)
-    // Add completed slice (blue #0b99ff) - main blue color
-    if (completed > 0 && completedSliceAngle > 0.1) {
-      const slice = createDonutSlice(currentAngle, currentAngle + completedSliceAngle, '#0b99ff');
-      if (slice) slices.push(slice);
-      currentAngle += completedSliceAngle;
-    }
-
-    // Add completed faded slice (light blue) - represents portion of completed
-    if (completed > 0 && currentAngle < 360) {
-      const fadeAngle = Math.min(completedSliceAngle * 0.3, 360 - currentAngle);
-      if (fadeAngle > 0.1) {
-        const slice = createDonutSlice(currentAngle, currentAngle + fadeAngle, 'rgba(11,153,255,0.6)');
-        if (slice) slices.push(slice);
-        currentAngle += fadeAngle;
+    // Add completed (non-leads) slice (blue #0b99ff)
+    if (compNonLeads > 0) {
+      const sliceAngle = Math.min(completedSliceAngle, 360 - currentAngle);
+      if (sliceAngle >= 0.1) {
+        const slice = createDonutSlice(currentAngle, currentAngle + sliceAngle, '#0b99ff');
+        if (slice) {
+          slices.push(slice);
+          currentAngle += sliceAngle;
+        }
       }
     }
 
-    // Add failed slice (red)
-    if (failed > 0 && currentAngle < 360) {
-      const sliceAngle = Math.min(failedSliceAngle, 360 - currentAngle);
-      if (sliceAngle > 0.1) {
+    // Add missed (non-leads) slice (red #fe9191)
+    if (missNonLeads > 0 && currentAngle < 360) {
+      const sliceAngle = Math.min(missedSliceAngle, 360 - currentAngle);
+      if (sliceAngle >= 0.1) {
         const slice = createDonutSlice(currentAngle, currentAngle + sliceAngle, '#fe9191');
-        if (slice) slices.push(slice);
-        currentAngle += sliceAngle;
+        if (slice) {
+          slices.push(slice);
+          currentAngle += sliceAngle;
+        }
       }
     }
 
-    // Add in progress slice (purple)
-    if (inProgress > 0 && currentAngle < 360) {
-      const sliceAngle = Math.min(inProgressSliceAngle, 360 - currentAngle);
-      if (sliceAngle > 0.1) {
-        const slice = createDonutSlice(currentAngle, currentAngle + sliceAngle, '#ccc2ff');
-        if (slice) slices.push(slice);
-        currentAngle += sliceAngle;
+    // Add leads slice (green #10b981)
+    if (leads > 0 && currentAngle < 360) {
+      const sliceAngle = Math.min(leadsSliceAngle, 360 - currentAngle);
+      if (sliceAngle >= 0.1) {
+        const slice = createDonutSlice(currentAngle, currentAngle + sliceAngle, '#10b981');
+        if (slice) {
+          slices.push(slice);
+          currentAngle += sliceAngle;
+        }
       }
     }
 
     // Fill remaining space with gray if needed
     if (currentAngle < 360) {
       const remainingAngle = 360 - currentAngle;
-      if (remainingAngle > 0.1) {
-        const slice = createDonutSlice(currentAngle, 360, '#e5e5e5');
+      if (remainingAngle >= 0.1) {
+        const slice = createDonutSlice(currentAngle, 360, emptyFill);
         if (slice) slices.push(slice);
       }
     }
   }
 
   return (
-    <Card className="bg-[#f8f8f8] border border-[#f0f0f0] rounded-[14px]">
-      <CardContent className="p-5 flex flex-col gap-5">
+    <Card className="dark:bg-[#1d212b] bg-[#f8f8f8] dark:border-[#2f3541] border border-[#f0f0f0] rounded-[14px] h-full flex flex-col">
+      <CardContent className="p-4 flex flex-col gap-4 h-full flex-1">
         {/* Header */}
         <div className="flex gap-[6px] items-center">
-          <PieChart className="w-4 h-4 text-[#141414]" />
+          <PieChart className="w-4 h-4 dark:text-[#f9fafb] text-[#141414]" />
           <p 
-            className="text-[14px] font-medium text-[#141414] leading-[1.5]"
+            className="text-[14px] font-medium dark:text-[#f9fafb] text-[#141414] leading-[1.5]"
             style={{ fontFamily: "'Manrope', sans-serif" }}
           >
             Call Status Summary
@@ -181,7 +197,7 @@ const CallStatusSummary: React.FC<CallStatusSummaryProps> = ({
         </div>
         
         {/* Chart and Legend */}
-        <div className="flex flex-row gap-8 md:gap-[50px] items-center flex-wrap md:flex-nowrap justify-center md:justify-start">
+        <div className="flex flex-row gap-4 md:gap-6 items-center flex-wrap md:flex-nowrap justify-center md:justify-start flex-1">
           {/* Donut Chart */}
           <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
             <svg 
@@ -198,7 +214,7 @@ const CallStatusSummary: React.FC<CallStatusSummaryProps> = ({
                 cy={center}
                 r={outerRadius}
                 fill="none"
-                stroke="#e5e5e5"
+                stroke={backgroundStroke}
                 strokeWidth="2"
               />
               {/* Inner circle for donut hole */}
@@ -206,7 +222,7 @@ const CallStatusSummary: React.FC<CallStatusSummaryProps> = ({
                 cx={center}
                 cy={center}
                 r={innerRadius}
-                fill="#f8f8f8"
+                fill={innerFill}
                 stroke="none"
               />
               {/* Chart slices - render on top */}
@@ -215,21 +231,21 @@ const CallStatusSummary: React.FC<CallStatusSummaryProps> = ({
           </div>
 
           {/* Legend */}
-          <div className="flex gap-4 md:gap-2 items-start flex-shrink-0">
-            <div className="flex flex-col gap-[10px] w-[102px]">
+          <div className="flex gap-3 md:gap-4 items-start flex-shrink-0">
+            <div className="flex flex-col gap-2 min-w-[100px]">
               <div className="flex gap-[10px] items-center">
-                <div className="w-[9px] h-[9px] bg-[#0b99ff] shrink-0 rounded-full" />
+                <div className="w-[9px] h-[9px] shrink-0 rounded-full opacity-0" />
                 <p 
-                  className="text-[14px] font-normal text-[#141414] leading-[1.5]"
+                  className="text-[14px] font-normal dark:text-[#f9fafb] text-[#141414] leading-[1.5] whitespace-nowrap"
                   style={{ fontFamily: "'Manrope', sans-serif" }}
                 >
                   Total Calls
                 </p>
               </div>
               <div className="flex gap-[10px] items-center">
-                <div className="w-[9px] h-[9px] bg-[rgba(11,153,255,0.6)] shrink-0 rounded-full" />
+                <div className="w-[9px] h-[9px] bg-[#0b99ff] shrink-0 rounded-full" />
                 <p 
-                  className="text-[14px] font-normal text-[#141414] leading-[1.5]"
+                  className="text-[14px] font-normal dark:text-[#f9fafb] text-[#141414] leading-[1.5] whitespace-nowrap"
                   style={{ fontFamily: "'Manrope', sans-serif" }}
                 >
                   Completed
@@ -238,30 +254,30 @@ const CallStatusSummary: React.FC<CallStatusSummaryProps> = ({
               <div className="flex gap-[10px] items-center">
                 <div className="w-[9px] h-[9px] bg-[#fe9191] shrink-0 rounded-full" />
                 <p 
-                  className="text-[14px] font-normal text-[#141414] leading-[1.5]"
+                  className="text-[14px] font-normal dark:text-[#f9fafb] text-[#141414] leading-[1.5] whitespace-nowrap"
                   style={{ fontFamily: "'Manrope', sans-serif" }}
                 >
-                  Failed
+                  Missed
                 </p>
               </div>
               <div className="flex gap-[10px] items-center">
-                <div className="w-[9px] h-[9px] bg-[#ccc2ff] shrink-0 rounded-full" />
+                <div className="w-[9px] h-[9px] bg-[#10b981] shrink-0 rounded-full" />
                 <p 
-                  className="text-[14px] font-normal text-[#141414] leading-[1.5]"
+                  className="text-[14px] font-normal dark:text-[#f9fafb] text-[#141414] leading-[1.5] whitespace-nowrap"
                   style={{ fontFamily: "'Manrope', sans-serif" }}
                 >
-                  In Progress
+                  Leads
                 </p>
               </div>
             </div>
             <div 
-              className="flex flex-col gap-[10px] text-[14px] font-semibold text-[#141414] leading-[1.5]"
+              className="flex flex-col gap-2 text-[14px] font-semibold dark:text-[#f9fafb] text-[#141414] leading-[1.5] min-w-[40px] text-right"
               style={{ fontFamily: "'Manrope', sans-serif" }}
             >
               <p>{totalCalls}</p>
               <p>{completed}</p>
-              <p>{failed}</p>
-              <p>{inProgress}</p>
+              <p>{missed}</p>
+              <p>{leads}</p>
             </div>
           </div>
         </div>

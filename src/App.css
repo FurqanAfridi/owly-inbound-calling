@@ -176,10 +176,10 @@ button {
 /* Right Panel - Form Section */
 .signin-logo {
   position: absolute;
-  width: 164px;
-  height: 81px;
-  max-width: 11.39vw;
-  max-height: 7.5vh;
+  width: 220px;
+  height: 110px;
+  max-width: 15vw;
+  max-height: 10vh;
   aspect-ratio: 164 / 81;
   top: 11.3vh;
   left: 50%;
@@ -463,6 +463,60 @@ button {
   border-radius: 12px;
 }
 
+/* Dark mode text contrast */
+.dark .signin-input {
+  color: #f9fafb !important;
+}
+
+.dark .signin-input::placeholder {
+  color: #818898 !important;
+}
+
+.dark .signin-welcome-title {
+  color: #f9fafb !important;
+}
+
+.dark .signin-welcome-subtitle {
+  color: #818898 !important;
+}
+
+.dark .signin-label {
+  color: #f9fafb !important;
+}
+
+.dark .signin-checkbox-label {
+  color: #f9fafb !important;
+}
+
+.dark .signin-forgot-link {
+  color: #60A5FA !important;
+}
+
+.dark .signin-terms-link {
+  color: #60A5FA !important;
+}
+
+.dark .signin-signup-text {
+  color: #818898 !important;
+}
+
+.dark .signin-signup-link-text {
+  color: #60A5FA !important;
+}
+
+.dark .signin-divider-text {
+  color: #818898 !important;
+}
+
+.dark .signin-social-button-text {
+  color: #f9fafb !important;
+}
+
+.dark .signin-error {
+  color: #F87171 !important;
+  background-color: rgba(220, 38, 38, 0.1) !important;
+}
+
 .signin-input::placeholder {
   color: #8c8c8c;
 }
@@ -481,6 +535,8 @@ button {
   caret-color: #141414 !important;
   font-family: 'Manrope', var(--default-font-family) !important;
   font-size: 14px !important;
+  padding: 12px 16px !important;
+  border-radius: 12px !important;
   transition: background-color 5000s ease-in-out 0s;
 }
 
@@ -492,6 +548,8 @@ button {
   box-shadow: 0 0 0 1000px #ffffff inset !important;
   -webkit-text-fill-color: #141414 !important;
   caret-color: #141414 !important;
+  padding: 12px 16px !important;
+  border-radius: 12px !important;
 }
 
 .signin-input-wrapper .signin-input:-webkit-autofill,
@@ -502,6 +560,8 @@ button {
   box-shadow: 0 0 0 1000px #ffffff inset !important;
   -webkit-text-fill-color: #141414 !important;
   caret-color: #141414 !important;
+  padding: 12px 16px !important;
+  border-radius: 12px !important;
 }
 
 /* Global autofill fix for all signin/signup inputs */
@@ -515,15 +575,60 @@ button {
   caret-color: #141414 !important;
   font-family: 'Manrope', var(--default-font-family) !important;
   font-size: 14px !important;
+  padding: 12px 16px !important;
+  border-radius: 12px !important;
   transition: background-color 5000s ease-in-out 0s;
-  border-radius: inherit;
 }
 
 /* Prevent autofill from adding extra height or padding */
 .signin-input-wrapper input:-webkit-autofill,
 .signin-password-input input:-webkit-autofill {
-  height: auto !important;
-  padding: inherit !important;
+  height: 100% !important;
+  padding: 12px 16px !important;
+  border-radius: 12px !important;
+}
+
+/* Dark mode autofill styles */
+.dark .signin-input:-webkit-autofill,
+.dark .signin-input:-webkit-autofill:hover,
+.dark .signin-input:-webkit-autofill:focus,
+.dark .signin-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #1d212b inset !important;
+  box-shadow: 0 0 0 1000px #1d212b inset !important;
+  -webkit-text-fill-color: #f9fafb !important;
+  caret-color: #f9fafb !important;
+  font-family: 'Manrope', var(--default-font-family) !important;
+  font-size: 14px !important;
+  padding: 12px 16px !important;
+  border-radius: 12px !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.dark .signin-password-input .signin-input:-webkit-autofill,
+.dark .signin-password-input .signin-input:-webkit-autofill:hover,
+.dark .signin-password-input .signin-input:-webkit-autofill:focus,
+.dark .signin-password-input .signin-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #1d212b inset !important;
+  box-shadow: 0 0 0 1000px #1d212b inset !important;
+  -webkit-text-fill-color: #f9fafb !important;
+  caret-color: #f9fafb !important;
+  padding: 12px 16px !important;
+  border-radius: 12px !important;
+}
+
+.dark .signin-container input:-webkit-autofill,
+.dark .signin-container input:-webkit-autofill:hover,
+.dark .signin-container input:-webkit-autofill:focus,
+.dark .signin-container input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #1d212b inset !important;
+  box-shadow: 0 0 0 1000px #1d212b inset !important;
+  -webkit-text-fill-color: #f9fafb !important;
+  caret-color: #f9fafb !important;
+  font-family: 'Manrope', var(--default-font-family) !important;
+  font-size: 14px !important;
+  padding: 12px 16px !important;
+  border-radius: 12px !important;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 .signin-forgot-link {
@@ -1331,7 +1436,8 @@ button {
     left: auto;
     top: auto;
     margin: 30px auto 20px;
-    width: 140px;
+    width: 180px;
+    height: 90px;
     height: 70px;
   }
 
@@ -1397,8 +1503,8 @@ button {
   }
 
   .signin-logo {
-    width: 120px;
-    height: 60px;
+    width: 160px;
+    height: 80px;
     margin: 24px auto 16px;
   }
 
@@ -1510,8 +1616,8 @@ button {
   }
 
   .signin-logo {
-    width: 100px;
-    height: 50px;
+    width: 140px;
+    height: 70px;
     margin: 20px auto 12px;
   }
 
@@ -1641,8 +1747,8 @@ button {
   }
 
   .signin-logo {
-    width: 90px;
-    height: 45px;
+    width: 120px;
+    height: 60px;
     margin: 16px auto 10px;
   }
 
@@ -3777,4 +3883,17 @@ button {
   .modal-footer .btn {
     width: 100%;
   }
+}
+
+/* Sidebar specific overrides */
+aside .h-20 {
+  height: 5.5rem !important;
+}
+
+aside .items-center {
+  align-items: center !important;
+}
+
+aside .items-center > * {
+  align-self: center;
 }

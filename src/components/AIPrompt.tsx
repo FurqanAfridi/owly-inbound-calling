@@ -241,7 +241,7 @@ export default function AIPrompt() {
 
         {/* ====== GENERATE TAB ====== */}
         <TabsContent value="generate" className="mt-6">
-          <Card className="border-slate-200 shadow-sm bg-white">
+          <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] border-slate-200 shadow-sm bg-white">
             <CardHeader className="border-b border-slate-100 pb-4">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                 <Sparkles className="h-5 w-5 text-blue-600" />AI Prompt Generation
@@ -441,7 +441,7 @@ export default function AIPrompt() {
 
         {/* ====== FORMAT TAB ====== */}
         <TabsContent value="format" className="mt-6">
-          <Card className="border-slate-200 shadow-sm bg-white">
+          <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] border-slate-200 shadow-sm bg-white">
             <CardHeader className="border-b border-slate-100 pb-4">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900"><FileText className="h-5 w-5 text-blue-600" />Prompt Formatter</CardTitle>
               <CardDescription className="text-slate-500 mt-1">Convert your raw unstructured prompt into a clear, structured, professional AI prompt</CardDescription>
@@ -461,7 +461,7 @@ export default function AIPrompt() {
 
         {/* ====== MY PROMPTS TAB ====== */}
         <TabsContent value="my-prompts" className="mt-6">
-          <Card className="border-slate-200 shadow-sm bg-white">
+          <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] border-slate-200 shadow-sm bg-white">
             <CardHeader className="border-b border-slate-100 pb-4">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900"><List className="h-5 w-5 text-blue-600" />My Prompts</CardTitle>
               <CardDescription className="text-slate-500 mt-1">View, manage, and reuse your saved prompts. These can be selected during agent creation to autofill forms.</CardDescription>

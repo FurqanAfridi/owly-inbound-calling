@@ -54,6 +54,8 @@ import { useSearchParams } from 'react-router-dom';
 import { CREDIT_RATES } from '../services/creditService';
 import { fetchPackages, fetchPackageById, renderFeatureTemplate, PackageWithDetails } from '../services/packageService';
 import { validateCoupon, recordCouponUsage, CouponValidationResult } from '../services/couponService';
+import PaymentDialog from './PaymentDialog';
+import { verifyPayPalPayment } from '../services/paymentService';
 
 interface UserCredits {
   balance: number;
@@ -146,6 +148,17 @@ const Billing: React.FC = () => {
   const [autoTopupAmount, setAutoTopupAmount] = useState(50);
   const [autoTopupThreshold, setAutoTopupThreshold] = useState(10);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [paymentDialogData, setPaymentDialogData] = useState<{
+    purchaseType: 'package' | 'credits';
+    selectedPackage?: PackageWithDetails | null;
+    creditsAmount?: number;
+    amount: number;
+    billingPeriod?: 'monthly' | 'yearly';
+    discountAmount?: number;
+    couponCode?: string;
+    subscriptionId?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -154,12 +167,31 @@ const Billing: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Handle payment success/cancel callback from Stripe
+  // Handle payment success/cancel callback from Stripe and PayPal
   useEffect(() => {
     const sessionId = searchParams.get('session_id');
     const purchaseId = searchParams.get('purchase_id');
     const canceled = searchParams.get('canceled');
+    const paypalReturn = searchParams.get('paypal_return');
+    const paypalCancel = searchParams.get('paypal_cancel');
+    const paypalOrderId = searchParams.get('token') || searchParams.get('PayerID');
     
+    // Handle PayPal return
+    if (paypalReturn === 'true' && purchaseId && paypalOrderId && user) {
+      handlePayPalReturn(purchaseId, paypalOrderId);
+      setSearchParams({});
+      return;
+    }
+    
+    // Handle PayPal cancel
+    if (paypalCancel === 'true' && purchaseId) {
+      setErrorMessage('PayPal payment was canceled. You can try again when ready.');
+      setShowErrorDialog(true);
+      setSearchParams({});
+      return;
+    }
+    
+    // Handle Stripe cancel
     if (canceled === 'true') {
       const subscriptionId = searchParams.get('subscription_id');
       if (subscriptionId) {
@@ -175,6 +207,7 @@ const Billing: React.FC = () => {
       return;
     }
     
+    // Handle Stripe success
     if (sessionId && purchaseId && user) {
       const subscriptionId = searchParams.get('subscription_id');
       handlePaymentSuccess(sessionId, purchaseId, subscriptionId || undefined);
@@ -272,69 +305,77 @@ const Billing: React.FC = () => {
     }
   };
 
-  const handlePurchaseCredits = async () => {
-    if (!user) return;
+  const handlePurchaseCredits = () => {
+    if (purchaseAmount <= 0) {
+      setError('Purchase amount must be greater than 0');
+      return;
+    }
 
-    setProcessingPayment(true);
+    const creditsAmount = purchaseAmount * CREDIT_RATES.PURCHASE_RATE;
+    setPaymentDialogData({
+      purchaseType: 'credits',
+      creditsAmount,
+      amount: purchaseAmount,
+    });
+    setShowPaymentDialog(true);
+    setShowPurchaseDialog(false);
+  };
+
+  const handlePayPalReturn = async (purchaseId: string, orderId: string) => {
+    setLoading(true);
     setError(null);
-    setSuccess(null);
 
     try {
-      // Validate amount
-      if (purchaseAmount <= 0) {
-        throw new Error('Purchase amount must be greater than 0');
+      const result = await verifyPayPalPayment(orderId, purchaseId);
+
+      if (result.success) {
+        // Update purchase status
+        await supabase
+          .from('purchases')
+          .update({
+            payment_status: 'paid',
+            completed_at: new Date().toISOString(),
+            payment_provider_id: orderId,
+          })
+          .eq('id', purchaseId);
+
+        // Get purchase details
+        const { data: purchase } = await supabase
+          .from('purchases')
+          .select('credits_amount, purchase_type, metadata')
+          .eq('id', purchaseId)
+          .single();
+
+        // Activate subscription if this is a package purchase
+        if (purchase?.purchase_type === 'subscription' && purchase.metadata?.subscription_id) {
+          const activationResult = await activateSubscription(purchase.metadata.subscription_id, user!.id);
+          if (!activationResult.success) {
+            console.error('Failed to activate subscription:', activationResult.error);
+          }
+        }
+
+        // Add credits if needed
+        if (purchase && purchase.credits_amount > 0) {
+          await supabase.rpc('add_credits', {
+            p_user_id: user!.id,
+            p_amount: purchase.credits_amount,
+            p_transaction_type: 'purchase',
+            p_purchase_id: purchaseId,
+          });
+        }
+
+        setSuccessMessage('Payment successful! Your purchase has been processed.');
+        setShowSuccessDialog(true);
+        await fetchBillingData();
+      } else {
+        throw new Error(result.error || 'Payment verification failed');
       }
-
-      // Calculate credits: $1 = 5 credits
-      const creditsAmount = purchaseAmount * CREDIT_RATES.PURCHASE_RATE;
-      const creditsRate = 1.0 / CREDIT_RATES.PURCHASE_RATE; // $0.20 per credit (1 credit = $0.20, so $1 = 5 credits)
-
-      // Create purchase record
-      const { data: purchase, error: purchaseError } = await supabase
-        .from('purchases')
-        .insert({
-          user_id: user.id,
-          purchase_type: 'credits',
-          amount: purchaseAmount,
-          credits_amount: creditsAmount, // $1 = 5 credits
-          credits_rate: creditsRate,
-          subtotal: purchaseAmount,
-          total_amount: purchaseAmount,
-          payment_status: 'pending',
-        })
-        .select()
-        .single();
-
-      if (purchaseError) throw purchaseError;
-
-      // Create Stripe Checkout session
-      const successUrl = `${window.location.origin}/billing?session_id={CHECKOUT_SESSION_ID}&purchase_id=${purchase.id}`;
-      const cancelUrl = `${window.location.origin}/billing?canceled=true`;
-
-      const { sessionId, url } = await createCheckoutSession({
-        userId: user.id,
-        amount: purchaseAmount,
-        creditsAmount: purchaseAmount,
-        purchaseId: purchase.id,
-        successUrl,
-        cancelUrl,
-      });
-
-      // Store session ID in purchase record
-      await supabase
-        .from('purchases')
-        .update({
-          payment_provider_id: sessionId,
-          metadata: { checkout_session_id: sessionId },
-        })
-        .eq('id', purchase.id);
-
-      // Redirect to Stripe Checkout
-      await redirectToCheckout(url);
     } catch (err: any) {
-      console.error('Error initiating payment:', err);
-      setError(err.message || 'Failed to initiate payment. Please try again.');
-      setProcessingPayment(false);
+      console.error('Error processing PayPal return:', err);
+      setErrorMessage(err.message || 'Failed to verify payment. Please contact support.');
+      setShowErrorDialog(true);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1508,28 +1549,18 @@ const Billing: React.FC = () => {
               variant="contained"
               onClick={async () => {
                 if (!selectedPackage || !user) return;
-                
-                // Note: Free package subscription logic handled in subscriptionService
 
-                setProcessingPayment(true);
-                try {
-                  const basePrice =
-                    billingPeriod === 'monthly'
-                      ? selectedPackage.price_monthly || 0
-                      : selectedPackage.price_yearly || (selectedPackage.price_monthly || 0) * 12;
-                  const discount = couponValidation?.valid ? couponValidation.discount_amount : 0;
-                  const total = Math.max(0, basePrice - discount);
+                // For free package, assign directly without payment
+                if (selectedPackage.tier === 'free') {
+                  // Check if user already has any subscription
+                  if (subscription) {
+                    setErrorMessage('You already have an active subscription. Cannot subscribe to free package.');
+                    setShowErrorDialog(true);
+                    return;
+                  }
 
-                  // For free package, assign directly without payment
-                  if (selectedPackage.tier === 'free') {
-                    // Check if user already has any subscription
-                    if (subscription) {
-                      setErrorMessage('You already have an active subscription. Cannot subscribe to free package.');
-                      setShowErrorDialog(true);
-                      setProcessingPayment(false);
-                      return;
-                    }
-
+                  setProcessingPayment(true);
+                  try {
                     const { assignFreePackageToUser } = await import('../services/subscriptionService');
                     const result = await assignFreePackageToUser(user.id);
                     
@@ -1542,12 +1573,26 @@ const Billing: React.FC = () => {
                       setErrorMessage(result.error || 'Failed to activate free package');
                       setShowErrorDialog(true);
                     }
+                  } catch (err: any) {
+                    setErrorMessage(err.message || 'Failed to activate free package');
+                    setShowErrorDialog(true);
+                  } finally {
                     setProcessingPayment(false);
-                    return;
                   }
+                  return;
+                }
 
-                  // Paid package subscription flow
-                  // Step 1: Create subscription record
+                // Paid package - open payment dialog
+                const basePrice =
+                  billingPeriod === 'monthly'
+                    ? selectedPackage.price_monthly || 0
+                    : selectedPackage.price_yearly || (selectedPackage.price_monthly || 0) * 12;
+                const discount = couponValidation?.valid ? couponValidation.discount_amount : 0;
+                const total = Math.max(0, basePrice - discount);
+
+                // Create subscription record first
+                setProcessingPayment(true);
+                try {
                   const subscriptionResult = await createPaidSubscription(
                     user.id,
                     selectedPackage.id,
@@ -1563,7 +1608,7 @@ const Billing: React.FC = () => {
                     return;
                   }
 
-                  // Step 2: Record coupon usage if applied
+                  // Record coupon usage if applied
                   if (couponValidation?.valid && couponValidation.coupon) {
                     await recordCouponUsage(
                       couponValidation.coupon.id,
@@ -1574,72 +1619,22 @@ const Billing: React.FC = () => {
                     );
                   }
 
-                  // Step 3: Create purchase record for payment tracking
-                  const { data: purchase, error: purchaseError } = await supabase
-                    .from('purchases')
-                    .insert({
-                      user_id: user.id,
-                      purchase_type: 'subscription',
-                      amount: total,
-                      credits_amount: selectedPackage.credits_included || 0,
-                      credits_rate: 0,
-                      subtotal: basePrice,
-                      discount_amount: discount,
-                      total_amount: total,
-                      payment_status: 'pending',
-                      metadata: {
-                        subscription_id: subscriptionResult.subscriptionId,
-                        package_id: selectedPackage.id,
-                        billing_cycle: billingPeriod,
-                        coupon_code: couponValidation?.valid ? couponCode : null,
-                      },
-                    })
-                    .select()
-                    .single();
-
-                  if (purchaseError) {
-                    setErrorMessage('Failed to create purchase record. Please try again.');
-                    setShowErrorDialog(true);
-                    setProcessingPayment(false);
-                    return;
-                  }
-
-                  // Step 4: Create Stripe Checkout session
-                  const successUrl = `${window.location.origin}/billing?session_id={CHECKOUT_SESSION_ID}&purchase_id=${purchase.id}&subscription_id=${subscriptionResult.subscriptionId}`;
-                  const cancelUrl = `${window.location.origin}/billing?canceled=true&subscription_id=${subscriptionResult.subscriptionId}`;
-
-                  try {
-                    const { sessionId, url } = await createCheckoutSession({
-                      userId: user.id,
-                      amount: total,
-                      creditsAmount: selectedPackage.credits_included || 0,
-                      purchaseId: purchase.id,
-                      successUrl,
-                      cancelUrl,
-                    });
-
-                    // Store session ID in purchase record
-                    await supabase
-                      .from('purchases')
-                      .update({
-                        payment_provider_id: sessionId,
-                        metadata: {
-                          ...purchase.metadata,
-                          checkout_session_id: sessionId,
-                        },
-                      })
-                      .eq('id', purchase.id);
-
-                    // Redirect to Stripe Checkout
-                    await redirectToCheckout(url);
-                  } catch (checkoutError: any) {
-                    setErrorMessage(checkoutError.message || 'Failed to initiate payment. Please try again.');
-                    setShowErrorDialog(true);
-                    setProcessingPayment(false);
-                  }
+                  // Open payment dialog
+                  setPaymentDialogData({
+                    purchaseType: 'package',
+                    selectedPackage,
+                    amount: total,
+                    billingPeriod,
+                    discountAmount: discount,
+                    couponCode: couponValidation?.valid ? couponCode : undefined,
+                    subscriptionId: subscriptionResult.subscriptionId,
+                  });
+                  setShowPaymentDialog(true);
+                  setShowPackageDialog(false);
                 } catch (error: any) {
                   setErrorMessage(error.message || 'Failed to process subscription');
                   setShowErrorDialog(true);
+                } finally {
                   setProcessingPayment(false);
                 }
               }}
@@ -1649,7 +1644,7 @@ const Billing: React.FC = () => {
                 ? 'Processing...'
                 : selectedPackage?.tier === 'free'
                 ? 'Activate Free Package'
-                : 'Subscribe'}
+                : 'Buy Package'}
             </Button>
           </DialogActions>
         </Dialog>
@@ -1714,6 +1709,30 @@ const Billing: React.FC = () => {
             </Button>
           </DialogActions>
         </Dialog>
+
+        {/* Payment Dialog */}
+        {paymentDialogData && (
+          <PaymentDialog
+            open={showPaymentDialog}
+            onClose={() => {
+              setShowPaymentDialog(false);
+              setPaymentDialogData(null);
+            }}
+            onSuccess={async () => {
+              setSuccessMessage('Payment successful! Your purchase has been processed.');
+              setShowSuccessDialog(true);
+              await fetchBillingData();
+            }}
+            purchaseType={paymentDialogData.purchaseType}
+            selectedPackage={paymentDialogData.selectedPackage}
+            creditsAmount={paymentDialogData.creditsAmount}
+            amount={paymentDialogData.amount}
+            billingPeriod={paymentDialogData.billingPeriod}
+            discountAmount={paymentDialogData.discountAmount}
+            couponCode={paymentDialogData.couponCode}
+            subscriptionId={paymentDialogData.subscriptionId}
+          />
+        )}
       </Box>
     </>
   );

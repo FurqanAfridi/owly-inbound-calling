@@ -25,6 +25,9 @@ import {
   CheckCircle as StatusIcon,
   Settings as ConfigIcon,
   Info as InfoIcon,
+  ArrowBack as ArrowBackIcon,
+  ArrowForward as ArrowForwardIcon,
+  Upload as UploadIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -74,6 +77,8 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
   const [provider, setProvider] = useState<'twilio' | 'vonage' | 'callhippo' | 'telnyx' | 'other'>(
     'twilio'
   );
+  const [currentStep, setCurrentStep] = useState<number>(1);
+  const totalSteps = 3;
 
   const [formData, setFormData] = useState({
     phoneNumber: '',
@@ -556,10 +561,63 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
     <>
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <form onSubmit={handleSubmit}>
-        <DialogTitle sx={{ fontSize: '1.5rem', fontWeight: 600, pb: 1 }}>
+        <DialogTitle sx={{ fontSize: '1.5rem', fontWeight: 600, pb: 1, fontFamily: "'Manrope', sans-serif" }}>
           {editingNumber ? 'Edit Inbound Number' : 'Add Inbound Number'}
         </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
+        
+        {/* Step Indicator */}
+        <Box sx={{ px: 3, pt: 2, pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            {[1, 2, 3].map((step) => (
+              <React.Fragment key={step}>
+                <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                  <Box
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: currentStep >= step ? '#0b99ff' : 'action.disabledBackground',
+                      color: currentStep >= step ? 'white' : 'text.secondary',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      fontFamily: "'Manrope', sans-serif"
+                    }}
+                  >
+                    {step}
+                  </Box>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      ml: 1,
+                      fontSize: '0.75rem',
+                      fontWeight: currentStep >= step ? 600 : 400,
+                      color: currentStep >= step ? 'text.primary' : 'text.secondary',
+                      fontFamily: "'Manrope', sans-serif"
+                    }}
+                  >
+                    {step === 1 ? 'Provider' : step === 2 ? 'Phone Details' : 'Configuration'}
+                  </Typography>
+                </Box>
+                {step < 3 && (
+                  <Box
+                    sx={{
+                      flex: 1,
+                      height: 2,
+                      bgcolor: currentStep > step ? '#0b99ff' : 'action.disabledBackground',
+                      mx: 1,
+                      transition: 'background-color 0.3s'
+                    }}
+                  />
+                )}
+              </React.Fragment>
+            ))}
+          </Box>
+        </Box>
+
+        <DialogContent sx={{ pt: 2 }}>
           {webhookLoading && (
             <Alert severity="info" sx={{ mb: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -585,357 +643,844 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
             </Alert>
           )}
 
-          <Stack spacing={3.5}>
-            {/* Provider Selection */}
-            <TextField
-              select
-              label="Provider"
-              name="provider"
-              value={provider}
-              onChange={(e) => setProvider(e.target.value as any)}
-              fullWidth
-              required
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <ProviderIcon color="action" />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                '& .MuiInputBase-root': {
-                  fontSize: '1rem',
-                },
-                '& .MuiInputLabel-root': {
-                  fontSize: '1rem',
-                },
-              }}
-            >
-              <MenuItem value="twilio">Twilio</MenuItem>
-              <MenuItem value="vonage">Vonage</MenuItem>
-              <MenuItem value="callhippo">CallHippo</MenuItem>
-              <MenuItem value="telnyx">Telnyx</MenuItem>
-              <MenuItem value="other">Other</MenuItem>
-            </TextField>
-
-            <Divider>
-              <Chip icon={<PhoneIcon />} label="Phone Details" size="small" />
-            </Divider>
-
-            {/* Phone Number */}
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <CountryCodeSelector
-                value={formData.countryCode}
-                onChange={handleCountryCodeChange}
-              />
-              <TextField
-                label="Phone Number"
-                name="phoneNumber"
-                value={formData.phoneNumber}
-                onChange={handleChange}
-                fullWidth
-                required
-                placeholder="1234567890"
-                inputProps={{
-                  maxLength: 10,
-                  inputMode: 'numeric',
-                  pattern: '[0-9]*',
-                }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <PhoneIcon color="action" />
-                    </InputAdornment>
-                  ),
-                }}
-                helperText={`${formData.phoneNumber.length}/10 digits`}
-                sx={{
-                  '& .MuiInputBase-root': {
-                    fontSize: '1rem',
-                  },
-                  '& .MuiInputLabel-root': {
-                    fontSize: '1rem',
-                  },
-                }}
-              />
-            </Box>
-
-            {/* Phone Label */}
-            <TextField
-              label="Label (Optional)"
-              name="phoneLabel"
-              value={formData.phoneLabel}
-              onChange={handleChange}
-              fullWidth
-              placeholder="e.g., Main Business Line"
-              helperText="A friendly name to identify this number"
-              sx={{
-                '& .MuiInputBase-root': {
-                  fontSize: '1rem',
-                },
-                '& .MuiInputLabel-root': {
-                  fontSize: '1rem',
-                },
-              }}
-            />
-
-            {/* Call Forwarding Number */}
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <CountryCodeSelector
-                value={formData.countryCode}
-                onChange={(code) => setFormData((prev) => ({ ...prev, countryCode: code }))}
-              />
-              <TextField
-                label="Call Forwarding Number *"
-                name="callForwardingNumber"
-                value={formData.callForwardingNumber}
-                onChange={handleChange}
-                fullWidth
-                required
-                placeholder="Number to forward calls to"
-                inputProps={{
-                  maxLength: 10,
-                  inputMode: 'numeric',
-                  pattern: '[0-9]*',
-                }}
-                helperText={`${formData.callForwardingNumber.length}/10 digits - Incoming calls will be forwarded to this number`}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <ForwardIcon color="action" />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiInputBase-root': {
-                    fontSize: '1rem',
-                  },
-                  '& .MuiInputLabel-root': {
-                    fontSize: '1rem',
-                  },
-                }}
-              />
-            </Box>
-
-            {/* Call Transfer Reason */}
-            <TextField
-              label="Call Transfer Reason"
-              name="callTransferReason"
-              value={formData.callTransferReason}
-              onChange={handleChange}
-              fullWidth
-              multiline
-              rows={3}
-              placeholder="e.g., Transfer calls when agent is unavailable, Transfer after business hours, Transfer for technical support"
-              helperText="Describe when and why calls should be transferred to the forwarding number"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <InfoIcon color="action" />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                '& .MuiInputBase-root': {
-                  fontSize: '1rem',
-                },
-                '& .MuiInputLabel-root': {
-                  fontSize: '1rem',
-                },
-              }}
-            />
-
-            {/* Status */}
-            <TextField
-              select
-              label="Status"
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-              fullWidth
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <StatusIcon color="action" />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                '& .MuiInputBase-root': {
-                  fontSize: '1rem',
-                },
-                '& .MuiInputLabel-root': {
-                  fontSize: '1rem',
-                },
-              }}
-            >
-              <MenuItem value="active">Active</MenuItem>
-              <MenuItem value="pending">Pending</MenuItem>
-              <MenuItem value="suspended">Suspended</MenuItem>
-              <MenuItem value="inactive">Inactive</MenuItem>
-              <MenuItem value="error">Error</MenuItem>
-            </TextField>
-
-            <Divider>
-              <Chip icon={<ConfigIcon />} label="Provider Configuration" size="small" />
-            </Divider>
-
-            {provider === 'twilio' && (
-              <>
-                <TextField
-                  label="Twilio Account SID"
-                  name="twilioAccountSid"
-                  value={formData.twilioAccountSid}
-                  onChange={handleChange}
-                  fullWidth
-                  placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                />
-                <TextField
-                  label="Twilio Auth Token"
-                  name="twilioAuthToken"
-                  type="password"
-                  value={formData.twilioAuthToken}
-                  onChange={handleChange}
-                  fullWidth
-                  required
-                  placeholder="Your Twilio Auth Token"
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      name="smsEnabled"
-                      checked={formData.smsEnabled}
-                      onChange={handleChange}
-                    />
-                  }
-                  label="Enable SMS"
-                />
-              </>
-            )}
-
-            {provider === 'vonage' && (
-              <>
-                <TextField
-                  label="Vonage API Key"
-                  name="vonageApiKey"
-                  value={formData.vonageApiKey}
-                  onChange={handleChange}
-                  fullWidth
-                  required
-                />
-                <TextField
-                  label="Vonage API Secret"
-                  name="vonageApiSecret"
-                  type="password"
-                  value={formData.vonageApiSecret}
-                  onChange={handleChange}
-                  fullWidth
-                  required
-                />
-                <TextField
-                  label="Vonage Application ID (Optional)"
-                  name="vonageApplicationId"
-                  value={formData.vonageApplicationId}
-                  onChange={handleChange}
-                  fullWidth
-                />
-              </>
-            )}
-
-            {provider === 'callhippo' && (
-              <>
-                <TextField
-                  label="CallHippo API Key"
-                  name="callhippoApiKey"
-                  type="password"
-                  value={formData.callhippoApiKey}
-                  onChange={handleChange}
-                  fullWidth
-                  required
-                />
-                <TextField
-                  label="CallHippo Account ID (Optional)"
-                  name="callhippoAccountId"
-                  value={formData.callhippoAccountId}
-                  onChange={handleChange}
-                  fullWidth
-                />
-              </>
-            )}
-
-            {provider === 'telnyx' && (
-              <TextField
-                label="Telnyx API Key"
-                name="providerApiKey"
-                type="password"
-                value={formData.providerApiKey}
-                onChange={handleChange}
-                fullWidth
-                required
-              />
-            )}
-
-            {provider === 'other' && (
-              <>
-                <TextField
-                  label="API Key"
-                  name="providerApiKey"
-                  type="password"
-                  value={formData.providerApiKey}
-                  onChange={handleChange}
-                  fullWidth
-                  required
-                />
-                <TextField
-                  label="API Secret (Optional)"
-                  name="providerApiSecret"
-                  type="password"
-                  value={formData.providerApiSecret}
-                  onChange={handleChange}
-                  fullWidth
-                />
-                <TextField
-                  label="Webhook URL"
-                  name="providerWebhookUrl"
-                  value={formData.providerWebhookUrl}
-                  onChange={handleChange}
-                  fullWidth
-                  required
-                  placeholder="https://example.com/webhook"
-                />
-              </>
-            )}
-
-            {/* Credit Usage Info */}
-            <Alert severity="info" sx={{ mt: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <InfoIcon sx={{ fontSize: 18 }} />
-                <Typography variant="body2">
-                  <strong>Credit Usage:</strong> Inbound calls will use{' '}
-                  <strong>3 credits per minute</strong> of call duration.
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: 3,
+            fontFamily: "'Manrope', sans-serif",
+            minHeight: 400
+          }}>
+            {/* Step 1: Provider Selection */}
+            {currentStep === 1 && (
+              <Box>
+                <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600, mb: 2, fontFamily: "'Manrope', sans-serif" }}>
+                  Select Provider
                 </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.875rem', mb: 3, fontFamily: "'Manrope', sans-serif" }}>
+                  Choose your phone service provider to configure the inbound number.
+                </Typography>
+                <Box sx={{ 
+              border: '1px solid', 
+              borderColor: 'divider', 
+              borderRadius: 2, 
+              p: 3,
+              bgcolor: 'background.paper',
+              '&:hover': {
+                borderColor: 'primary.main',
+                transition: 'border-color 0.2s'
+              }
+            }}>
+              <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1.5, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                Provider:
+              </Typography>
+              <Box sx={{ 
+                border: '1px solid', 
+                borderColor: 'divider', 
+                borderRadius: 1, 
+                p: 1.5,
+                bgcolor: 'action.hover',
+                minHeight: 48,
+                display: 'flex',
+                alignItems: 'center'
+              }}>
+                <TextField
+                  select
+                  name="provider"
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value as any)}
+                  fullWidth
+                  required
+                  variant="standard"
+                  InputProps={{ disableUnderline: true }}
+                  sx={{
+                    '& .MuiInputBase-root': {
+                      fontSize: '1rem',
+                      fontFamily: "'Manrope', sans-serif",
+                      fontWeight: 500
+                    },
+                    '& .MuiSelect-select': {
+                      py: 0
+                    }
+                  }}
+                >
+                  <MenuItem value="twilio">Twilio</MenuItem>
+                  <MenuItem value="vonage">Vonage</MenuItem>
+                  <MenuItem value="callhippo">CallHippo</MenuItem>
+                  <MenuItem value="telnyx">Telnyx</MenuItem>
+                  <MenuItem value="other">Other</MenuItem>
+                </TextField>
               </Box>
-            </Alert>
-          </Stack>
+            </Box>
+              </Box>
+            )}
+
+            {/* Step 2: Phone Details */}
+            {currentStep === 2 && (
+              <Box>
+                <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600, mb: 2, fontFamily: "'Manrope', sans-serif" }}>
+                  Phone Details
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.875rem', mb: 3, fontFamily: "'Manrope', sans-serif" }}>
+                  Enter the phone number details and call forwarding information.
+                </Typography>
+                <Box sx={{ 
+              border: '1px solid', 
+              borderColor: 'divider', 
+              borderRadius: 2, 
+              p: 3,
+              bgcolor: 'background.paper'
+            }}>
+              <Typography variant="subtitle2" sx={{ fontSize: '0.875rem', fontWeight: 600, mb: 3, fontFamily: "'Manrope', sans-serif" }}>
+                Phone Details
+              </Typography>
+              
+              <Stack spacing={3}>
+                {/* Phone Number */}
+                <Box>
+                  <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                    Phone Number:
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <CountryCodeSelector
+                      value={formData.countryCode}
+                      onChange={handleCountryCodeChange}
+                    />
+                    <Box sx={{ 
+                      flex: 1,
+                      border: '1px solid', 
+                      borderColor: 'divider', 
+                      borderRadius: 1, 
+                      p: 1.5,
+                      bgcolor: 'action.hover',
+                      minHeight: 48,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
+                      <TextField
+                        name="phoneNumber"
+                        value={formData.phoneNumber}
+                        onChange={handleChange}
+                        fullWidth
+                        required
+                        placeholder="1234567890"
+                        variant="standard"
+                        InputProps={{ disableUnderline: true }}
+                        inputProps={{
+                          maxLength: 10,
+                          inputMode: 'numeric',
+                          pattern: '[0-9]*',
+                        }}
+                        sx={{
+                          '& .MuiInputBase-root': {
+                            fontSize: '1rem',
+                            fontFamily: "'Manrope', sans-serif",
+                            fontWeight: 500
+                          },
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem', color: 'text.secondary', mt: 0.5, fontFamily: "'Manrope', sans-serif" }}>
+                    {formData.phoneNumber.length}/10 digits
+                  </Typography>
+                </Box>
+
+                {/* Phone Label */}
+                <Box>
+                  <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                    Label (Optional):
+                  </Typography>
+                  <Box sx={{ 
+                    border: '1px solid', 
+                    borderColor: 'divider', 
+                    borderRadius: 1, 
+                    p: 1.5,
+                    bgcolor: 'action.hover',
+                    minHeight: 48,
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}>
+                    <TextField
+                      name="phoneLabel"
+                      value={formData.phoneLabel}
+                      onChange={handleChange}
+                      fullWidth
+                      placeholder="e.g., Main Business Line"
+                      variant="standard"
+                      InputProps={{ disableUnderline: true }}
+                      sx={{
+                        '& .MuiInputBase-root': {
+                          fontSize: '1rem',
+                          fontFamily: "'Manrope', sans-serif",
+                          fontWeight: 500
+                        },
+                      }}
+                    />
+                  </Box>
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem', color: 'text.secondary', mt: 0.5, fontFamily: "'Manrope', sans-serif" }}>
+                    A friendly name to identify this number
+                  </Typography>
+                </Box>
+
+                {/* Call Forwarding Number */}
+                <Box>
+                  <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                    Call Forwarding Number:
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <CountryCodeSelector
+                      value={formData.countryCode}
+                      onChange={(code) => setFormData((prev) => ({ ...prev, countryCode: code }))}
+                    />
+                    <Box sx={{ 
+                      flex: 1,
+                      border: '1px solid', 
+                      borderColor: 'divider', 
+                      borderRadius: 1, 
+                      p: 1.5,
+                      bgcolor: 'action.hover',
+                      minHeight: 48,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
+                      <TextField
+                        name="callForwardingNumber"
+                        value={formData.callForwardingNumber}
+                        onChange={handleChange}
+                        fullWidth
+                        required
+                        placeholder="Number to forward calls to"
+                        variant="standard"
+                        InputProps={{ disableUnderline: true }}
+                        inputProps={{
+                          maxLength: 10,
+                          inputMode: 'numeric',
+                          pattern: '[0-9]*',
+                        }}
+                        sx={{
+                          '& .MuiInputBase-root': {
+                            fontSize: '1rem',
+                            fontFamily: "'Manrope', sans-serif",
+                            fontWeight: 500
+                          },
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem', color: 'text.secondary', mt: 0.5, fontFamily: "'Manrope', sans-serif" }}>
+                    {formData.callForwardingNumber.length}/10 digits - Incoming calls will be forwarded to this number
+                  </Typography>
+                </Box>
+
+                {/* Call Transfer Reason */}
+                <Box>
+                  <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                    Call Transfer Reason:
+                  </Typography>
+                  <Box sx={{ 
+                    border: '1px solid', 
+                    borderColor: 'divider', 
+                    borderRadius: 1, 
+                    p: 1.5,
+                    bgcolor: 'action.hover',
+                    minHeight: 80
+                  }}>
+                    <TextField
+                      name="callTransferReason"
+                      value={formData.callTransferReason}
+                      onChange={handleChange}
+                      fullWidth
+                      multiline
+                      rows={3}
+                      placeholder="e.g., Transfer calls when agent is unavailable, Transfer after business hours, Transfer for technical support"
+                      variant="standard"
+                      InputProps={{ disableUnderline: true }}
+                      sx={{
+                        '& .MuiInputBase-root': {
+                          fontSize: '1rem',
+                          fontFamily: "'Manrope', sans-serif"
+                        },
+                      }}
+                    />
+                  </Box>
+                  <Typography variant="caption" sx={{ fontSize: '0.75rem', color: 'text.secondary', mt: 0.5, fontFamily: "'Manrope', sans-serif" }}>
+                    Describe when and why calls should be transferred to the forwarding number
+                  </Typography>
+                </Box>
+
+                {/* Status */}
+                <Box>
+                  <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                    Status:
+                  </Typography>
+                  <Box sx={{ 
+                    border: '1px solid', 
+                    borderColor: 'divider', 
+                    borderRadius: 1, 
+                    p: 1.5,
+                    bgcolor: 'action.hover',
+                    minHeight: 48,
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}>
+                    <TextField
+                      select
+                      name="status"
+                      value={formData.status}
+                      onChange={handleChange}
+                      fullWidth
+                      variant="standard"
+                      InputProps={{ disableUnderline: true }}
+                      sx={{
+                        '& .MuiInputBase-root': {
+                          fontSize: '1rem',
+                          fontFamily: "'Manrope', sans-serif",
+                          fontWeight: 500
+                        },
+                        '& .MuiSelect-select': {
+                          py: 0
+                        }
+                      }}
+                    >
+                      <MenuItem value="active">Active</MenuItem>
+                      <MenuItem value="pending">Pending</MenuItem>
+                      <MenuItem value="suspended">Suspended</MenuItem>
+                      <MenuItem value="inactive">Inactive</MenuItem>
+                      <MenuItem value="error">Error</MenuItem>
+                    </TextField>
+                  </Box>
+                </Box>
+              </Stack>
+            </Box>
+              </Box>
+            )}
+
+            {/* Step 3: Provider Configuration */}
+            {currentStep === 3 && (
+              <Box>
+                <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600, mb: 2, fontFamily: "'Manrope', sans-serif" }}>
+                  Provider Configuration
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.875rem', mb: 3, fontFamily: "'Manrope', sans-serif" }}>
+                  Configure your provider-specific API credentials and settings.
+                </Typography>
+                <Box sx={{ 
+                  border: '1px solid', 
+                  borderColor: 'divider', 
+                  borderRadius: 2, 
+                  p: 3,
+                  bgcolor: 'background.paper'
+                }}>
+
+              <Stack spacing={3}>
+                {provider === 'twilio' && (
+                  <>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                        Twilio Account SID:
+                      </Typography>
+                      <Box sx={{ 
+                        border: '1px solid', 
+                        borderColor: 'divider', 
+                        borderRadius: 1, 
+                        p: 1.5,
+                        bgcolor: 'action.hover',
+                        minHeight: 48,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <TextField
+                          name="twilioAccountSid"
+                          value={formData.twilioAccountSid}
+                          onChange={handleChange}
+                          fullWidth
+                          placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                          variant="standard"
+                          InputProps={{ disableUnderline: true }}
+                          sx={{
+                            '& .MuiInputBase-root': {
+                              fontSize: '1rem',
+                              fontFamily: "'Manrope', sans-serif",
+                              fontWeight: 500
+                            },
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                        Twilio Auth Token:
+                      </Typography>
+                      <Box sx={{ 
+                        border: '1px solid', 
+                        borderColor: 'divider', 
+                        borderRadius: 1, 
+                        p: 1.5,
+                        bgcolor: 'action.hover',
+                        minHeight: 48,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <TextField
+                          name="twilioAuthToken"
+                          type="password"
+                          value={formData.twilioAuthToken}
+                          onChange={handleChange}
+                          fullWidth
+                          required
+                          placeholder="Your Twilio Auth Token"
+                          variant="standard"
+                          InputProps={{ disableUnderline: true }}
+                          sx={{
+                            '& .MuiInputBase-root': {
+                              fontSize: '1rem',
+                              fontFamily: "'Manrope', sans-serif",
+                              fontWeight: 500
+                            },
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                    <Box>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            name="smsEnabled"
+                            checked={formData.smsEnabled}
+                            onChange={handleChange}
+                          />
+                        }
+                        label="Enable SMS"
+                        sx={{ fontFamily: "'Manrope', sans-serif" }}
+                      />
+                    </Box>
+                  </>
+                )}
+
+                {provider === 'vonage' && (
+                  <>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                        Vonage API Key:
+                      </Typography>
+                      <Box sx={{ 
+                        border: '1px solid', 
+                        borderColor: 'divider', 
+                        borderRadius: 1, 
+                        p: 1.5,
+                        bgcolor: 'action.hover',
+                        minHeight: 48,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <TextField
+                          name="vonageApiKey"
+                          value={formData.vonageApiKey}
+                          onChange={handleChange}
+                          fullWidth
+                          required
+                          variant="standard"
+                          InputProps={{ disableUnderline: true }}
+                          sx={{
+                            '& .MuiInputBase-root': {
+                              fontSize: '1rem',
+                              fontFamily: "'Manrope', sans-serif",
+                              fontWeight: 500
+                            },
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                        Vonage API Secret:
+                      </Typography>
+                      <Box sx={{ 
+                        border: '1px solid', 
+                        borderColor: 'divider', 
+                        borderRadius: 1, 
+                        p: 1.5,
+                        bgcolor: 'action.hover',
+                        minHeight: 48,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <TextField
+                          name="vonageApiSecret"
+                          type="password"
+                          value={formData.vonageApiSecret}
+                          onChange={handleChange}
+                          fullWidth
+                          required
+                          variant="standard"
+                          InputProps={{ disableUnderline: true }}
+                          sx={{
+                            '& .MuiInputBase-root': {
+                              fontSize: '1rem',
+                              fontFamily: "'Manrope', sans-serif",
+                              fontWeight: 500
+                            },
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                        Vonage Application ID (Optional):
+                      </Typography>
+                      <Box sx={{ 
+                        border: '1px solid', 
+                        borderColor: 'divider', 
+                        borderRadius: 1, 
+                        p: 1.5,
+                        bgcolor: 'action.hover',
+                        minHeight: 48,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <TextField
+                          name="vonageApplicationId"
+                          value={formData.vonageApplicationId}
+                          onChange={handleChange}
+                          fullWidth
+                          variant="standard"
+                          InputProps={{ disableUnderline: true }}
+                          sx={{
+                            '& .MuiInputBase-root': {
+                              fontSize: '1rem',
+                              fontFamily: "'Manrope', sans-serif",
+                              fontWeight: 500
+                            },
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                  </>
+                )}
+
+                {provider === 'callhippo' && (
+                  <>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                        CallHippo API Key:
+                      </Typography>
+                      <Box sx={{ 
+                        border: '1px solid', 
+                        borderColor: 'divider', 
+                        borderRadius: 1, 
+                        p: 1.5,
+                        bgcolor: 'action.hover',
+                        minHeight: 48,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <TextField
+                          name="callhippoApiKey"
+                          type="password"
+                          value={formData.callhippoApiKey}
+                          onChange={handleChange}
+                          fullWidth
+                          required
+                          variant="standard"
+                          InputProps={{ disableUnderline: true }}
+                          sx={{
+                            '& .MuiInputBase-root': {
+                              fontSize: '1rem',
+                              fontFamily: "'Manrope', sans-serif",
+                              fontWeight: 500
+                            },
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                        CallHippo Account ID (Optional):
+                      </Typography>
+                      <Box sx={{ 
+                        border: '1px solid', 
+                        borderColor: 'divider', 
+                        borderRadius: 1, 
+                        p: 1.5,
+                        bgcolor: 'action.hover',
+                        minHeight: 48,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <TextField
+                          name="callhippoAccountId"
+                          value={formData.callhippoAccountId}
+                          onChange={handleChange}
+                          fullWidth
+                          variant="standard"
+                          InputProps={{ disableUnderline: true }}
+                          sx={{
+                            '& .MuiInputBase-root': {
+                              fontSize: '1rem',
+                              fontFamily: "'Manrope', sans-serif",
+                              fontWeight: 500
+                            },
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                  </>
+                )}
+
+                {provider === 'telnyx' && (
+                  <Box>
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                      Telnyx API Key:
+                    </Typography>
+                    <Box sx={{ 
+                      border: '1px solid', 
+                      borderColor: 'divider', 
+                      borderRadius: 1, 
+                      p: 1.5,
+                      bgcolor: 'action.hover',
+                      minHeight: 48,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
+                      <TextField
+                        name="providerApiKey"
+                        type="password"
+                        value={formData.providerApiKey}
+                        onChange={handleChange}
+                        fullWidth
+                        required
+                        variant="standard"
+                        InputProps={{ disableUnderline: true }}
+                        sx={{
+                          '& .MuiInputBase-root': {
+                            fontSize: '1rem',
+                            fontFamily: "'Manrope', sans-serif",
+                            fontWeight: 500
+                          },
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                )}
+
+                {provider === 'other' && (
+                  <>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                        API Key:
+                      </Typography>
+                      <Box sx={{ 
+                        border: '1px solid', 
+                        borderColor: 'divider', 
+                        borderRadius: 1, 
+                        p: 1.5,
+                        bgcolor: 'action.hover',
+                        minHeight: 48,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <TextField
+                          name="providerApiKey"
+                          type="password"
+                          value={formData.providerApiKey}
+                          onChange={handleChange}
+                          fullWidth
+                          required
+                          variant="standard"
+                          InputProps={{ disableUnderline: true }}
+                          sx={{
+                            '& .MuiInputBase-root': {
+                              fontSize: '1rem',
+                              fontFamily: "'Manrope', sans-serif",
+                              fontWeight: 500
+                            },
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                        API Secret (Optional):
+                      </Typography>
+                      <Box sx={{ 
+                        border: '1px solid', 
+                        borderColor: 'divider', 
+                        borderRadius: 1, 
+                        p: 1.5,
+                        bgcolor: 'action.hover',
+                        minHeight: 48,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <TextField
+                          name="providerApiSecret"
+                          type="password"
+                          value={formData.providerApiSecret}
+                          onChange={handleChange}
+                          fullWidth
+                          variant="standard"
+                          InputProps={{ disableUnderline: true }}
+                          sx={{
+                            '& .MuiInputBase-root': {
+                              fontSize: '1rem',
+                              fontFamily: "'Manrope', sans-serif",
+                              fontWeight: 500
+                            },
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                    <Box>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
+                        Webhook URL:
+                      </Typography>
+                      <Box sx={{ 
+                        border: '1px solid', 
+                        borderColor: 'divider', 
+                        borderRadius: 1, 
+                        p: 1.5,
+                        bgcolor: 'action.hover',
+                        minHeight: 48,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <TextField
+                          name="providerWebhookUrl"
+                          value={formData.providerWebhookUrl}
+                          onChange={handleChange}
+                          fullWidth
+                          required
+                          placeholder="https://example.com/webhook"
+                          variant="standard"
+                          InputProps={{ disableUnderline: true }}
+                          sx={{
+                            '& .MuiInputBase-root': {
+                              fontSize: '1rem',
+                              fontFamily: "'Manrope', sans-serif",
+                              fontWeight: 500
+                            },
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                  </>
+                )}
+              </Stack>
+            </Box>
+
+                  {/* Credit Usage Info */}
+                  {currentStep === 3 && (
+                    <Alert severity="info" sx={{ mt: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <InfoIcon sx={{ fontSize: 18 }} />
+                        <Typography variant="body2" sx={{ fontFamily: "'Manrope', sans-serif" }}>
+                          <strong>Credit Usage:</strong> Inbound calls will use{' '}
+                          <strong>3 credits per minute</strong> of call duration.
+                        </Typography>
+                      </Box>
+                    </Alert>
+                  )}
+                </Box>
+            )}
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-          <Button 
-            onClick={onClose} 
-            disabled={loading}
-            size="large"
-            sx={{ minWidth: 100, fontSize: '1rem' }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            type="submit" 
-            variant="contained" 
-            disabled={loading}
-            size="large"
-            sx={{ minWidth: 140, fontSize: '1rem', fontWeight: 600 }}
-          >
-            {loading ? <CircularProgress size={24} /> : editingNumber ? 'Update' : 'Import'}
-          </Button>
+        <DialogActions sx={{ p: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider', gap: 2, justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button 
+              onClick={onClose} 
+              disabled={loading}
+              size="large"
+              sx={{ 
+                minWidth: 100, 
+                fontSize: '1rem',
+                fontFamily: "'Manrope', sans-serif",
+                textTransform: 'none'
+              }}
+            >
+              Cancel
+            </Button>
+            {currentStep > 1 && (
+              <Button 
+                onClick={() => setCurrentStep(currentStep - 1)}
+                disabled={loading}
+                size="large"
+                startIcon={<ArrowBackIcon />}
+                sx={{ 
+                  minWidth: 120, 
+                  fontSize: '1rem',
+                  fontFamily: "'Manrope', sans-serif",
+                  textTransform: 'none'
+                }}
+              >
+                Previous
+              </Button>
+            )}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            {currentStep < totalSteps ? (
+              <Button 
+                onClick={() => {
+                  // Validate current step before proceeding
+                  if (currentStep === 1 && !provider) {
+                    setError('Please select a provider');
+                    return;
+                  }
+                  if (currentStep === 2) {
+                    if (!formData.phoneNumber || formData.phoneNumber.length !== 10) {
+                      setError('Please enter a valid 10-digit phone number');
+                      return;
+                    }
+                    if (!formData.callForwardingNumber || formData.callForwardingNumber.length !== 10) {
+                      setError('Please enter a valid 10-digit call forwarding number');
+                      return;
+                    }
+                  }
+                  setError(null);
+                  setCurrentStep(currentStep + 1);
+                }}
+                variant="contained"
+                disabled={loading}
+                size="large"
+                endIcon={<ArrowForwardIcon />}
+                sx={{ 
+                  minWidth: 120, 
+                  fontSize: '1rem', 
+                  fontWeight: 600,
+                  fontFamily: "'Manrope', sans-serif",
+                  textTransform: 'none',
+                  bgcolor: '#0b99ff',
+                  '&:hover': {
+                    bgcolor: '#0b99ff',
+                    opacity: 0.9
+                  }
+                }}
+              >
+                Next
+              </Button>
+            ) : (
+              <Button 
+                type="submit" 
+                variant="contained" 
+                disabled={loading}
+                size="large"
+                startIcon={<UploadIcon />}
+                sx={{ 
+                  minWidth: 140, 
+                  fontSize: '1rem', 
+                  fontWeight: 600,
+                  fontFamily: "'Manrope', sans-serif",
+                  textTransform: 'none',
+                  bgcolor: '#0b99ff',
+                  '&:hover': {
+                    bgcolor: '#0b99ff',
+                    opacity: 0.9
+                  }
+                }}
+              >
+                {loading ? <CircularProgress size={24} sx={{ color: 'white' }} /> : editingNumber ? 'Update' : 'Import'}
+              </Button>
+            )}
+          </Box>
         </DialogActions>
       </form>
     </Dialog>

@@ -27,6 +27,8 @@ import LoginActivity from './components/LoginActivity';
 import AccountDeactivation from './components/AccountDeactivation';
 import Email from './components/Email';
 import AIPrompt from './components/AIPrompt';
+import Documentation from './components/Documentation';
+import Chatbot from './components/Chatbot';
 import ProtectedLayout from './components/layout/ProtectedLayout';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -52,37 +54,39 @@ const App: React.FC = () => {
           <AuthProvider>
             <DialogProvider>
               <Sonner />
+              <Chatbot />
               <Router>
-              <Routes>
-                {/* Public routes */}
-                <Route path="/" element={<SignIn />} />
-                <Route path="/signup" element={<SignUp />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                <Route path="/verify-email" element={<VerifyEmail />} />
-                <Route path="/set-new-password" element={<SetNewPassword />} />
-                <Route path="/success" element={<Success />} />
+                <Routes>
+                  {/* Public routes */}
+                  <Route path="/" element={<SignIn />} />
+                  <Route path="/signup" element={<SignUp />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/verify-email" element={<VerifyEmail />} />
+                  <Route path="/set-new-password" element={<SetNewPassword />} />
+                  <Route path="/success" element={<Success />} />
 
-                {/* Protected routes - shared layout stays mounted across navigation */}
-                <Route element={<ProtectedLayout />}>
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/create-agent" element={<CreateVoiceAgent />} />
-                  <Route path="/edit-agent/:id" element={<CreateVoiceAgent />} />
-                  <Route path="/agents" element={<VoiceAgents />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/two-factor" element={<TwoFactorAuth />} />
-                  <Route path="/login-activity" element={<LoginActivity />} />
-                  <Route path="/account-settings" element={<AccountDeactivation />} />
-                  <Route path="/inbound-numbers" element={<InboundNumbers />} />
-                  <Route path="/call-schedules" element={<CallSchedules />} />
-                  <Route path="/call-history" element={<CallHistory />} />
-                  <Route path="/leads" element={<Leads />} />
-                  <Route path="/billing" element={<Billing />} />
-                  <Route path="/knowledge-bases" element={<KnowledgeBases />} />
-                  <Route path="/email" element={<Email />} />
-                  <Route path="/ai-prompt" element={<AIPrompt />} />
-                </Route>
-              </Routes>
-            </Router>
+                  {/* Protected routes - shared layout stays mounted across navigation */}
+                  <Route element={<ProtectedLayout />}>
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/create-agent" element={<CreateVoiceAgent />} />
+                    <Route path="/edit-agent/:id" element={<CreateVoiceAgent />} />
+                    <Route path="/agents" element={<VoiceAgents />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/two-factor" element={<TwoFactorAuth />} />
+                    <Route path="/login-activity" element={<LoginActivity />} />
+                    <Route path="/account-settings" element={<AccountDeactivation />} />
+                    <Route path="/inbound-numbers" element={<InboundNumbers />} />
+                    <Route path="/call-schedules" element={<CallSchedules />} />
+                    <Route path="/call-history" element={<CallHistory />} />
+                    <Route path="/leads" element={<Leads />} />
+                    <Route path="/billing" element={<Billing />} />
+                    <Route path="/knowledge-bases" element={<KnowledgeBases />} />
+                    <Route path="/email" element={<Email />} />
+                    <Route path="/ai-prompt" element={<AIPrompt />} />
+                    <Route path="/documentation" element={<Documentation />} />
+                  </Route>
+                </Routes>
+              </Router>
             </DialogProvider>
           </AuthProvider>
         </ThemeContextProvider>

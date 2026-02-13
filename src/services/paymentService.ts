@@ -202,3 +202,188 @@ export const confirmPayment = async (clientSecret: string, paymentMethodId: stri
     throw error;
   }
 };
+
+/**
+ * PayPal Payment Functions
+ */
+
+/**
+ * Creates a PayPal order
+ */
+export const createPayPalOrder = async (params: {
+  userId: string;
+  amount: number;
+  creditsAmount: number;
+  purchaseId: string;
+  returnUrl: string;
+  cancelUrl: string;
+}) => {
+  try {
+    const paypalWebhookUrl = process.env.REACT_APP_PAYPAL_CREATE_ORDER_WEBHOOK_URL;
+    
+    if (!paypalWebhookUrl) {
+      throw new Error('PayPal create order webhook URL is not configured. Please set REACT_APP_PAYPAL_CREATE_ORDER_WEBHOOK_URL');
+    }
+
+    const response = await fetch(paypalWebhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: params.userId,
+        amount: params.amount,
+        credits_amount: params.creditsAmount,
+        purchase_id: params.purchaseId,
+        return_url: params.returnUrl,
+        cancel_url: params.cancelUrl,
+        currency: 'USD',
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Failed to create PayPal order: ${errorText}`);
+    }
+
+    const { orderId, approvalUrl } = await response.json();
+
+    if (!orderId || !approvalUrl) {
+      throw new Error('Invalid response from PayPal order creation');
+    }
+
+    return { orderId, approvalUrl };
+  } catch (error: any) {
+    console.error('Error creating PayPal order:', error);
+    throw error;
+  }
+};
+
+/**
+ * Verifies PayPal payment after return from PayPal
+ */
+export const verifyPayPalPayment = async (orderId: string, purchaseId: string) => {
+  try {
+    const paypalVerifyUrl = process.env.REACT_APP_PAYPAL_VERIFY_WEBHOOK_URL;
+    
+    if (!paypalVerifyUrl) {
+      throw new Error('PayPal verify webhook URL is not configured');
+    }
+
+    const response = await fetch(paypalVerifyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        order_id: orderId,
+        purchase_id: purchaseId,
+        action: 'verify_payment',
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`PayPal payment verification failed: ${errorText}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error: any) {
+    console.error('Error verifying PayPal payment:', error);
+    throw error;
+  }
+};
+
+/**
+ * Bank Transfer Functions
+ */
+
+/**
+ * Fetches bank account details for bank transfer
+ */
+export const getBankAccountDetails = async () => {
+  try {
+    const { supabase } = await import('../lib/supabase');
+    const { data, error } = await supabase
+      .from('bank_account_details')
+      .select('*')
+      .eq('is_active', true)
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error: any) {
+    console.error('Error fetching bank account details:', error);
+    throw error;
+  }
+};
+
+/**
+ * Uploads payment proof for bank transfer
+ */
+export const uploadPaymentProof = async (
+  purchaseId: string,
+  userId: string,
+  file: File,
+  transactionReference: string
+) => {
+  try {
+    const { supabase } = await import('../lib/supabase');
+    
+    // Upload file to Supabase Storage
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userId}/payment-proofs/${purchaseId}-${Date.now()}.${fileExt}`;
+    const filePath = fileName;
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('payment-proofs')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (uploadError) {
+      throw new Error(`Upload failed: ${uploadError.message}`);
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('payment-proofs')
+      .getPublicUrl(filePath);
+
+    // Create payment proof record
+    const { data: proofData, error: proofError } = await supabase
+      .from('payment_proofs')
+      .insert({
+        purchase_id: purchaseId,
+        user_id: userId,
+        file_url: publicUrl,
+        file_name: file.name,
+        file_size: file.size,
+        file_type: file.type,
+        transaction_reference: transactionReference,
+      })
+      .select()
+      .single();
+
+    if (proofError) throw proofError;
+
+    // Update purchase with payment proof URL
+    await supabase
+      .from('purchases')
+      .update({
+        payment_proof_url: publicUrl,
+        transaction_reference: transactionReference,
+        payment_status: 'processing',
+      })
+      .eq('id', purchaseId);
+
+    return proofData;
+  } catch (error: any) {
+    console.error('Error uploading payment proof:', error);
+    throw error;
+  }
+};

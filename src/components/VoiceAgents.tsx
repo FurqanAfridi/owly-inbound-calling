@@ -287,10 +287,10 @@ const VoiceAgents: React.FC = () => {
       {/* Header Section */}
       <div className="flex items-end justify-between">
         <div className="flex flex-col gap-[4px]">
-          <h1 className="text-[24px] font-bold text-[#27272b] leading-[32px] tracking-[-0.6px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+          <h1 className="text-[24px] font-bold dark:text-[#f9fafb] text-[#27272b] leading-[32px] tracking-[-0.6px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
             Agents
           </h1>
-          <p className="text-[16px] font-normal text-[#737373] leading-[24px] max-w-[361px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+          <p className="text-[16px] font-normal dark:text-[#818898] text-[#737373] leading-[24px] max-w-[361px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
             Manage calling agents, update their details, and control availability.
           </p>
         </div>
@@ -313,17 +313,17 @@ const VoiceAgents: React.FC = () => {
       )}
 
       {/* Agents List Card */}
-      <Card className="bg-[#f8f8f8] border border-[#f0f0f0] rounded-[14px]">
+      <Card className="dark:bg-[#1d212b] bg-[#f8f8f8] dark:border-[#2f3541] border border-[#f0f0f0] rounded-[14px]">
         <CardContent className="p-5">
           {/* Agents Header */}
           <div className="flex items-start justify-between mb-[10px]">
             <div className="flex gap-[6px] items-center">
-              <GraduationCap className="w-4 h-4 text-[#141414]" />
-              <p className="text-[14px] font-medium text-[#141414] leading-[1.5]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              <GraduationCap className="w-4 h-4 dark:text-[#f9fafb] text-[#141414]" />
+              <p className="text-[14px] font-medium dark:text-[#f9fafb] text-[#141414] leading-[1.5]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                 Agents
               </p>
             </div>
-            <p className="text-[14px] font-medium text-[#141414] leading-[1.5]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+            <p className="text-[14px] font-medium dark:text-[#f9fafb] text-[#141414] leading-[1.5]" style={{ fontFamily: "'Manrope', sans-serif" }}>
               {agentsUsed}/{maxAgents} agents used
             </p>
           </div>
@@ -335,10 +335,10 @@ const VoiceAgents: React.FC = () => {
                 <Phone className="w-10 h-10 text-[#0b99ff]" />
               </div>
               <div>
-                <h3 className="text-[24px] font-bold text-[#27272b] mb-2" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                <h3 className="text-[24px] font-bold dark:text-[#f9fafb] text-[#27272b] mb-2" style={{ fontFamily: "'Manrope', sans-serif" }}>
                   No Voice Agents
                 </h3>
-                <p className="text-[16px] text-[#737373] max-w-md" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                <p className="text-[16px] dark:text-[#818898] text-[#737373] max-w-md" style={{ fontFamily: "'Manrope', sans-serif" }}>
                   You haven't created any voice agents yet. Create your first agent to get started.
                 </p>
               </div>
@@ -356,12 +356,12 @@ const VoiceAgents: React.FC = () => {
               {agents.map((agent) => (
                 <div
                   key={agent.id}
-                  className="bg-white flex items-center justify-between p-[10px] rounded-[8px]"
+                  className="dark:bg-[#2f3541] bg-white flex items-center justify-between p-[10px] rounded-[8px]"
                 >
                   <div className="flex items-center gap-3 flex-1">
                     <div className="flex flex-col leading-[1.5] pb-px flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="text-[14px] font-medium text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        <p className="text-[14px] font-medium dark:text-[#f9fafb] text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {agent.name}
                         </p>
                         <Badge

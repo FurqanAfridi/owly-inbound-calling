@@ -25,6 +25,7 @@ const routeToTitle: Record<string, string> = {
   '/billing': 'Billing',
   '/email': 'Email Management',
   '/ai-prompt': 'AI Prompt Generator',
+  '/documentation': 'Documentation',
 };
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children, title }) => {

@@ -385,8 +385,8 @@ const KnowledgeBases: React.FC = () => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-[28px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Knowledge Bases</h1>
-            <p className="text-[18px] text-[#737373] mt-1" style={{ fontFamily: "'Manrope', sans-serif" }}>
+            <h1 className="text-[28px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Knowledge Bases</h1>
+            <p className="text-[18px] dark:text-[#818898] text-[#737373] mt-1" style={{ fontFamily: "'Manrope', sans-serif" }}>
               Create and manage reusable knowledge bases for your agents
             </p>
           </div>
@@ -408,12 +408,12 @@ const KnowledgeBases: React.FC = () => {
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#737373]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 dark:text-[#818898] text-[#737373]" />
           <Input
             placeholder="Search knowledge bases..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 bg-background text-[#27272b] border-[#e5e5e5] text-[16px]"
+            className="pl-10 bg-background dark:text-[#f9fafb] text-[#27272b] dark:border-[#2f3541] border-[#e5e5e5] text-[16px]"
             style={{ fontFamily: "'Manrope', sans-serif" }}
           />
         </div>
@@ -427,8 +427,8 @@ const KnowledgeBases: React.FC = () => {
                   <BookOpen className="w-10 h-10 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-[24px] font-bold text-[#27272b] mb-2" style={{ fontFamily: "'Manrope', sans-serif" }}>No Knowledge Bases</h3>
-                  <p className="text-[16px] text-[#737373] max-w-md" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                  <h3 className="text-[24px] font-bold dark:text-[#f9fafb] text-[#27272b] mb-2" style={{ fontFamily: "'Manrope', sans-serif" }}>No Knowledge Bases</h3>
+                  <p className="text-[16px] dark:text-[#818898] text-[#737373] max-w-md" style={{ fontFamily: "'Manrope', sans-serif" }}>
                     Create your first knowledge base to store FAQs and documents for your agents.
                   </p>
                 </div>
@@ -444,22 +444,22 @@ const KnowledgeBases: React.FC = () => {
             </CardContent>
           </Card>
         ) : (
-          <Card className="rounded-[14px]">
+          <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] rounded-[14px]">
             <CardHeader className="px-5 pt-5 pb-0">
-              <CardTitle className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Your Knowledge Bases ({filteredBases.length})</CardTitle>
+              <CardTitle className="text-[18px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Your Knowledge Bases ({filteredBases.length})</CardTitle>
             </CardHeader>
             <CardContent className="px-5 py-5">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Name</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Description</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>FAQs</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Documents</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Status</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Created</TableHead>
-                      <TableHead className="text-right text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Actions</TableHead>
+                      <TableHead className="text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Name</TableHead>
+                      <TableHead className="text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Description</TableHead>
+                      <TableHead className="text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>FAQs</TableHead>
+                      <TableHead className="text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Documents</TableHead>
+                      <TableHead className="text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Status</TableHead>
+                      <TableHead className="text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Created</TableHead>
+                      <TableHead className="text-right text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -468,7 +468,7 @@ const KnowledgeBases: React.FC = () => {
                         <TableCell className="text-[16px] font-medium text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {kb.name}
                         </TableCell>
-                        <TableCell className="text-[16px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        <TableCell className="text-[16px] dark:text-[#818898] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {kb.description || '-'}
                         </TableCell>
                         <TableCell>
@@ -482,7 +482,7 @@ const KnowledgeBases: React.FC = () => {
                             {kb.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-[16px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        <TableCell className="text-[16px] dark:text-[#818898] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {new Date(kb.created_at).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-right">
@@ -573,7 +573,7 @@ const KnowledgeBases: React.FC = () => {
             {/* FAQs Section */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>FAQs ({faqs.length})</h3>
+                <h3 className="text-[18px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>FAQs ({faqs.length})</h3>
                 <Button onClick={() => {
                   setEditingFAQ(null);
                   setFaqForm({ question: '', answer: '', category: '', priority: 0 });
@@ -638,7 +638,7 @@ const KnowledgeBases: React.FC = () => {
             {/* Documents Section */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Documents ({documents.length})</h3>
+                <h3 className="text-[18px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Documents ({documents.length})</h3>
                 <div className="relative">
                   <input
                     type="file"

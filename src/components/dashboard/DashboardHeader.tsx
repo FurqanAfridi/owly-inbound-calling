@@ -168,7 +168,7 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
   return (
     <>
       <header 
-        className="backdrop-blur-[6px] bg-[rgba(255,255,255,0.4)] border-b border-[#e4e4e8] rounded-tl-[12px] rounded-tr-[12px] px-[25px] py-[10px] mb-6"
+        className="backdrop-blur-[6px] dark:bg-[#1d212b] bg-[rgba(255,255,255,0.4)] dark:border-[#2f3541] border-b border-[#e4e4e8] rounded-tl-[12px] rounded-tr-[12px] px-[25px] py-[10px] mb-6"
         style={{ fontFamily: "'Manrope', sans-serif" }}
       >
         <div className="flex items-center justify-between w-full">
@@ -176,17 +176,17 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
           <div className="flex items-center gap-[26px]">
             {/* Menu Button */}
             <button className="w-4 h-4 flex items-center justify-center hover:opacity-70 transition-opacity">
-              <Menu className="w-4 h-4 text-[#27272b]" />
+              <Menu className="w-4 h-4 dark:text-[#f9fafb] text-[#27272b]" />
             </button>
 
             {/* Vertical Divider */}
-            <div className="bg-[#e4e4e8] h-4 w-px" />
+            <div className="dark:bg-[#2f3541] bg-[#e4e4e8] h-4 w-px" />
 
             {/* Search Input */}
             <form onSubmit={handleSearchSubmit} className="relative w-[384px] h-9">
-              <div className="absolute inset-0 bg-white border border-[#d4d4da] rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]" />
+              <div className="absolute inset-0 dark:bg-[#2f3541] bg-white dark:border-[#2f3541] border border-[#d4d4da] rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]" />
               <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4">
-                <Search className="w-4 h-4 text-[#737373]" />
+                <Search className="w-4 h-4 dark:text-[#818898] text-[#737373]" />
               </div>
               <input
                 ref={searchInputRef}
@@ -199,17 +199,17 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
                     setSearchOpen(true);
                   }
                 }}
-                className="absolute inset-0 pl-10 pr-[45px] bg-transparent border-none outline-none text-[14px] text-[#27272b] placeholder:text-[#737373] rounded-[6px]"
+                className="absolute inset-0 pl-10 pr-[45px] bg-transparent border-none outline-none text-[14px] dark:text-[#f9fafb] text-[#27272b] dark:placeholder:text-[#818898] placeholder:text-[#737373] rounded-[6px]"
                 style={{ fontFamily: "'Manrope', sans-serif" }}
               />
               {/* Keyboard Shortcut Indicator */}
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#e4e4e7] rounded-[4px] px-1.5 py-0.5 flex items-center gap-1">
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 dark:bg-[#2f3541] bg-[#e4e4e7] rounded-[4px] px-1.5 py-0.5 flex items-center gap-1">
                 <div className="w-3 h-3 flex items-center justify-center">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3 h-3 dark:text-[#818898] text-[#27272b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                 </div>
-                <span className="text-[12px] font-normal text-[#27272b] leading-[16px]" style={{ fontFamily: "'Consolas', monospace" }}>
+                <span className="text-[12px] font-normal dark:text-[#818898] text-[#27272b] leading-[16px]" style={{ fontFamily: "'Consolas', monospace" }}>
                   k
                 </span>
               </div>
@@ -222,9 +222,9 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
               {/* Notifications Button */}
               <button 
                 onClick={() => setNotificationsOpen(true)}
-                className="relative w-9 h-9 rounded-[6px] flex items-center justify-center hover:bg-[rgba(0,0,0,0.02)] transition-colors"
+                className="relative w-9 h-9 rounded-[6px] flex items-center justify-center dark:hover:bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(0,0,0,0.02)] transition-colors"
               >
-                <Bell className="w-4 h-4 text-[#27272b]" />
+                <Bell className="w-4 h-4 dark:text-[#f9fafb] text-[#27272b]" />
                 {unreadCount > 0 && (
                   <div className="absolute top-0 right-0 w-2 h-2 bg-[#e7000b] rounded-full" />
                 )}
@@ -236,9 +236,9 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
                 className="w-4 h-4 flex items-center justify-center hover:opacity-70 transition-opacity"
               >
                 {mode === 'light' ? (
-                  <Sun className="w-4 h-4 text-[#27272b]" />
+                  <Sun className="w-4 h-4 dark:text-[#f9fafb] text-[#27272b]" />
                 ) : (
-                  <Moon className="w-4 h-4 text-[#27272b]" />
+                  <Moon className="w-4 h-4 dark:text-[#f9fafb] text-[#27272b]" />
                 )}
               </button>
 
@@ -247,12 +247,12 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
                 onClick={() => navigate('/profile')}
                 className="w-4 h-4 flex items-center justify-center hover:opacity-70 transition-opacity"
               >
-                <Settings className="w-4 h-4 text-[#27272b]" />
+                <Settings className="w-4 h-4 dark:text-[#f9fafb] text-[#27272b]" />
               </button>
             </div>
 
             {/* Vertical Divider */}
-            <div className="bg-[#e4e4e8] h-4 w-px" />
+            <div className="dark:bg-[#2f3541] bg-[#e4e4e8] h-4 w-px" />
 
             {/* User Avatar */}
             <DropdownMenu>
@@ -265,7 +265,7 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full bg-[#e4e4e8] flex items-center justify-center text-[#27272b] text-sm font-medium">
+                    <div className="w-full h-full dark:bg-[#2f3541] bg-[#e4e4e8] dark:text-[#f9fafb] flex items-center justify-center text-[#27272b] text-sm font-medium">
                       {userInitial}
                     </div>
                   )}

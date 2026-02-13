@@ -287,15 +287,15 @@ const InboundNumbers: React.FC = () => {
         )}
 
         {numbers.length === 0 ? (
-          <Card className="rounded-[14px]">
+          <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] rounded-[14px]">
             <CardContent className="py-12">
               <div className="flex flex-col items-center gap-4 text-center" style={{ fontFamily: "'Manrope', sans-serif" }}>
                 <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
                   <Phone className="w-10 h-10 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-[24px] font-bold text-[#27272b] mb-2" style={{ fontFamily: "'Manrope', sans-serif" }}>No Inbound Numbers</h3>
-                  <p className="text-[16px] text-[#737373] mb-4" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                  <h3 className="text-[24px] font-bold dark:text-[#f9fafb] text-[#27272b] mb-2" style={{ fontFamily: "'Manrope', sans-serif" }}>No Inbound Numbers</h3>
+                  <p className="text-[16px] dark:text-[#818898] text-[#737373] mb-4" style={{ fontFamily: "'Manrope', sans-serif" }}>
                     Import your first inbound number to get started
                   </p>
                 </div>
@@ -314,43 +314,42 @@ const InboundNumbers: React.FC = () => {
             </CardContent>
           </Card>
         ) : (
-          <Card className="rounded-[14px]">
+          <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] rounded-[14px]">
             <CardHeader className="px-5 pt-5 pb-0">
-              <CardTitle className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Inbound Numbers ({numbers.length})</CardTitle>
+              <CardTitle className="text-[18px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Inbound Numbers ({numbers.length})</CardTitle>
             </CardHeader>
             <CardContent className="px-5 py-5">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Phone Number</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Label</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Provider</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Call Forwarding</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Status</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Health</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Webhook</TableHead>
-                      <TableHead className="text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>In Use</TableHead>
-                      <TableHead className="text-right text-[16px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Actions</TableHead>
+                      <TableHead className="text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Phone Number</TableHead>
+                      <TableHead className="text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Label</TableHead>
+                      <TableHead className="text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Provider</TableHead>
+                      <TableHead className="text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Call Forwarding</TableHead>
+                      <TableHead className="text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Status</TableHead>
+                      <TableHead className="text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Health</TableHead>
+                      <TableHead className="text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>In Use</TableHead>
+                      <TableHead className="text-right text-[16px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {numbers.map((number) => (
                       <TableRow key={number.id}>
-                        <TableCell className="text-[16px] font-medium text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        <TableCell className="text-[16px] font-medium dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {formatPhoneNumber(number.phone_number, number.country_code)}
                         </TableCell>
-                        <TableCell className="text-[16px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        <TableCell className="text-[16px] dark:text-[#818898] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {number.phone_label || '-'}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-[14px]" style={{ fontFamily: "'Manrope', sans-serif" }}>{number.provider}</Badge>
                         </TableCell>
-                        <TableCell className="text-[16px] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        <TableCell className="text-[16px] dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {number.call_forwarding_number ? (
                             <span>{formatPhoneNumber(number.call_forwarding_number, number.country_code)}</span>
                           ) : (
-                            <span className="text-[#737373]">-</span>
+                            <span className="dark:text-[#818898] text-[#737373]">-</span>
                           )}
                         </TableCell>
                         <TableCell>{getStatusBadge(number.status)}</TableCell>
@@ -364,23 +363,6 @@ const InboundNumbers: React.FC = () => {
                               disabled={testingNumber === number.id}
                             >
                               <RefreshCw className={`w-4 h-4 ${testingNumber === number.id ? 'animate-spin' : ''}`} />
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getWebhookBadge(number.webhook_status)}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleTestWebhook(number)}
-                              disabled={testingNumber === number.id}
-                            >
-                              {testingNumber === number.id ? (
-                                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                              ) : (
-                                <Play className="w-4 h-4" />
-                              )}
                             </Button>
                           </div>
                         </TableCell>

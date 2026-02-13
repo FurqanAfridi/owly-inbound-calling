@@ -7,10 +7,12 @@ import { validatePassword } from '../utils/passwordValidation';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { useThemeMode } from '../contexts/ThemeContext';
 
 // Import assets
 import characterImage from '../assest/Gemini_Generated_Image_ppyqz2ppyqz2ppyq (1) 1.png';
 import logoImage from '../assest/DNAI-Logo 1.png';
+import logoImageDark from '../assest/DNAI LOGO@2x.png';
 import googleIcon from '../assest/google.svg';
 import appleIcon from '../assest/Apple.svg';
 import facebookIcon from '../assest/Symbol.png.png';
@@ -29,6 +31,7 @@ interface FormData {
 
 const SignUp: React.FC = () => {
   const navigate = useNavigate();
+  const { mode } = useThemeMode();
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   const [countryCode, setCountryCode] = useState<string>('+1');
@@ -198,7 +201,7 @@ const SignUp: React.FC = () => {
 
       {/* Right Panel - Form Section */}
       <div className="signin-logo">
-        <img src={logoImage} alt="DNAI Logo" />
+        <img src={mode === 'dark' ? logoImageDark : logoImage} alt="DNAI Logo" />
       </div>
       
       <div className="signup-form-wrapper">

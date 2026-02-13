@@ -52,19 +52,19 @@ const ContactListsTable: React.FC<ContactListsTableProps> = ({
   const totalPages = Math.ceil(filteredLists.length / itemsPerPage);
 
   return (
-    <Card className="bg-[#f8f8f8] border border-[#f0f0f0] rounded-[14px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-      <CardContent className="p-5 flex flex-col gap-[10px]">
+    <Card className="dark:bg-[#1d212b] bg-[#f8f8f8] dark:border-[#2f3541] border border-[#f0f0f0] rounded-[14px] h-full flex flex-col" style={{ fontFamily: "'Manrope', sans-serif" }}>
+      <CardContent className="p-5 flex flex-col gap-[10px] h-full flex-1">
         {/* Header with Search and View All */}
         <div className="flex items-start justify-between pb-4">
           <div className="flex flex-col gap-[22px] max-w-[384px]">
-            <p className="text-[18px] font-bold text-[#0a0a0a]">Inbound Numbers</p>
+            <p className="text-[18px] font-bold dark:text-[#f9fafb] text-[#0a0a0a]">Inbound Numbers</p>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#737373]" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 dark:text-[#818898] text-[#737373]" />
               <Input
                 placeholder="Search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-9 bg-white border-[#e5e5e5] rounded-[8px] text-[16px]"
+                className="pl-10 h-9 dark:bg-[#2f3541] dark:border-[#2f3541] dark:text-[#f9fafb] bg-white border-[#e5e5e5] rounded-[8px] text-[16px]"
                 style={{ fontFamily: "'Manrope', sans-serif" }}
               />
             </div>
@@ -72,7 +72,7 @@ const ContactListsTable: React.FC<ContactListsTableProps> = ({
           <Button
             onClick={onViewAll}
             variant="outline"
-            className="h-9 border-[#d4d4da] rounded-[8px] text-[16px] font-medium text-[#27272b]"
+            className="h-9 dark:border-[#2f3541] dark:text-[#f9fafb] border-[#d4d4da] rounded-[8px] text-[16px] font-medium text-[#27272b]"
             style={{ fontFamily: "'Manrope', sans-serif" }}
           >
             <CircleArrowOutUpRight className="w-5 h-5 mr-2" />
@@ -81,12 +81,12 @@ const ContactListsTable: React.FC<ContactListsTableProps> = ({
         </div>
 
         {/* Table */}
-        <div className="border border-[#e5e5e5] rounded-[8px] overflow-hidden">
-          <div className="flex">
+        <div className="dark:border-[#2f3541] border border-[#e5e5e5] rounded-[8px] overflow-hidden flex-1">
+          <div className="flex h-full">
             {/* Contact Name Column */}
-            <div className="flex-1 flex flex-col">
-              <div className="bg-white border-b border-[#e5e5e5] h-10 flex items-center px-[15px]">
-                <Button variant="ghost" className="h-9 px-2 text-[16px] font-bold text-[#737373] hover:bg-transparent" style={{ fontFamily: "'Manrope', sans-serif" }}>
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="dark:bg-[#2f3541] dark:border-[#2f3541] bg-white border-b border-[#e5e5e5] h-10 flex items-center px-[15px]">
+                <Button variant="ghost" className="h-9 px-2 text-[16px] font-bold dark:text-[#818898] text-[#737373] hover:bg-transparent" style={{ fontFamily: "'Manrope', sans-serif" }}>
                   Name / Number
                   <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
@@ -97,35 +97,35 @@ const ContactListsTable: React.FC<ContactListsTableProps> = ({
                 paginatedLists.map((number) => (
                   <div
                     key={number.id}
-                    className="bg-white border-b border-[#e5e5e5] h-[53px] flex flex-col justify-center px-[15px] py-2"
+                    className="dark:bg-[#2f3541] dark:border-[#2f3541] bg-white border-b border-[#e5e5e5] h-[53px] flex flex-col justify-center px-[15px] py-2"
                   >
                     {number.phone_label ? (
                       <>
-                        <p className="text-[16px] font-medium text-[#0a0a0a] truncate" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        <p className="text-[16px] font-medium dark:text-[#f9fafb] text-[#0a0a0a] truncate" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {number.phone_label}
                         </p>
-                        <p className="text-[14px] font-normal text-[#737373] truncate" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        <p className="text-[14px] font-normal dark:text-[#818898] text-[#737373] truncate" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {number.phone_number}
                         </p>
                       </>
                     ) : (
-                      <p className="text-[16px] font-normal text-[#0a0a0a] truncate" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      <p className="text-[16px] font-normal dark:text-[#f9fafb] text-[#0a0a0a] truncate" style={{ fontFamily: "'Manrope', sans-serif" }}>
                         {number.phone_number}
                       </p>
                     )}
                   </div>
                 ))
               ) : (
-                <div className="bg-white border-b border-[#e5e5e5] h-[53px] flex items-center px-[15px] py-2">
-                  <p className="text-[14px] font-normal text-[#737373]">No inbound numbers</p>
+                <div className="dark:bg-[#2f3541] dark:border-[#2f3541] bg-white border-b border-[#e5e5e5] h-[53px] flex items-center px-[15px] py-2">
+                  <p className="text-[14px] font-normal dark:text-[#818898] text-[#737373]">No inbound numbers</p>
                 </div>
               )}
             </div>
 
             {/* Agent Assigned Column */}
-            <div className="flex-1 flex flex-col">
-              <div className="bg-white border-l border-b border-[#e5e5e5] h-10 flex items-center px-2">
-                <Button variant="ghost" className="h-9 px-2 text-[16px] font-bold text-[#737373] hover:bg-transparent" style={{ fontFamily: "'Manrope', sans-serif" }}>
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="dark:bg-[#2f3541] dark:border-[#2f3541] bg-white border-l border-b border-[#e5e5e5] h-10 flex items-center px-2">
+                <Button variant="ghost" className="h-9 px-2 text-[16px] font-bold dark:text-[#818898] text-[#737373] hover:bg-transparent" style={{ fontFamily: "'Manrope', sans-serif" }}>
                   Agent Assigned
                 </Button>
               </div>
@@ -133,28 +133,28 @@ const ContactListsTable: React.FC<ContactListsTableProps> = ({
                 paginatedLists.map((number) => (
                   <div
                     key={number.id}
-                    className="bg-white border-l border-b border-[#e5e5e5] h-[53px] flex items-center px-2 py-2"
+                    className="dark:bg-[#2f3541] dark:border-[#2f3541] bg-white border-l border-b border-[#e5e5e5] h-[53px] flex items-center px-2 py-2"
                   >
-                    <p className="text-[16px] font-normal text-[#0a0a0a]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                      {number.assignedAgentName || <span className="text-[#737373]">Unassigned</span>}
+                    <p className="text-[16px] font-normal dark:text-[#f9fafb] text-[#0a0a0a]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      {number.assignedAgentName || <span className="dark:text-[#818898] text-[#737373]">Unassigned</span>}
                     </p>
                   </div>
                 ))
               ) : (
-                <div className="bg-white border-l border-b border-[#e5e5e5] h-[53px] flex items-center px-2 py-2">
-                  <p className="text-[14px] font-normal text-[#737373]">-</p>
+                <div className="dark:bg-[#2f3541] dark:border-[#2f3541] bg-white border-l border-b border-[#e5e5e5] h-[53px] flex items-center px-2 py-2">
+                  <p className="text-[14px] font-normal dark:text-[#818898] text-[#737373]">-</p>
                 </div>
               )}
             </div>
 
             {/* Actions Column */}
             <div className="w-16 flex flex-col">
-              <div className="bg-white border-l border-b border-[#e5e5e5] h-10" />
+              <div className="dark:bg-[#2f3541] dark:border-[#2f3541] bg-white border-l border-b border-[#e5e5e5] h-10" />
               {paginatedLists.length > 0 ? (
                 paginatedLists.map((number) => (
                   <div
                     key={number.id}
-                    className="bg-white border-l border-b border-[#e5e5e5] h-[53px] flex items-center justify-center p-2"
+                    className="dark:bg-[#2f3541] dark:border-[#2f3541] bg-white border-l border-b border-[#e5e5e5] h-[53px] flex items-center justify-center p-2"
                   >
                     <DropdownMenu open={openMenuId === number.id} onOpenChange={(open) => setOpenMenuId(open ? number.id : null)}>
                       <DropdownMenuTrigger asChild>
