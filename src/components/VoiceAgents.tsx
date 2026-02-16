@@ -47,8 +47,21 @@ const VoiceAgents: React.FC = () => {
     if (!user) return;
     loadAgents();
     loadInboundNumbers();
+
+    // Poll every 15 seconds to check for activating agents becoming active
+    const hasActivating = agents.some(a => a.status === 'activating');
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    if (hasActivating) {
+      pollInterval = setInterval(() => {
+        loadAgents();
+      }, 15000);
+    }
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, agents.some(a => a.status === 'activating')]);
 
   const loadAgents = async () => {
     if (!user) return;
@@ -369,11 +382,15 @@ const VoiceAgents: React.FC = () => {
                           className={`text-[11px] font-medium px-2 py-0.5 ${
                             agent.status === 'active'
                               ? 'bg-[#f0fdf4] border border-[#05df72] text-[#016630]'
+                              : agent.status === 'activating'
+                              ? 'bg-[#eff6ff] border border-[#3b82f6] text-[#1e40af] animate-pulse'
+                              : agent.status === 'draft'
+                              ? 'bg-[#fffbeb] border border-[#f59e0b] text-[#92400e]'
                               : 'bg-[#fef2f2] border border-[#ff6467] text-[#9f0712]'
                           }`}
                           style={{ fontFamily: "'Manrope', sans-serif" }}
                         >
-                          {agent.status === 'active' ? 'Active' : 'Inactive'}
+                          {agent.status === 'active' ? 'Active' : agent.status === 'activating' ? 'Activating...' : agent.status === 'draft' ? 'Draft' : 'Inactive'}
                         </Badge>
                       </div>
                       <p className="text-[12px] font-normal text-[#0b99ff]" style={{ fontFamily: "'Manrope', sans-serif" }}>
@@ -408,11 +425,18 @@ const VoiceAgents: React.FC = () => {
                         </DropdownMenuItem>
                         <DropdownMenuItem 
                           onClick={() => handleToggleStatus(agent)} 
+                          disabled={agent.status === 'activating'}
                           className={`gap-2 text-[14px] px-2 py-1.5 ${
+                            agent.status === 'activating' ? 'text-[#6b7280] opacity-50 cursor-not-allowed' :
                             agent.status === 'active' ? 'text-[#e7000b]' : 'text-[#016630]'
                           }`}
                         >
-                          {agent.status === 'active' ? (
+                          {agent.status === 'activating' ? (
+                            <>
+                              <Power className="w-4 h-4 animate-pulse" />
+                              Activating soon...
+                            </>
+                          ) : agent.status === 'active' ? (
                             <>
                               <PowerOff className="w-4 h-4" />
                               Disable

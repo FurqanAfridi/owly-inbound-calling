@@ -20,8 +20,8 @@ import { useThemeMode } from '../contexts/ThemeContext';
 
 // Import assets
 import characterImage from '../assest/Gemini_Generated_Image_ppyqz2ppyqz2ppyq (1) 1.png';
-import logoImage from '../assest/DNAI-Logo 1.png';
-import logoImageDark from '../assest/DNAI LOGO@2x.png';
+import logoImage from '../assest/LOGO LIGHT MODE.png';
+import logoImageDark from '../assest/LOGO DARK MODE.png';
 import googleIcon from '../assest/google.svg';
 import appleIcon from '../assest/Apple.svg';
 import facebookIcon from '../assest/Symbol.png.png';
@@ -32,16 +32,28 @@ import rectangle1281Image from '../assest/Rectangle 1281.png';
 const SignIn: React.FC = () => {
   const navigate = useNavigate();
   const { signIn, updatePassword } = useAuth();
-  const { mode } = useThemeMode();
+  const { mode, setMode } = useThemeMode();
+
+  // Force light mode on auth pages
+  useEffect(() => {
+    setMode('light');
+  }, []);
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [rememberMe, setRememberMe] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [emailError, setEmailError] = useState<string>('');
+  const [passwordError, setPasswordError] = useState<string>('');
   const [show2FA, setShow2FA] = useState<boolean>(false);
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [pendingUserEmail, setPendingUserEmail] = useState<string>('');
+
+  // Email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isEmailValid = email.length === 0 || emailRegex.test(email);
+  const isFormReady = email.length > 0 && password.length > 0 && emailRegex.test(email);
   
   // Password reset dialog state
   const [showPasswordResetDialog, setShowPasswordResetDialog] = useState<boolean>(false);
@@ -53,12 +65,40 @@ const SignIn: React.FC = () => {
   const [resetError, setResetError] = useState<string>('');
   const [resetInitializing, setResetInitializing] = useState<boolean>(false);
 
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    setEmailError('');
+    setError('');
+    // Show format error only after user has typed something
+    if (value.length > 0 && !emailRegex.test(value)) {
+      setEmailError('Please enter a valid email address');
+    }
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    setPasswordError('');
+    setError('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setEmailError('');
+    setPasswordError('');
 
-    if (!email || !password) {
-      setError('Please enter email and password');
+    if (!email) {
+      setEmailError('Email address is required');
+      return;
+    }
+
+    if (!emailRegex.test(email)) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+
+    if (!password) {
+      setPasswordError('Password is required');
       return;
     }
 
@@ -68,21 +108,12 @@ const SignIn: React.FC = () => {
       const { error: signInError } = await signIn(email, password);
 
       if (signInError) {
-        let errorMessage = 'Invalid email or password';
         const errorMsg = signInError.message?.toLowerCase() || '';
         
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-          errorMessage = 'Please enter a valid email address';
-          setError(errorMessage);
-          setLoading(false);
-          return;
-        }
-        
         if (errorMsg.includes('email not confirmed') || errorMsg.includes('email_not_confirmed')) {
-          errorMessage = 'Please verify your email address before signing in';
+          setEmailError('Please verify your email address before signing in');
         } else if (errorMsg.includes('too many requests') || errorMsg.includes('rate limit')) {
-          errorMessage = 'Too many login attempts. Please try again later';
+          setError('Too many login attempts. Please try again later');
         } else if (errorMsg.includes('invalid login credentials') || 
                    errorMsg.includes('invalid password') ||
                    errorMsg.includes('email or password')) {
@@ -92,20 +123,22 @@ const SignIn: React.FC = () => {
             }).catch(() => ({ data: null, error: { message: 'Function not found' } }));
             
             if (!checkError && userExists === true) {
-              errorMessage = 'Password is not correct';
+              // User exists but password is wrong → highlight password field
+              setPasswordError('Incorrect password. Please try again');
             } else if (!checkError && userExists === false) {
-              errorMessage = 'User does not exist';
+              // User doesn't exist → highlight email field
+              setEmailError('No account found with this email address');
             } else {
-              errorMessage = 'User does not exist or password is not correct';
+              // Couldn't determine → show on both
+              setError('Invalid email or password');
             }
           } catch (rpcError) {
-            errorMessage = 'User does not exist or password is not correct';
+            setError('Invalid email or password');
           }
         } else {
-          errorMessage = signInError.message || 'Invalid email or password';
+          setError(signInError.message || 'Invalid email or password');
         }
         
-        setError(errorMessage);
         setLoading(false);
         return;
       }
@@ -345,7 +378,7 @@ const SignIn: React.FC = () => {
   return (
     <>
       <Dialog open={showPasswordResetDialog} onOpenChange={handleClosePasswordResetDialog}>
-        <DialogContent className="sm:max-w-md bg-card border-border">
+        <DialogContent className="sm:max-w-md bg-card text-foreground border-border">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-foreground">Set New Password</DialogTitle>
             <DialogDescription className="text-muted-foreground">
@@ -460,7 +493,7 @@ const SignIn: React.FC = () => {
 
         {/* Right Panel - Form Section */}
         <div className="signin-logo">
-          <img src={mode === 'dark' ? logoImageDark : logoImage} alt="DNAI Logo" />
+          <img src={mode === 'dark' ? logoImageDark : logoImage} alt="DNAi - Duha Nashrah" />
         </div>
         
         <div className="signin-form-wrapper">
@@ -476,16 +509,19 @@ const SignIn: React.FC = () => {
                   <div className="signin-label-row">
                     <Label htmlFor="email" className="signin-label">Email Address</Label>
                   </div>
-                  <div className="signin-input-wrapper">
+                  <div className={`signin-input-wrapper ${emailError ? 'signin-input-error' : ''}`}>
                     <Input
                       id="email"
                       type="email"
                       placeholder="123@gmail.com"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => handleEmailChange(e.target.value)}
                       className="signin-input"
                     />
                   </div>
+                  {emailError && (
+                    <span className="signin-field-error">{emailError}</span>
+                  )}
                 </div>
 
                 <div className="signin-form-field">
@@ -493,13 +529,13 @@ const SignIn: React.FC = () => {
                     <Label htmlFor="password" className="signin-label">Password</Label>
                     <Link to="/reset-password" className="signin-forgot-link">Forget Password?</Link>
                   </div>
-                  <div className="signin-password-input">
+                  <div className={`signin-password-input ${passwordError ? 'signin-input-error' : ''}`}>
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="Enter Your Password"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => handlePasswordChange(e.target.value)}
                       className="signin-input"
                     />
                     <button
@@ -509,6 +545,9 @@ const SignIn: React.FC = () => {
                       style={{ backgroundImage: `url(${viewOffIcon})` }}
                     ></button>
                   </div>
+                  {passwordError && (
+                    <span className="signin-field-error">{passwordError}</span>
+                  )}
                 </div>
               </div>
 
@@ -534,8 +573,8 @@ const SignIn: React.FC = () => {
 
             <Button
               type="submit"
-              className="signin-submit-button"
-              disabled={loading}
+              className={`signin-submit-button ${!isFormReady && !loading ? 'signin-submit-disabled' : ''}`}
+              disabled={loading || !isFormReady}
             >
               <span className="signin-submit-button-text">{loading ? 'Signing in...' : 'Sign in'}</span>
             </Button>

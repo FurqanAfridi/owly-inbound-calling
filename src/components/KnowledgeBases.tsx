@@ -465,7 +465,7 @@ const KnowledgeBases: React.FC = () => {
                   <TableBody>
                     {filteredBases.map((kb) => (
                       <TableRow key={kb.id}>
-                        <TableCell className="text-[16px] font-medium text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        <TableCell className="text-[16px] font-medium dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           {kb.name}
                         </TableCell>
                         <TableCell className="text-[16px] dark:text-[#818898] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>

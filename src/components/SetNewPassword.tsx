@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import '../App.css';
 import characterImage from '../assest/resetpassword.png';
 import { useAuth } from '../contexts/AuthContext';
+import { useThemeMode } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { emailService } from '../services/emailService';
 import { validatePassword } from '../utils/passwordValidation';
@@ -11,6 +12,12 @@ const SetNewPassword: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { updatePassword } = useAuth();
+  const { setMode } = useThemeMode();
+
+  // Force light mode on auth pages
+  useEffect(() => {
+    setMode('light');
+  }, []);
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   const [password, setPassword] = useState<string>('');

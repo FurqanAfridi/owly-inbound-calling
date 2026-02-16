@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useThemeMode } from '../contexts/ThemeContext';
+import { assignFreePackageToUser } from '../services/subscriptionService';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -10,6 +12,12 @@ import characterImage from '../assest/verification.png';
 const VerifyEmail: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { setMode } = useThemeMode();
+
+  // Force light mode on auth pages
+  useEffect(() => {
+    setMode('light');
+  }, []);
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '', '', '']); // 8 digits for Supabase OTP
   const [email, setEmail] = useState<string>('');
   const [purpose, setPurpose] = useState<string>('email_verification');
@@ -113,15 +121,53 @@ const VerifyEmail: React.FC = () => {
           return;
         }
 
-        // Update user profile to mark email as verified
-        await supabase
+        const userId = verifyData.user.id;
+        const userMeta = verifyData.user.user_metadata || {};
+
+        // Upsert user profile to ensure it exists and mark email as verified
+        // The database trigger (handle_new_user) should have already created the profile,
+        // but this acts as a reliable fallback
+        const profileData: Record<string, any> = {
+          id: userId,
+          first_name: userMeta.first_name || null,
+          last_name: userMeta.last_name || null,
+          phone: userMeta.phone || null,
+          country_code: userMeta.country_code || '+1',
+          email_verified: true,
+          phone_verified: false,
+          account_status: 'active',
+          kyc_status: 'pending',
+          metadata: {},
+        };
+
+        // Include date_of_birth if provided during signup
+        if (userMeta.date_of_birth) {
+          profileData.date_of_birth = userMeta.date_of_birth;
+        }
+
+        const { error: upsertError } = await supabase
           .from('user_profiles')
-          .update({ email_verified: true })
-          .eq('id', verifyData.user.id);
+          .upsert(profileData, { onConflict: 'id' });
+
+        if (upsertError) {
+          console.error('Error upserting user profile:', upsertError);
+          // Try just updating email_verified as fallback
+          await supabase
+            .from('user_profiles')
+            .update({ email_verified: true, updated_at: new Date().toISOString() })
+            .eq('id', userId);
+        }
+
+        // Assign free package to the newly verified user
+        try {
+          await assignFreePackageToUser(userId);
+        } catch (packageError) {
+          console.error('Error assigning free package:', packageError);
+        }
 
         // Create notification
         await supabase.rpc('create_notification', {
-          p_user_id: verifyData.user.id,
+          p_user_id: userId,
           p_type: 'email_verification',
           p_title: 'Email Verified',
           p_message: 'Your email has been successfully verified.',

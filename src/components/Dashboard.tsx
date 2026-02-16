@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Phone, PhoneForwarded, Clock, DollarSign, Users, Plus, UserCheck, Contact, PhoneOutgoing, TrendingUp, CirclePlus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useDialog } from '../contexts/DialogContext';
 import { supabase } from '../lib/supabase';
 import StatsCard from './dashboard/StatsCard';
 import TimeFilterTabs from './dashboard/TimeFilterTabs';
@@ -94,6 +95,7 @@ interface CallHistoryRow {
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { setAddInboundNumberDialog } = useDialog();
   const [, setUserProfile] = useState<any>(null);
   const [voiceAgents, setVoiceAgents] = useState<VoiceAgent[]>([]);
   const [callStats, setCallStats] = useState<CallStats>({
@@ -728,12 +730,12 @@ const Dashboard: React.FC = () => {
             </p>
           </div>
           <Button
-            onClick={() => navigate('/create-agent')}
+            onClick={() => setAddInboundNumberDialog(true, null)}
             className="h-10 bg-[#0b99ff] text-white rounded-[8px] text-[16px] font-semibold hover:bg-[#0b99ff]/90"
             style={{ fontFamily: "'Manrope', sans-serif" }}
           >
             <CirclePlus className="w-5 h-5 mr-2" />
-            Add Agent
+            Add Number
           </Button>
         </div>
 

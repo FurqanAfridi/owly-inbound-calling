@@ -405,8 +405,13 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
           return;
         }
 
+        // For new numbers, set status to 'activating' with 1-minute delayed activation
+        if (!editingNumber) {
+          dbRecord.status = 'activating';
+        }
+
         // No duplicate - proceed with insert
-        const { error: insertError } = await supabase.from('inbound_numbers').insert(dbRecord);
+        const { data: insertedData, error: insertError } = await supabase.from('inbound_numbers').insert(dbRecord).select().single();
 
         if (insertError) {
           // Check if it's a unique constraint violation
@@ -430,6 +435,21 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
             }
           }
           throw insertError;
+        }
+
+        // Schedule activation after 60 seconds for new numbers
+        if (!editingNumber && insertedData) {
+          setTimeout(async () => {
+            try {
+              await supabase
+                .from('inbound_numbers')
+                .update({ status: 'active', updated_at: new Date().toISOString() })
+                .eq('id', insertedData.id)
+                .eq('status', 'activating');
+            } catch (err) {
+              console.error('Error auto-activating number:', err);
+            }
+          }, 60000);
         }
       }
 

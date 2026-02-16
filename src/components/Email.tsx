@@ -453,8 +453,8 @@ export default function Email() {
           {/* Header Section */}
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
             <div className="space-y-1">
-              <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Email Management</h1>
-              <p className="text-slate-500 text-base">Manage your email addresses, templates, and compose emails</p>
+              <h1 className="text-3xl font-bold text-foreground tracking-tight">Email Management</h1>
+              <p className="text-muted-foreground text-base">Manage your email addresses, templates, and compose emails</p>
             </div>
           </div>
 
@@ -471,10 +471,10 @@ export default function Email() {
               <div className="grid md:grid-cols-3 gap-6">
                 {/* Video Tutorial Box - Side Panel */}
                 <div className={`transition-all duration-300 ${isVideoExpanded ? 'md:col-span-3 order-first' : 'md:col-span-1'}`}>
-                  <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] border-slate-200 shadow-sm sticky top-4">
-                    <CardHeader className="border-b border-slate-100 pb-3">
+                  <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] border-border shadow-sm sticky top-4">
+                    <CardHeader className="border-b border-border pb-3">
                       <div className="flex items-center justify-between">
-                        <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                        <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
                           <Play className="h-4 w-4 text-blue-600" />
                           <span className="text-sm">Video Tutorial</span>
                         </CardTitle>
@@ -491,12 +491,12 @@ export default function Email() {
                           )}
                         </Button>
                       </div>
-                      <CardDescription className="text-xs text-slate-500 mt-1">
+                      <CardDescription className="text-xs text-muted-foreground mt-1">
                         {isVideoExpanded ? "Click to minimize" : "Click to enlarge"}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="pt-4 space-y-3">
-                      <div className="rounded-lg overflow-hidden border border-slate-200 bg-black/5 shadow-sm">
+                      <div className="rounded-lg overflow-hidden border border-border bg-black/5 shadow-sm">
                         <video
                           controls
                           muted
@@ -508,9 +508,9 @@ export default function Email() {
                         </video>
                       </div>
                       {!isVideoExpanded && (
-                        <div className="bg-slate-50 border border-slate-200 rounded-md p-3 space-y-1.5">
-                          <p className="text-xs font-semibold text-slate-900">Quick Steps:</p>
-                          <ol className="text-xs text-slate-600 space-y-1 list-decimal list-inside">
+                        <div className="bg-muted border border-border rounded-md p-3 space-y-1.5">
+                          <p className="text-xs font-semibold text-foreground">Quick Steps:</p>
+                          <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
                             <li>Enter email address</li>
                             <li>Enter SMTP password</li>
                             <li>Click "Add Email"</li>
@@ -518,9 +518,9 @@ export default function Email() {
                         </div>
                       )}
                       {isVideoExpanded && (
-                        <div className="bg-white/80 border border-slate-200 rounded-lg p-4 space-y-2">
-                          <p className="text-sm font-semibold text-slate-900">Detailed Instructions:</p>
-                          <ol className="text-sm text-slate-700 space-y-1.5 list-decimal list-inside">
+                        <div className="bg-card/80 border border-border rounded-lg p-4 space-y-2">
+                          <p className="text-sm font-semibold text-foreground">Detailed Instructions:</p>
+                          <ol className="text-sm text-foreground space-y-1.5 list-decimal list-inside">
                             <li>Enter a name for your email address (optional) - e.g., "Support Email"</li>
                             <li>Enter your email address (e.g., support@example.com)</li>
                             <li>Enter your SMTP password or App Password (required for sending emails)</li>
@@ -768,7 +768,7 @@ export default function Email() {
                         <div>
                           <Label className="text-xs text-muted-foreground">Preview</Label>
                           <div
-                            className="mt-2 border rounded-lg overflow-hidden bg-white"
+                            className="mt-2 border rounded-lg overflow-hidden bg-card"
                             style={{ height: 160 }}
                           >
                             <iframe
@@ -1115,7 +1115,7 @@ export default function Email() {
                         onChange={(e) => setComposeForm({ ...composeForm, body: e.target.value })}
                       />
                     ) : (
-                      <div className="border rounded-lg overflow-hidden bg-white" style={{ minHeight: 320 }}>
+                      <div className="border rounded-lg overflow-hidden bg-card" style={{ minHeight: 320 }}>
                         {composeForm.body.trim() ? (
                           <iframe
                             srcDoc={convertToHtmlEmail(
@@ -1366,7 +1366,7 @@ export default function Email() {
 
           {/* Full Preview Dialog */}
           <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0 bg-card text-foreground border-border">
               <DialogHeader className="p-6 pb-0">
                 <DialogTitle className="flex items-center gap-2">
                   <Monitor className="h-5 w-5" />
@@ -1378,7 +1378,7 @@ export default function Email() {
               </DialogHeader>
               <div className="px-6 pb-6">
                 {previewTemplate && (
-                  <div className="border rounded-lg overflow-hidden bg-white shadow-inner">
+                  <div className="border rounded-lg overflow-hidden bg-card shadow-inner">
                     <iframe
                       srcDoc={convertToHtmlEmail(
                         previewTemplate.subject,
@@ -1401,7 +1401,7 @@ export default function Email() {
             setTemplateDialogOpen(open);
             if (!open) setTemplatePreviewMode(false);
           }}>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-card text-foreground border-border">
               <DialogHeader>
                 <DialogTitle>
                   {editingTemplate ? "Edit Template" : "Create Email Template"}
@@ -1630,7 +1630,7 @@ export default function Email() {
                       </div>
                     </>
                   ) : (
-                    <div className="border rounded-lg overflow-hidden bg-white" style={{ minHeight: 400 }}>
+                    <div className="border rounded-lg overflow-hidden bg-card" style={{ minHeight: 400 }}>
                       {templateForm.body.trim() ? (
                         <iframe
                           srcDoc={convertToHtmlEmail(

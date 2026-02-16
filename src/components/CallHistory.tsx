@@ -516,10 +516,10 @@ const CallHistory: React.FC = () => {
             <CardContent>
               <Box textAlign="center" py={4}>
                 <PhoneIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                <Typography variant="h6" gutterBottom sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '18px', fontWeight: 600, color: '#27272b' }}>
+                <Typography variant="h6" gutterBottom sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '18px', fontWeight: 600, color: 'text.primary' }}>
                   No Call History
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#737373' }}>
+                <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.secondary' }}>
                   No calls found for the selected filters.
                 </Typography>
               </Box>
@@ -531,29 +531,29 @@ const CallHistory: React.FC = () => {
               <Table>
               <TableHead>
                 <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100' }}>
-                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Date & Time</TableCell>
-                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Caller</TableCell>
-                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Called</TableCell>
-                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Duration</TableCell>
-                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Recording</TableCell>
-                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Transcript</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Actions</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Date & Time</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Caller</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Called</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Duration</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Recording</TableCell>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Transcript</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {filteredCalls.map((call) => (
                   <TableRow key={call.id} hover>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>{formatDate(call.call_start_time)}</Typography>
+                      <Typography variant="body2" sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>{formatDate(call.call_start_time)}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" fontWeight={500} sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>
                         {call.caller_country_code} {call.caller_number}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" fontWeight={500} sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>
                         {call.called_country_code} {call.called_number}
                       </Typography>
                     </TableCell>

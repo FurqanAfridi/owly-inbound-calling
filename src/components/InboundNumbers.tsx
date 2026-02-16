@@ -31,7 +31,7 @@ interface InboundNumber {
   phone_label: string | null;
   call_forwarding_number: string | null;
   provider: string;
-  status: 'active' | 'suspended' | 'error' | 'pending' | 'inactive';
+  status: 'active' | 'activating' | 'suspended' | 'error' | 'pending' | 'inactive';
   health_status: 'healthy' | 'unhealthy' | 'unknown' | 'testing' | null;
   webhook_status: 'active' | 'inactive' | 'error' | 'unknown' | null;
   assigned_to_agent_id: string | null;
@@ -198,8 +198,9 @@ const InboundNumbers: React.FC = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    const statusConfig: { [key: string]: { variant: 'default' | 'success' | 'warning' | 'destructive'; label: string } } = {
+    const statusConfig: { [key: string]: { variant: 'default' | 'success' | 'warning' | 'destructive'; label: string; className?: string } } = {
       active: { variant: 'success', label: 'Active' },
+      activating: { variant: 'default', label: 'Activating...', className: 'bg-[#eff6ff] border border-[#3b82f6] text-[#1e40af] animate-pulse' },
       suspended: { variant: 'warning', label: 'Suspended' },
       error: { variant: 'destructive', label: 'Error' },
       pending: { variant: 'default', label: 'Pending' },
@@ -207,7 +208,7 @@ const InboundNumbers: React.FC = () => {
     };
 
     const config = statusConfig[status] || { variant: 'default' as const, label: status };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
   };
 
   const getHealthIcon = (healthStatus: string | null) => {

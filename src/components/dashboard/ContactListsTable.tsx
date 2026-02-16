@@ -180,7 +180,7 @@ const ContactListsTable: React.FC<ContactListsTableProps> = ({
                   </div>
                 ))
               ) : (
-                <div className="bg-white border-l border-b border-[#e5e5e5] h-[53px] flex items-center justify-center p-2">
+                <div className="dark:bg-[#2f3541] dark:border-[#2f3541] bg-white border-l border-b border-[#e5e5e5] h-[53px] flex items-center justify-center p-2">
                   <div className="w-8 h-8" />
                 </div>
               )}

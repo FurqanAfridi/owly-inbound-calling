@@ -172,6 +172,64 @@ const CreateVoiceAgent: React.FC = () => {
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
 
+  // Validation function to check if compulsory details are filled
+  const isFormValid = () => {
+    const requiredFields = [
+      formData.agentName,
+      formData.companyName,
+      formData.websiteUrl,
+      formData.goal,
+      formData.backgroundContext,
+      formData.instructionVoice,
+      formData.voice,
+      formData.language,
+      formData.agentType,
+      formData.timezone,
+      formData.tool,
+      selectedNumberId
+    ];
+
+    // Check basic string fields
+    const basicFieldsValid = requiredFields.every(field => field && field.trim() !== '');
+
+    // Check welcome messages count (label says min 5)
+    const welcomeMessagesValid = welcomeMessages.length >= 5;
+
+    return basicFieldsValid && welcomeMessagesValid;
+  };
+
+  // Progress calculation
+  const getProgress = () => {
+    const detailsFields = [formData.agentName, formData.companyName, formData.websiteUrl, formData.goal, formData.backgroundContext];
+    const voiceFields = [welcomeMessages.length >= 5, formData.instructionVoice];
+    const settingsFields = [formData.voice, formData.language, formData.agentType, formData.timezone, formData.tool, selectedNumberId];
+
+    const allRequired = [...detailsFields, ...voiceFields, ...settingsFields];
+    const filledCount = allRequired.filter(field => {
+      if (typeof field === 'boolean') return field;
+      return field && field.trim() !== '';
+    }).length;
+
+    return Math.round((filledCount / allRequired.length) * 100);
+  };
+
+  const getSectionStatus = (section: 'details' | 'voice' | 'settings' | 'schedules') => {
+    switch (section) {
+      case 'details':
+        return [formData.agentName, formData.companyName, formData.websiteUrl, formData.goal, formData.backgroundContext]
+          .every(f => f && f.trim() !== '');
+      case 'voice':
+        return welcomeMessages.length >= 5 && formData.instructionVoice.trim() !== '';
+      case 'settings':
+        return [formData.voice, formData.language, formData.agentType, formData.timezone, formData.tool, selectedNumberId]
+          .every(f => f && f.trim() !== '');
+      case 'schedules':
+        return true;
+      default:
+        return false;
+    }
+  };
+
   // Function to load overview stats
   const loadOverviewStats = async () => {
     if (!isEditMode || !editingAgent || !user) return;
@@ -1632,6 +1690,105 @@ IMPORTANT:
     }
   };
 
+  const saveDraft = async (nextSection?: 'details' | 'voice' | 'settings' | 'schedules') => {
+    if (!user) {
+      setStatusMessage({ type: 'error', text: 'You must be logged in to save a draft' });
+      return;
+    }
+
+    setLoading(true);
+    setStatusMessage(null);
+
+    try {
+      const currentTime = new Date().toISOString();
+      const selectedNumber = getSelectedNumber();
+
+      const draftData: any = {
+        user_id: user.id,
+        name: formData.agentName || 'Untitled Draft',
+        company_name: formData.companyName || null,
+        website_url: formData.websiteUrl || null,
+        goal: formData.goal || null,
+        background: formData.backgroundContext || null,
+        welcome_message: welcomeMessages.length > 0
+          ? (welcomeMessages.length === 1 ? welcomeMessages[0] : JSON.stringify(welcomeMessages))
+          : formData.welcomeMessage || null,
+        instruction_voice: formData.instructionVoice || null,
+        script: formData.script || null,
+        language: formData.language || null,
+        timezone: formData.timezone || null,
+        agent_type: formData.agentType || null,
+        tool: formData.tool || null,
+        voice: formData.voice || null,
+        voice_provider: getSelectedVoice()?.provider || 'deepgram',
+        temperature: formData.temperature,
+        confidence: formData.confidence,
+        verbosity: formData.verbosity,
+        fallback_enabled: formData.fallbackEnabled ?? false,
+        fallback_number: formData.fallbackEnabled ? formData.fallbackNumber : null,
+        tone: 'professional',
+        model: 'gpt-4o',
+        background_noise: 'office',
+        phone_provider: selectedNumber?.provider || null,
+        phone_number: selectedNumber?.phone_number || null,
+        phone_label: selectedNumber?.phone_label || null,
+        status: 'draft',
+        updated_at: currentTime,
+        knowledge_base_id: formData.knowledgeBaseId || null,
+        metadata: {
+          call_availability_start: formData.callAvailabilityStart,
+          call_availability_end: formData.callAvailabilityEnd,
+          call_availability_days: formData.callAvailabilityDays,
+          draft_section: nextSection || activeSection,
+          fallback_config: {
+            enabled: formData.fallbackEnabled,
+            number: formData.fallbackNumber,
+          },
+        },
+      };
+
+      if (isEditMode && editingAgent) {
+        // Update existing agent as draft
+        const { error: updateError } = await supabase
+          .from('voice_agents')
+          .update(draftData)
+          .eq('id', editingAgent.id)
+          .eq('user_id', user.id);
+
+        if (updateError) throw updateError;
+        setStatusMessage({ type: 'success', text: 'Draft saved successfully!' });
+      } else {
+        // Check if there's already a draft with no id set
+        const draftId = editingAgent?.id || crypto.randomUUID();
+        draftData.id = draftId;
+        draftData.created_at = currentTime;
+
+        const { error: insertError } = await supabase
+          .from('voice_agents')
+          .upsert(draftData, { onConflict: 'id' });
+
+        if (insertError) throw insertError;
+
+        // Set the editing agent so future saves update instead of creating new
+        setEditingAgent({ ...draftData, id: draftId } as any);
+        setStatusMessage({ type: 'success', text: 'Draft saved successfully!' });
+      }
+
+      // Move to next section if specified
+      if (nextSection) {
+        setActiveSection(nextSection);
+      }
+
+      // Clear status after 3 seconds
+      setTimeout(() => setStatusMessage(null), 3000);
+    } catch (err: any) {
+      console.error('Error saving draft:', err);
+      setStatusMessage({ type: 'error', text: err.message || 'Failed to save draft' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatusMessage(null);
@@ -1782,7 +1939,7 @@ IMPORTANT:
         phone_provider: selectedNumber!.provider,
         phone_number: selectedNumber!.phone_number,
         phone_label: selectedNumber!.phone_label || '',
-        status: 'active',
+        status: isEditMode ? 'active' : 'activating',
         created_at: currentTime,
         updated_at: currentTime,
         knowledge_base_id: formData.knowledgeBaseId || null,
@@ -2222,12 +2379,31 @@ IMPORTANT:
       // Bind webhook should only be called when agent status is changed to 'active' (enabled)
       // This is handled in VoiceAgents.tsx when toggling agent status
 
-      setStatusMessage({
-        type: 'success',
-        text: isEditMode
-          ? 'Agent updated successfully!'
-          : `Agent created successfully! ${isEditMode ? '' : '5 credits deducted.'}`
-      });
+      if (isEditMode) {
+        setStatusMessage({
+          type: 'success',
+          text: 'Agent updated successfully!'
+        });
+      } else {
+        setStatusMessage({
+          type: 'success',
+          text: 'Agent created successfully! 5 credits deducted. Your agent will be activated in 1 minute.'
+        });
+
+        // Schedule activation after 60 seconds
+        const agentIdToActivate = data.id;
+        setTimeout(async () => {
+          try {
+            await supabase
+              .from('voice_agents')
+              .update({ status: 'active', updated_at: new Date().toISOString() })
+              .eq('id', agentIdToActivate)
+              .eq('status', 'activating');
+          } catch (err) {
+            console.error('Error auto-activating agent:', err);
+          }
+        }, 60000);
+      }
 
       setTimeout(() => {
         navigate('/agents');
@@ -2365,778 +2541,902 @@ IMPORTANT:
       )}
 
       {(activeTab === 'edit' || !isEditMode) && (
-        <div className="flex gap-5 items-start">
-          {/* Sidebar Navigation */}
-          <div className="dark:bg-[#1d212b] dark:border-[#2f3541] bg-white border border-[#e4e4e8] rounded-[12px] p-[9px] w-[256px] flex flex-col gap-[6px]">
-            <button
-              onClick={() => setActiveSection('details')}
-              className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'details'
-                ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
-                : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
-                }`}
-              style={{ fontFamily: "'Manrope', sans-serif" }}
-            >
-              <ListCollapse className="w-4 h-4" />
-              <span className="text-[14px]">Details</span>
-            </button>
-            <button
-              onClick={() => setActiveSection('voice')}
-              className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'voice'
-                ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
-                : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
-                }`}
-              style={{ fontFamily: "'Manrope', sans-serif" }}
-            >
-              <AudioLines className="w-4 h-4" />
-              <span className="text-[14px]">Voice Configuration</span>
-            </button>
-            <button
-              onClick={() => setActiveSection('settings')}
-              className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'settings'
-                ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
-                : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
-                }`}
-              style={{ fontFamily: "'Manrope', sans-serif" }}
-            >
-              <Settings2 className="w-4 h-4" />
-              <span className="text-[14px]">Agent Settings</span>
-            </button>
-            <button
-              onClick={() => setActiveSection('schedules')}
-              className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'schedules'
-                ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
-                : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
-                }`}
-              style={{ fontFamily: "'Manrope', sans-serif" }}
-            >
-              <Calendar className="w-4 h-4" />
-              <span className="text-[14px]">Schedule Selection</span>
-            </button>
-          </div>
-
-          {/* Main Content Area */}
-          <div className="dark:bg-[#1d212b] dark:border-[#2f3541] bg-white border border-[#e4e4e8] rounded-[12px] px-6 py-6 flex-1">
-            {loadingAgent ? (
-              <div className="flex justify-center items-center min-h-[60vh]">
-                <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="flex flex-col gap-6">
+          {/* Progress Bar Container */}
+          <div className="dark:bg-[#1d212b] dark:border-[#2f3541] bg-white border border-[#e4e4e8] rounded-[12px] p-6 mb-2">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col gap-1">
+                <h3 className="text-[16px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                  Agent Creation Progress
+                </h3>
+                <p className="text-[14px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                  Complete all required fields to create your agent
+                </p>
               </div>
-            ) : (
-              <>
-                {/* Details Section */}
-                {activeSection === 'details' && (
-                  <div className="flex flex-col gap-[30px]">
-                    <div className="flex flex-col gap-[23px]">
-                      <h2 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                        Details
-                      </h2>
+              <div className="flex items-center gap-2">
+                <span className="text-[18px] font-bold text-[#0b99ff]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                  {getProgress()}%
+                </span>
+                <span className="text-[14px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                  Completed
+                </span>
+              </div>
+            </div>
 
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="agentName" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Agent Name*:
-                        </Label>
-                        <Input
-                          id="agentName"
-                          name="agentName"
-                          value={formData.agentName}
-                          onChange={handleInputChange}
-                          className={`border rounded-[6px] px-3 py-2 ${highlightEmptyFields && !formData.agentName ? "border-red-500 ring-1 ring-red-500" : "border-[#0b99ff]"}`}
-                          style={{ fontFamily: "'Manrope', sans-serif" }}
-                        />
+            {/* The actual progress bar */}
+            <div className="w-full h-[8px] bg-[#f4f4f6] dark:bg-[#2f3541] rounded-full overflow-hidden mb-6">
+              <div
+                className="h-full bg-gradient-to-r from-[#0b99ff] to-[#3086ff] transition-all duration-500 ease-in-out"
+                style={{ width: `${getProgress()}%` }}
+              />
+            </div>
+
+            {/* Section Indicators */}
+            <div className="flex items-center justify-between gap-4">
+              {[
+                { id: 'details', label: 'Details', icon: ListCollapse },
+                { id: 'voice', label: 'Voice', icon: AudioLines },
+                { id: 'settings', label: 'Settings', icon: Settings2 },
+                { id: 'schedules', label: 'Schedules', icon: Calendar },
+              ].map((section, index) => {
+                const isComplete = getSectionStatus(section.id as any);
+                const isActive = activeSection === section.id;
+                const Icon = section.icon;
+
+                return (
+                  <div key={section.id} className="flex-1 flex flex-col gap-2 items-center">
+                    <div className="flex items-center gap-2 w-full">
+                      <div className={`shrink-0 size-8 rounded-full flex items-center justify-center border-2 transition-all ${isComplete
+                        ? 'border-[#0b99ff] bg-[#0b99ff] text-white'
+                        : isActive
+                          ? 'border-[#0b99ff] text-[#0b99ff] bg-white'
+                          : 'border-[#e4e4e8] text-[#737373] bg-white'
+                        }`}>
+                        {isComplete ? (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <span className="text-[14px] font-bold">{index + 1}</span>
+                        )}
                       </div>
-
-                      <Separator />
-
-                      <h3 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                        Company Information
-                      </h3>
-
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="companyName" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Company Name*:
-                        </Label>
-                        <Input
-                          id="companyName"
-                          name="companyName"
-                          value={formData.companyName}
-                          onChange={handleInputChange}
-                          className={`border rounded-[6px] px-3 py-2 ${highlightEmptyFields && !formData.companyName ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
-                          style={{ fontFamily: "'Manrope', sans-serif" }}
-                        />
+                      <div className="flex-1 flex flex-col items-start overflow-hidden">
+                        <span className={`text-[13px] font-semibold whitespace-nowrap ${isActive ? 'text-[#0b99ff]' : isComplete ? 'text-[#27272b]' : 'text-[#737373]'
+                          }`}>
+                          {section.label}
+                        </span>
+                        <span className="text-[11px] text-[#737373] whitespace-nowrap">
+                          {isComplete ? 'Completed' : isActive ? 'In Progress' : 'Pending'}
+                        </span>
                       </div>
-
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="websiteUrl" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Website URL*:
-                        </Label>
-                        <Input
-                          id="websiteUrl"
-                          name="websiteUrl"
-                          value={formData.websiteUrl}
-                          onChange={handleInputChange}
-                          className={`border rounded-[6px] px-3 py-2 ${highlightEmptyFields && !formData.websiteUrl ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
-                          style={{ fontFamily: "'Manrope', sans-serif" }}
-                        />
-                      </div>
-
-                      <Separator />
-
-                      <h3 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                        Goals & Context
-                      </h3>
-
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="goal" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Goal*:
-                        </Label>
-                        <Textarea
-                          id="goal"
-                          name="goal"
-                          value={formData.goal}
-                          onChange={handleInputChange}
-                          className={`border rounded-[6px] px-3 py-2 min-h-[80px] ${highlightEmptyFields && !formData.goal ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
-                          style={{ fontFamily: "'Manrope', sans-serif" }}
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="backgroundContext" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Background / Context*:
-                        </Label>
-                        <Textarea
-                          id="backgroundContext"
-                          name="backgroundContext"
-                          value={formData.backgroundContext}
-                          onChange={handleInputChange}
-                          className={`border rounded-[6px] px-3 py-2 min-h-[120px] ${highlightEmptyFields && !formData.backgroundContext ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
-                          style={{ fontFamily: "'Manrope', sans-serif" }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-end">
-                      <Button
-                        onClick={() => setActiveSection('voice')}
-                        className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-                        style={{ fontFamily: "'Manrope', sans-serif" }}
-                      >
-                        Next
-                        <ChevronRight className="w-4 h-4 ml-2" />
-                      </Button>
                     </div>
                   </div>
-                )}
+                );
+              })}
+            </div>
+          </div>
 
-                {/* Voice Configuration Section */}
-                {activeSection === 'voice' && (
-                  <div className="flex flex-col gap-[30px]">
-                    <div className="flex flex-col gap-[23px]">
-                      <h2 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                        Voice Configuration
-                      </h2>
+          <div className="flex gap-5 items-start">
+            {/* Sidebar Navigation */}
+            <div className="dark:bg-[#1d212b] dark:border-[#2f3541] bg-white border border-[#e4e4e8] rounded-[12px] p-[9px] w-[256px] flex flex-col gap-[6px]">
+              <button
+                onClick={() => setActiveSection('details')}
+                className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'details'
+                  ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                  : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
+                  }`}
+                style={{ fontFamily: "'Manrope', sans-serif" }}
+              >
+                <ListCollapse className="w-4 h-4" />
+                <span className="text-[14px]">Details</span>
+              </button>
+              <button
+                onClick={() => setActiveSection('voice')}
+                className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'voice'
+                  ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                  : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
+                  }`}
+                style={{ fontFamily: "'Manrope', sans-serif" }}
+              >
+                <AudioLines className="w-4 h-4" />
+                <span className="text-[14px]">Voice Configuration</span>
+              </button>
+              <button
+                onClick={() => setActiveSection('settings')}
+                className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'settings'
+                  ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                  : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
+                  }`}
+                style={{ fontFamily: "'Manrope', sans-serif" }}
+              >
+                <Settings2 className="w-4 h-4" />
+                <span className="text-[14px]">Agent Settings</span>
+              </button>
+              <button
+                onClick={() => setActiveSection('schedules')}
+                className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'schedules'
+                  ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                  : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
+                  }`}
+                style={{ fontFamily: "'Manrope', sans-serif" }}
+              >
+                <Calendar className="w-4 h-4" />
+                <span className="text-[14px]">Schedule Selection</span>
+              </button>
+            </div>
 
-                      <div className="flex flex-col gap-2">
-                        <Label className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Welcome Messages *: <span className="text-[#737373] font-normal">(Minimum 5 messages)</span>
-                        </Label>
-                        <div className={`border rounded-[6px] p-2 min-h-[100px] flex flex-wrap gap-2 ${highlightEmptyFields && welcomeMessages.length === 0 ? "border-red-500 ring-1 ring-red-500" : "border-[#0b99ff]"}`}>
-                          {welcomeMessages.map((msg, index) => (
-                            <div
-                              key={index}
-                              className="border border-[#0b99ff] rounded-[9px] px-2.5 py-1.5 flex items-center gap-2.5 bg-white"
-                            >
-                              <span className="text-[14px] text-[#0b99ff]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                                {msg}
-                              </span>
-                              <button
-                                onClick={() => handleRemoveWelcomeMessage(index)}
-                                className="text-[#0b99ff] hover:text-[#0b99ff]/70"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="flex gap-2 items-center">
+            {/* Main Content Area */}
+            <div className="dark:bg-[#1d212b] dark:border-[#2f3541] bg-white border border-[#e4e4e8] rounded-[12px] px-6 py-6 flex-1">
+              {loadingAgent ? (
+                <div className="flex justify-center items-center min-h-[60vh]">
+                  <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <>
+                  {/* Details Section */}
+                  {activeSection === 'details' && (
+                    <div className="flex flex-col gap-[30px]">
+                      <div className="flex flex-col gap-[23px]">
+                        <h2 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Details
+                        </h2>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="agentName" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Agent Name*:
+                          </Label>
                           <Input
-                            value={newWelcomeMessage}
-                            onChange={(e) => setNewWelcomeMessage(e.target.value)}
-                            onKeyDown={handleWelcomeMessageKeyDown}
-                            placeholder="Type message and press Enter or comma"
-                            className="flex-1 border border-[#0b99ff] rounded-[6px] px-3 py-2"
-                            style={{ fontFamily: "'Manrope', sans-serif" }}
-                          />
-                          <Button
-                            type="button"
-                            onClick={handleAddWelcomeMessage}
-                            disabled={!newWelcomeMessage.trim()}
-                            className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white px-2.5 py-1.5 rounded-[9px] text-[14px] font-semibold h-auto"
-                            style={{ fontFamily: "'Manrope', sans-serif" }}
-                          >
-                            + Add Welcome Message
-                          </Button>
-                        </div>
-                        <p className="text-[12px] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                          Press Enter or comma to add each message.
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="instructionVoice" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Instruction Voice*:
-                        </Label>
-                        <Textarea
-                          id="instructionVoice"
-                          name="instructionVoice"
-                          value={formData.instructionVoice}
-                          onChange={handleInputChange}
-                          className={`border rounded-[6px] px-3 py-2 min-h-[120px] ${highlightEmptyFields && !formData.instructionVoice ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
-                          style={{ fontFamily: "'Manrope', sans-serif" }}
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="script" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Description (Optional):
-                        </Label>
-                        <div className="border border-[#e5e5e5] rounded-[10px] shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_0px_rgba(0,0,0,0.1)]">
-                          <Textarea
-                            id="script"
-                            name="script"
-                            value={formData.script}
+                            id="agentName"
+                            name="agentName"
+                            value={formData.agentName}
                             onChange={handleInputChange}
-                            className="border-0 rounded-[10px] px-5 py-4 min-h-[300px] resize-none focus:ring-0 focus-visible:ring-0"
+                            className={`border rounded-[6px] px-3 py-2 ${highlightEmptyFields && !formData.agentName ? "border-red-500 ring-1 ring-red-500" : "border-[#0b99ff]"}`}
                             style={{ fontFamily: "'Manrope', sans-serif" }}
-                            placeholder="Enter a comprehensive description of your agent's identity, mission, and conversation guidelines..."
                           />
-                          <div className="border-t border-[#e5e5e5] px-5 py-3 flex items-center justify-between">
-                            <span className="text-[12px] text-[#6a7282]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                              {formData.script.length} characters | {formData.script.split(/\s+/).filter(Boolean).length} words
-                            </span>
+                        </div>
+
+                        <Separator />
+
+                        <h3 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Company Information
+                        </h3>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="companyName" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Company Name*:
+                          </Label>
+                          <Input
+                            id="companyName"
+                            name="companyName"
+                            value={formData.companyName}
+                            onChange={handleInputChange}
+                            className={`border rounded-[6px] px-3 py-2 ${highlightEmptyFields && !formData.companyName ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="websiteUrl" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Website URL*:
+                          </Label>
+                          <Input
+                            id="websiteUrl"
+                            name="websiteUrl"
+                            value={formData.websiteUrl}
+                            onChange={handleInputChange}
+                            className={`border rounded-[6px] px-3 py-2 ${highlightEmptyFields && !formData.websiteUrl ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          />
+                        </div>
+
+                        <Separator />
+
+                        <h3 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Goals & Context
+                        </h3>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="goal" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Goal*:
+                          </Label>
+                          <Textarea
+                            id="goal"
+                            name="goal"
+                            value={formData.goal}
+                            onChange={handleInputChange}
+                            className={`border rounded-[6px] px-3 py-2 min-h-[80px] ${highlightEmptyFields && !formData.goal ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="backgroundContext" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Background / Context*:
+                          </Label>
+                          <Textarea
+                            id="backgroundContext"
+                            name="backgroundContext"
+                            value={formData.backgroundContext}
+                            onChange={handleInputChange}
+                            className={`border rounded-[6px] px-3 py-2 min-h-[120px] ${highlightEmptyFields && !formData.backgroundContext ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <Button
+                          onClick={() => saveDraft()}
+                          variant="outline"
+                          disabled={loading}
+                          className="px-4 py-2 rounded-[6px] border-[#0b99ff] text-[#0b99ff] hover:bg-[#0b99ff]/10"
+                          style={{ fontFamily: "'Manrope', sans-serif" }}
+                        >
+                          {loading ? 'Saving...' : 'Save as Draft'}
+                        </Button>
+                        <Button
+                          onClick={() => saveDraft('voice')}
+                          disabled={loading}
+                          className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                          style={{ fontFamily: "'Manrope', sans-serif" }}
+                        >
+                          {loading ? 'Saving...' : 'Save & Continue'}
+                          {!loading && <ChevronRight className="w-4 h-4 ml-2" />}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Voice Configuration Section */}
+                  {activeSection === 'voice' && (
+                    <div className="flex flex-col gap-[30px]">
+                      <div className="flex flex-col gap-[23px]">
+                        <h2 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Voice Configuration
+                        </h2>
+
+                        <div className="flex flex-col gap-2">
+                          <Label className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Welcome Messages *: <span className="text-[#737373] font-normal">(Minimum 5 messages)</span>
+                          </Label>
+                          <div className={`border rounded-[6px] p-2 min-h-[100px] flex flex-wrap gap-2 ${highlightEmptyFields && welcomeMessages.length === 0 ? "border-red-500 ring-1 ring-red-500" : "border-[#0b99ff]"}`}>
+                            {welcomeMessages.map((msg, index) => (
+                              <div
+                                key={index}
+                                className="border border-[#0b99ff] rounded-[9px] px-2.5 py-1.5 flex items-center gap-2.5 bg-white"
+                              >
+                                <span className="text-[14px] text-[#0b99ff]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                  {msg}
+                                </span>
+                                <button
+                                  onClick={() => handleRemoveWelcomeMessage(index)}
+                                  className="text-[#0b99ff] hover:text-[#0b99ff]/70"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex gap-2 items-center">
+                            <Input
+                              value={newWelcomeMessage}
+                              onChange={(e) => setNewWelcomeMessage(e.target.value)}
+                              onKeyDown={handleWelcomeMessageKeyDown}
+                              placeholder="Type message and press Enter or comma"
+                              className="flex-1 border border-[#0b99ff] rounded-[6px] px-3 py-2"
+                              style={{ fontFamily: "'Manrope', sans-serif" }}
+                            />
+                            <Button
+                              type="button"
+                              onClick={handleAddWelcomeMessage}
+                              disabled={!newWelcomeMessage.trim()}
+                              className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white px-2.5 py-1.5 rounded-[9px] text-[14px] font-semibold h-auto"
+                              style={{ fontFamily: "'Manrope', sans-serif" }}
+                            >
+                              + Add Welcome Message
+                            </Button>
+                          </div>
+                          <p className="text-[12px] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                            Press Enter or comma to add each message.
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="instructionVoice" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Instruction Voice*:
+                          </Label>
+                          <Textarea
+                            id="instructionVoice"
+                            name="instructionVoice"
+                            value={formData.instructionVoice}
+                            onChange={handleInputChange}
+                            className={`border rounded-[6px] px-3 py-2 min-h-[120px] ${highlightEmptyFields && !formData.instructionVoice ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="script" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Description (Optional):
+                          </Label>
+                          <div className="border border-[#e5e5e5] rounded-[10px] shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_0px_rgba(0,0,0,0.1)]">
+                            <Textarea
+                              id="script"
+                              name="script"
+                              value={formData.script}
+                              onChange={handleInputChange}
+                              className="border-0 rounded-[10px] px-5 py-4 min-h-[300px] resize-none focus:ring-0 focus-visible:ring-0"
+                              style={{ fontFamily: "'Manrope', sans-serif" }}
+                              placeholder="Enter a comprehensive description of your agent's identity, mission, and conversation guidelines..."
+                            />
+                            <div className="border-t border-[#e5e5e5] px-5 py-3 flex items-center justify-between">
+                              <span className="text-[12px] text-[#6a7282]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                {formData.script.length} characters | {formData.script.split(/\s+/).filter(Boolean).length} words
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex items-center justify-between">
-                      <Button
-                        onClick={() => setActiveSection('details')}
-                        variant="outline"
-                        className="px-4 py-2 rounded-[6px]"
-                        style={{ fontFamily: "'Manrope', sans-serif" }}
-                      >
-                        <ChevronLeftIcon className="w-4 h-4 mr-2" />
-                        Previous
-                      </Button>
-                      <Button
-                        onClick={() => setActiveSection('settings')}
-                        className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-                        style={{ fontFamily: "'Manrope', sans-serif" }}
-                      >
-                        Next
-                        <ChevronRight className="w-4 h-4 ml-2" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Agent Settings Section */}
-                {activeSection === 'settings' && (
-                  <div className="flex flex-col gap-[30px]">
-                    <div className="flex flex-col gap-[23px]">
-                      <h2 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                        Agent Settings
-                      </h2>
-
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="voice" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Voice*:
-                        </Label>
-                        <Tabs
-                          value={voiceTab}
-                          onValueChange={(value) => setVoiceTab(value as 'deepgram' | 'vapi')}
-                          className="w-full"
+                      <div className="flex items-center justify-between">
+                        <Button
+                          onClick={() => setActiveSection('details')}
+                          variant="outline"
+                          className="px-4 py-2 rounded-[6px]"
+                          style={{ fontFamily: "'Manrope', sans-serif" }}
                         >
-                          <TabsList className="grid w-full grid-cols-2 bg-[#f4f4f6]">
-                            <TabsTrigger value="deepgram" className="text-[#27272b] data-[state=active]:bg-white">
-                              Deepgram Voices
-                            </TabsTrigger>
-                            <TabsTrigger value="vapi" className="text-[#27272b] data-[state=active]:bg-white">
-                              VAPI Voices
-                            </TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="deepgram" className="mt-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto p-2">
-                              {deepgramVoices.map((voice) => (
-                                <button
-                                  key={voice.value}
-                                  type="button"
-                                  onClick={() => handleSelectChange('voice', voice.value)}
-                                  className={`p-3 rounded-[6px] border-2 transition-all text-left ${formData.voice === voice.value
-                                    ? 'border-[#0b99ff] bg-[rgba(11,153,255,0.1)]'
-                                    : 'border-[#d4d4da] bg-white hover:border-[#0b99ff]/50'
-                                    }`}
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <p className="font-semibold text-[14px] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                                          {voice.label}
-                                        </p>
-                                        <Badge variant="outline" className="text-[12px]">
-                                          {voice.gender === 'masculine' ? 'Male' : 'Female'}
-                                        </Badge>
-                                      </div>
-                                      {voice.description && (
-                                        <p className="text-[12px] text-[#737373] mb-1" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                                          {voice.description}
-                                        </p>
-                                      )}
-                                      {voice.useCase && (
-                                        <p className="text-[12px] text-[#737373] italic" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                                          Use: {voice.useCase}
-                                        </p>
-                                      )}
-                                    </div>
-                                    {voice.audioUrl && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handlePlayAudio(voice.audioUrl!, voice.value);
-                                        }}
-                                        className="p-1.5 rounded-full bg-[rgba(11,153,255,0.2)] hover:bg-[rgba(11,153,255,0.3)] transition-colors"
-                                      >
-                                        {playingAudio === voice.value ? (
-                                          <Volume2 className="w-4 h-4 text-[#0b99ff]" />
-                                        ) : (
-                                          <Play className="w-4 h-4 text-[#0b99ff]" />
-                                        )}
-                                      </button>
-                                    )}
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          </TabsContent>
-                          <TabsContent value="vapi" className="mt-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto p-2">
-                              {vapiVoices.map((voice) => (
-                                <button
-                                  key={voice.value}
-                                  type="button"
-                                  onClick={() => handleSelectChange('voice', voice.value)}
-                                  className={`p-3 rounded-[6px] border-2 transition-all text-left ${formData.voice === voice.value
-                                    ? 'border-[#0b99ff] bg-[rgba(11,153,255,0.1)]'
-                                    : 'border-[#d4d4da] bg-white hover:border-[#0b99ff]/50'
-                                    }`}
-                                >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2">
-                                        <p className="font-semibold text-[14px] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                                          {voice.label}
-                                        </p>
-                                        <Badge variant="outline" className="text-[12px]">
-                                          {voice.gender === 'masculine' ? 'Male' : 'Female'}
-                                        </Badge>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          </TabsContent>
-                        </Tabs>
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="language" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Language*:
-                        </Label>
-                        <Select value={formData.language} onValueChange={(value) => handleSelectChange('language', value)}>
-                          <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="en-US">English</SelectItem>
-                            <SelectItem value="es-ES">Spanish</SelectItem>
-                            <SelectItem value="fr-FR">French</SelectItem>
-                            <SelectItem value="de-DE">German</SelectItem>
-                            <SelectItem value="zh-CN">Chinese</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="agentType" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Agent Type*:
-                        </Label>
-                        <Select value={formData.agentType} onValueChange={(value) => handleSelectChange('agentType', value)}>
-                          <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="sales">Sales</SelectItem>
-                            <SelectItem value="support">Support</SelectItem>
-                            <SelectItem value="booking">Booking</SelectItem>
-                            <SelectItem value="general">General</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="timezone" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Timezone*:
-                        </Label>
-                        <Select value={formData.timezone} onValueChange={(value) => handleSelectChange('timezone', value)}>
-                          <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
-                            <SelectValue placeholder="Select timezone" />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-[300px]">
-                            <SelectGroup>
-                              <SelectLabel>UTC</SelectLabel>
-                              {getTimezonesByGroup().UTC.map(tz => (
-                                <SelectItem key={tz.value} value={tz.value}>
-                                  {tz.label}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                            {Object.entries(getTimezonesByGroup())
-                              .filter(([group]) => group !== 'UTC')
-                              .map(([group, tzs], index) => (
-                                <React.Fragment key={group}>
-                                  {index > 0 && <SelectSeparator />}
-                                  <SelectGroup>
-                                    <SelectLabel>{group}</SelectLabel>
-                                    {tzs.map(tz => (
-                                      <SelectItem key={tz.value} value={tz.value}>
-                                        {tz.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectGroup>
-                                </React.Fragment>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="tool" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Tool*:
-                        </Label>
-                        <Select value={formData.tool} onValueChange={(value) => handleSelectChange('tool', value)}>
-                          <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
-                            <SelectValue placeholder="Select tool" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="calendar">Calendar Integration</SelectItem>
-                            <SelectItem value="crm">CRM Integration</SelectItem>
-                            <SelectItem value="email">Email Integration</SelectItem>
-                            <SelectItem value="sms">SMS Integration</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <Separator />
-
-                      <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                        Fallback Configuration
-                      </h3>
-
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="fallbackEnabled"
-                          checked={formData.fallbackEnabled}
-                          onChange={(e) => setFormData(prev => ({ ...prev, fallbackEnabled: e.target.checked }))}
-                          className="rounded"
-                        />
-                        <Label htmlFor="fallbackEnabled" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Enable Fallback Number
-                        </Label>
-                      </div>
-
-                      {formData.fallbackEnabled && (
-                        <div className="flex flex-col gap-2">
-                          <Label htmlFor="fallbackNumber" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                            Fallback Phone Number:
-                          </Label>
-                          <Input
-                            id="fallbackNumber"
-                            name="fallbackNumber"
-                            value={formData.fallbackNumber}
-                            onChange={handleInputChange}
-                            placeholder="+1234567890"
-                            className="border border-[#d4d4da] rounded-[6px] px-3 py-2"
-                            style={{ fontFamily: "'Manrope', sans-serif" }}
-                          />
-                          <p className="text-[12px] text-[#737373]">
-                            Number to call if the agent fails or after retries are exhausted
-                          </p>
-                        </div>
-                      )}
-
-                      <Separator />
-
-                      <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                        Knowledge Base
-                      </h3>
-
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="knowledgeBase" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Assign Knowledge Base (Optional):
-                        </Label>
-                        <Select
-                          value={formData.knowledgeBaseId || 'none'}
-                          onValueChange={(value) => handleSelectChange('knowledgeBaseId', value === 'none' ? '' : value)}
-                        >
-                          <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
-                            <SelectValue placeholder="Select a knowledge base" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">None</SelectItem>
-                            {knowledgeBases.map((kb) => (
-                              <SelectItem key={kb.id} value={kb.id}>
-                                {kb.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-[12px] text-[#737373]">
-                          Select a knowledge base to provide FAQs and documents to this agent
-                        </p>
-                      </div>
-
-                      <Separator />
-
-                      <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                        Phone Number
-                      </h3>
-
-                      {loadingNumbers ? (
-                        <p className="text-[14px] text-[#737373]">Loading inbound numbers...</p>
-                      ) : inboundNumbers.length === 0 ? (
-                        <div className="flex flex-col gap-2">
-                          <Alert variant="default">
-                            <AlertDescription>No inbound numbers available. Please import a number first.</AlertDescription>
-                          </Alert>
+                          <ChevronLeftIcon className="w-4 h-4 mr-2" />
+                          Previous
+                        </Button>
+                        <div className="flex items-center gap-3">
                           <Button
-                            type="button"
-                            onClick={() => navigate('/inbound-numbers')}
+                            onClick={() => saveDraft()}
                             variant="outline"
-                            className="w-fit"
+                            disabled={loading}
+                            className="px-4 py-2 rounded-[6px] border-[#0b99ff] text-[#0b99ff] hover:bg-[#0b99ff]/10"
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
                           >
-                            Go to Inbound Numbers
+                            {loading ? 'Saving...' : 'Save as Draft'}
+                          </Button>
+                          <Button
+                            onClick={() => saveDraft('settings')}
+                            disabled={loading}
+                            className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          >
+                            {loading ? 'Saving...' : 'Save & Continue'}
+                            {!loading && <ChevronRight className="w-4 h-4 ml-2" />}
                           </Button>
                         </div>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          <Label htmlFor="phoneNumber" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                            Select Inbound Number*:
-                          </Label>
-                          <Select value={selectedNumberId} onValueChange={handleNumberSelection}>
-                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
-                              <SelectValue placeholder="Select a phone number" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {inboundNumbers.map((number) => {
-                                const assignedAgent = number.assigned_to_agent_id
-                                  ? agents.find(a => a.id === number.assigned_to_agent_id)
-                                  : null;
-                                const isAssignedToCurrentAgent = isEditMode && editingAgent && number.assigned_to_agent_id === editingAgent.id;
+                      </div>
+                    </div>
+                  )}
 
-                                return (
-                                  <SelectItem key={number.id} value={number.id}>
-                                    <div className="flex items-center justify-between w-full">
-                                      <span>
-                                        {formatPhoneDisplay(number.phone_number, number.country_code)}
-                                        {number.phone_label && ` - ${number.phone_label}`}
-                                      </span>
-                                      {assignedAgent && !isAssignedToCurrentAgent && (
-                                        <Badge variant="outline" className="ml-2 text-xs">
-                                          Assigned to {assignedAgent.name}
-                                        </Badge>
-                                      )}
-                                      {isAssignedToCurrentAgent && (
-                                        <Badge variant="default" className="ml-2 text-xs">
-                                          Current
-                                        </Badge>
+                  {/* Agent Settings Section */}
+                  {activeSection === 'settings' && (
+                    <div className="flex flex-col gap-[30px]">
+                      <div className="flex flex-col gap-[23px]">
+                        <h2 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Agent Settings
+                        </h2>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="voice" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Voice*:
+                          </Label>
+                          <Tabs
+                            value={voiceTab}
+                            onValueChange={(value) => setVoiceTab(value as 'deepgram' | 'vapi')}
+                            className="w-full"
+                          >
+                            <TabsList className="grid w-full grid-cols-2 bg-[#f4f4f6]">
+                              <TabsTrigger value="deepgram" className="text-[#27272b] data-[state=active]:bg-white">
+                                Premium Voices
+                              </TabsTrigger>
+                              <TabsTrigger value="vapi" className="text-[#27272b] data-[state=active]:bg-white">
+                                Classic Voices
+                              </TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="deepgram" className="mt-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto p-2">
+                                {deepgramVoices.map((voice) => (
+                                  <button
+                                    key={voice.value}
+                                    type="button"
+                                    onClick={() => handleSelectChange('voice', voice.value)}
+                                    className={`p-3 rounded-[6px] border-2 transition-all text-left ${formData.voice === voice.value
+                                      ? 'border-[#0b99ff] bg-[rgba(11,153,255,0.1)]'
+                                      : 'border-[#d4d4da] bg-white hover:border-[#0b99ff]/50'
+                                      }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <p className="font-semibold text-[14px] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                            {voice.label}
+                                          </p>
+                                          <Badge variant="outline" className="text-[12px]">
+                                            {voice.gender === 'masculine' ? 'Male' : 'Female'}
+                                          </Badge>
+                                        </div>
+                                        {voice.description && (
+                                          <p className="text-[12px] text-[#737373] mb-1" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                            {voice.description}
+                                          </p>
+                                        )}
+                                        {voice.useCase && (
+                                          <p className="text-[12px] text-[#737373] italic" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                            Use: {voice.useCase}
+                                          </p>
+                                        )}
+                                      </div>
+                                      {voice.audioUrl && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handlePlayAudio(voice.audioUrl!, voice.value);
+                                          }}
+                                          className="p-1.5 rounded-full bg-[rgba(11,153,255,0.2)] hover:bg-[rgba(11,153,255,0.3)] transition-colors"
+                                        >
+                                          {playingAudio === voice.value ? (
+                                            <Volume2 className="w-4 h-4 text-[#0b99ff]" />
+                                          ) : (
+                                            <Play className="w-4 h-4 text-[#0b99ff]" />
+                                          )}
+                                        </button>
                                       )}
                                     </div>
-                                  </SelectItem>
-                                );
-                              })}
+                                  </button>
+                                ))}
+                              </div>
+                            </TabsContent>
+                            <TabsContent value="vapi" className="mt-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto p-2">
+                                {vapiVoices.map((voice) => (
+                                  <button
+                                    key={voice.value}
+                                    type="button"
+                                    onClick={() => handleSelectChange('voice', voice.value)}
+                                    className={`p-3 rounded-[6px] border-2 transition-all text-left ${formData.voice === voice.value
+                                      ? 'border-[#0b99ff] bg-[rgba(11,153,255,0.1)]'
+                                      : 'border-[#d4d4da] bg-white hover:border-[#0b99ff]/50'
+                                      }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <p className="font-semibold text-[14px] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                            {voice.label}
+                                          </p>
+                                          <Badge variant="outline" className="text-[12px]">
+                                            {voice.gender === 'masculine' ? 'Male' : 'Female'}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </TabsContent>
+                          </Tabs>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="language" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Language*:
+                          </Label>
+                          <Select value={formData.language} onValueChange={(value) => handleSelectChange('language', value)}>
+                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="en-US">English</SelectItem>
+                              <SelectItem value="es-ES">Spanish</SelectItem>
+                              <SelectItem value="fr-FR">French</SelectItem>
+                              <SelectItem value="de-DE">German</SelectItem>
+                              <SelectItem value="zh-CN">Chinese</SelectItem>
                             </SelectContent>
                           </Select>
-                          {selectedNumberId && (() => {
-                            const selected = getSelectedNumber();
-                            if (!selected) return null;
-                            return (
-                              <div className="p-3 rounded-[6px] bg-[#f4f4f6] border border-[#e4e4e8] space-y-2">
-                                <div className="flex gap-2">
-                                  <Badge variant="default">{selected.provider}</Badge>
-                                  {selected.provider === 'twilio' && selected.sms_enabled && (
-                                    <Badge variant="outline">SMS Enabled</Badge>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="agentType" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Agent Type*:
+                          </Label>
+                          <Select value={formData.agentType} onValueChange={(value) => handleSelectChange('agentType', value)}>
+                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="sales">Sales</SelectItem>
+                              <SelectItem value="support">Support</SelectItem>
+                              <SelectItem value="booking">Booking</SelectItem>
+                              <SelectItem value="general">General</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="timezone" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Timezone*:
+                          </Label>
+                          <Select value={formData.timezone} onValueChange={(value) => handleSelectChange('timezone', value)}>
+                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                              <SelectValue placeholder="Select timezone" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[300px]">
+                              <SelectGroup>
+                                <SelectLabel>UTC</SelectLabel>
+                                {getTimezonesByGroup().UTC.map(tz => (
+                                  <SelectItem key={tz.value} value={tz.value}>
+                                    {tz.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                              {Object.entries(getTimezonesByGroup())
+                                .filter(([group]) => group !== 'UTC')
+                                .map(([group, tzs], index) => (
+                                  <React.Fragment key={group}>
+                                    {index > 0 && <SelectSeparator />}
+                                    <SelectGroup>
+                                      <SelectLabel>{group}</SelectLabel>
+                                      {tzs.map(tz => (
+                                        <SelectItem key={tz.value} value={tz.value}>
+                                          {tz.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectGroup>
+                                  </React.Fragment>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="tool" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Tool*:
+                          </Label>
+                          <Select value={formData.tool} onValueChange={(value) => handleSelectChange('tool', value)}>
+                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                              <SelectValue placeholder="Select tool" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="calendar">Calendar Integration</SelectItem>
+                              <SelectItem value="crm">CRM Integration</SelectItem>
+                              <SelectItem value="email">Email Integration</SelectItem>
+                              <SelectItem value="sms">SMS Integration</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <Separator />
+
+                        <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Fallback Configuration
+                        </h3>
+
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="fallbackEnabled"
+                            checked={formData.fallbackEnabled}
+                            onChange={(e) => setFormData(prev => ({ ...prev, fallbackEnabled: e.target.checked }))}
+                            className="rounded"
+                          />
+                          <Label htmlFor="fallbackEnabled" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Enable Fallback Number
+                          </Label>
+                        </div>
+
+                        {formData.fallbackEnabled && (
+                          <div className="flex flex-col gap-2">
+                            <Label htmlFor="fallbackNumber" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                              Fallback Phone Number:
+                            </Label>
+                            <Input
+                              id="fallbackNumber"
+                              name="fallbackNumber"
+                              value={formData.fallbackNumber}
+                              onChange={handleInputChange}
+                              placeholder="+1234567890"
+                              className="border border-[#d4d4da] rounded-[6px] px-3 py-2"
+                              style={{ fontFamily: "'Manrope', sans-serif" }}
+                            />
+                            <p className="text-[12px] text-[#737373]">
+                              Number to call if the agent fails or after retries are exhausted
+                            </p>
+                          </div>
+                        )}
+
+                        <Separator />
+
+                        <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Knowledge Base
+                        </h3>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="knowledgeBase" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Assign Knowledge Base (Optional):
+                          </Label>
+                          <Select
+                            value={formData.knowledgeBaseId || 'none'}
+                            onValueChange={(value) => handleSelectChange('knowledgeBaseId', value === 'none' ? '' : value)}
+                          >
+                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                              <SelectValue placeholder="Select a knowledge base" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {knowledgeBases.map((kb) => (
+                                <SelectItem key={kb.id} value={kb.id}>
+                                  {kb.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[12px] text-[#737373]">
+                            Select a knowledge base to provide FAQs and documents to this agent
+                          </p>
+                        </div>
+
+                        <Separator />
+
+                        <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Phone Number
+                        </h3>
+
+                        {loadingNumbers ? (
+                          <p className="text-[14px] text-[#737373]">Loading inbound numbers...</p>
+                        ) : inboundNumbers.length === 0 ? (
+                          <div className="flex flex-col gap-2">
+                            <Alert variant="default">
+                              <AlertDescription>No inbound numbers available. Please import a number first.</AlertDescription>
+                            </Alert>
+                            <Button
+                              type="button"
+                              onClick={() => navigate('/inbound-numbers')}
+                              variant="outline"
+                              className="w-fit"
+                            >
+                              Go to Inbound Numbers
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            <Label htmlFor="phoneNumber" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                              Select Inbound Number*:
+                            </Label>
+                            <Select value={selectedNumberId} onValueChange={handleNumberSelection}>
+                              <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                                <SelectValue placeholder="Select a phone number" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {inboundNumbers.map((number) => {
+                                  const assignedAgent = number.assigned_to_agent_id
+                                    ? agents.find(a => a.id === number.assigned_to_agent_id)
+                                    : null;
+                                  const isAssignedToCurrentAgent = isEditMode && editingAgent && number.assigned_to_agent_id === editingAgent.id;
+
+                                  return (
+                                    <SelectItem key={number.id} value={number.id}>
+                                      <div className="flex items-center justify-between w-full">
+                                        <span>
+                                          {formatPhoneDisplay(number.phone_number, number.country_code)}
+                                          {number.phone_label && ` - ${number.phone_label}`}
+                                        </span>
+                                        {assignedAgent && !isAssignedToCurrentAgent && (
+                                          <Badge variant="outline" className="ml-2 text-xs">
+                                            Assigned to {assignedAgent.name}
+                                          </Badge>
+                                        )}
+                                        {isAssignedToCurrentAgent && (
+                                          <Badge variant="default" className="ml-2 text-xs">
+                                            Current
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
+                            {selectedNumberId && (() => {
+                              const selected = getSelectedNumber();
+                              if (!selected) return null;
+                              return (
+                                <div className="p-3 rounded-[6px] bg-[#f4f4f6] border border-[#e4e4e8] space-y-2">
+                                  <div className="flex gap-2">
+                                    <Badge variant="default">{selected.provider}</Badge>
+                                    {selected.provider === 'twilio' && selected.sms_enabled && (
+                                      <Badge variant="outline">SMS Enabled</Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-[14px] text-[#27272b]">
+                                    <strong>Number:</strong> {formatPhoneDisplay(selected.phone_number, selected.country_code)}
+                                  </p>
+                                  {selected.phone_label && (
+                                    <p className="text-[14px] text-[#737373]">
+                                      <strong>Label:</strong> {selected.phone_label}
+                                    </p>
                                   )}
                                 </div>
-                                <p className="text-[14px] text-[#27272b]">
-                                  <strong>Number:</strong> {formatPhoneDisplay(selected.phone_number, selected.country_code)}
-                                </p>
-                                {selected.phone_label && (
-                                  <p className="text-[14px] text-[#737373]">
-                                    <strong>Label:</strong> {selected.phone_label}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <Button
-                        onClick={() => setActiveSection('voice')}
-                        variant="outline"
-                        className="px-4 py-2 rounded-[6px]"
-                        style={{ fontFamily: "'Manrope', sans-serif" }}
-                      >
-                        <ChevronLeftIcon className="w-4 h-4 mr-2" />
-                        Previous
-                      </Button>
-                      <Button
-                        onClick={() => setActiveSection('schedules')}
-                        className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-                        style={{ fontFamily: "'Manrope', sans-serif" }}
-                      >
-                        Next
-                        <ChevronRight className="w-4 h-4 ml-2" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Schedule Selection Section */}
-                {activeSection === 'schedules' && (
-                  <div className="flex flex-col gap-[30px]">
-                    <div className="flex flex-col gap-[23px]">
-                      <h2 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                        Schedule Selection
-                      </h2>
-                      <p className="text-[14px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                        Select one or more schedules to assign to this agent. All schedule data will be included in the webhook payload.
-                      </p>
-
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="schedules" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                          Available Schedules:
-                        </Label>
-                        <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto border border-[#d4d4da] rounded-[6px] p-4">
-                          {loadingSchedules ? (
-                            <div className="flex items-center justify-center py-8">
-                              <div className="w-6 h-6 border-2 border-[#0b99ff] border-t-transparent rounded-full animate-spin" />
-                              <p className="text-[14px] text-[#8c8c8c] ml-3">Loading schedules...</p>
-                            </div>
-                          ) : availableSchedules.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-8 gap-3">
-                              <Calendar className="w-12 h-12 text-[#8c8c8c]" />
-                              <p className="text-[14px] text-[#8c8c8c] text-center">
-                                No schedules available. Create schedules in the Schedules page.
-                              </p>
-                              <Button
-                                type="button"
-                                onClick={() => navigate('/call-schedules')}
-                                variant="outline"
-                                className="mt-2"
-                              >
-                                Go to Schedules
-                              </Button>
-                            </div>
-                          ) : (
-                            availableSchedules.map((schedule) => (
-                              <div
-                                key={schedule.id}
-                                className={`flex items-center gap-3 p-3 rounded-[6px] border-2 transition-all ${selectedScheduleIds.includes(schedule.id)
-                                  ? 'border-[#0b99ff] bg-[rgba(11,153,255,0.05)]'
-                                  : 'border-[#e4e4e8] bg-white hover:border-[#d4d4da]'
-                                  }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  id={`schedule-${schedule.id}`}
-                                  checked={selectedScheduleIds.includes(schedule.id)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedScheduleIds([...selectedScheduleIds, schedule.id]);
-                                    } else {
-                                      setSelectedScheduleIds(selectedScheduleIds.filter(id => id !== schedule.id));
-                                    }
-                                  }}
-                                  className="w-5 h-5 rounded border-[#d4d4da] cursor-pointer"
-                                />
-                                <div className="flex-1">
-                                  <label
-                                    htmlFor={`schedule-${schedule.id}`}
-                                    className="text-[14px] font-medium text-[#27272b] cursor-pointer flex items-center gap-2"
-                                  >
-                                    {schedule.schedule_name}
-                                    {schedule.is_active ? (
-                                      <Badge variant="default" className="text-xs">Active</Badge>
-                                    ) : (
-                                      <Badge variant="outline" className="text-xs">Inactive</Badge>
-                                    )}
-                                  </label>
-                                  <p className="text-[12px] text-[#737373] mt-1">
-                                    Timezone: {schedule.timezone}
-                                  </p>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                        {selectedScheduleIds.length > 0 && (
-                          <div className="mt-2 p-3 bg-[#f4f4f6] rounded-[6px] border border-[#e4e4e8]">
-                            <p className="text-[12px] font-medium text-[#27272b] mb-2">
-                              Selected Schedules ({selectedScheduleIds.length}):
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {selectedScheduleIds.map((scheduleId) => {
-                                const schedule = availableSchedules.find(s => s.id === scheduleId);
-                                return schedule ? (
-                                  <Badge key={scheduleId} variant="default" className="text-xs">
-                                    {schedule.schedule_name}
-                                  </Badge>
-                                ) : null;
-                              })}
-                            </div>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>
-                    </div>
 
-                    <div className="flex items-center justify-between">
-                      <Button
-                        onClick={() => setActiveSection('settings')}
-                        variant="outline"
-                        className="px-4 py-2 rounded-[6px]"
-                        style={{ fontFamily: "'Manrope', sans-serif" }}
-                      >
-                        <ChevronLeftIcon className="w-4 h-4 mr-2" />
-                        Previous
-                      </Button>
-                      <Button
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white px-6 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-                        style={{ fontFamily: "'Manrope', sans-serif" }}
-                      >
-                        {loading ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Agent' : 'Create Agent')}
-                      </Button>
+                      <div className="flex items-center justify-between">
+                        <Button
+                          onClick={() => setActiveSection('voice')}
+                          variant="outline"
+                          className="px-4 py-2 rounded-[6px]"
+                          style={{ fontFamily: "'Manrope', sans-serif" }}
+                        >
+                          <ChevronLeftIcon className="w-4 h-4 mr-2" />
+                          Previous
+                        </Button>
+                        <div className="flex items-center gap-3">
+                          <Button
+                            onClick={() => saveDraft()}
+                            variant="outline"
+                            disabled={loading}
+                            className="px-4 py-2 rounded-[6px] border-[#0b99ff] text-[#0b99ff] hover:bg-[#0b99ff]/10"
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          >
+                            {loading ? 'Saving...' : 'Save as Draft'}
+                          </Button>
+                          <Button
+                            onClick={() => saveDraft('schedules')}
+                            disabled={loading}
+                            className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          >
+                            {loading ? 'Saving...' : 'Save & Continue'}
+                            {!loading && <ChevronRight className="w-4 h-4 ml-2" />}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </>
-            )}
+                  )}
+
+                  {/* Schedule Selection Section */}
+                  {activeSection === 'schedules' && (
+                    <div className="flex flex-col gap-[30px]">
+                      <div className="flex flex-col gap-[23px]">
+                        <h2 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Schedule Selection
+                        </h2>
+                        <p className="text-[14px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                          Select one or more schedules to assign to this agent. All schedule data will be included in the webhook payload.
+                        </p>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="schedules" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                            Available Schedules:
+                          </Label>
+                          <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto border border-[#d4d4da] rounded-[6px] p-4">
+                            {loadingSchedules ? (
+                              <div className="flex items-center justify-center py-8">
+                                <div className="w-6 h-6 border-2 border-[#0b99ff] border-t-transparent rounded-full animate-spin" />
+                                <p className="text-[14px] text-[#8c8c8c] ml-3">Loading schedules...</p>
+                              </div>
+                            ) : availableSchedules.length === 0 ? (
+                              <div className="flex flex-col items-center justify-center py-8 gap-3">
+                                <Calendar className="w-12 h-12 text-[#8c8c8c]" />
+                                <p className="text-[14px] text-[#8c8c8c] text-center">
+                                  No schedules available. Create schedules in the Schedules page.
+                                </p>
+                                <Button
+                                  type="button"
+                                  onClick={() => navigate('/call-schedules')}
+                                  variant="outline"
+                                  className="mt-2"
+                                >
+                                  Go to Schedules
+                                </Button>
+                              </div>
+                            ) : (
+                              availableSchedules.map((schedule) => (
+                                <div
+                                  key={schedule.id}
+                                  className={`flex items-center gap-3 p-3 rounded-[6px] border-2 transition-all ${selectedScheduleIds.includes(schedule.id)
+                                    ? 'border-[#0b99ff] bg-[rgba(11,153,255,0.05)]'
+                                    : 'border-[#e4e4e8] bg-white hover:border-[#d4d4da]'
+                                    }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    id={`schedule-${schedule.id}`}
+                                    checked={selectedScheduleIds.includes(schedule.id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedScheduleIds([...selectedScheduleIds, schedule.id]);
+                                      } else {
+                                        setSelectedScheduleIds(selectedScheduleIds.filter(id => id !== schedule.id));
+                                      }
+                                    }}
+                                    className="w-5 h-5 rounded border-[#d4d4da] cursor-pointer"
+                                  />
+                                  <div className="flex-1">
+                                    <label
+                                      htmlFor={`schedule-${schedule.id}`}
+                                      className="text-[14px] font-medium text-[#27272b] cursor-pointer flex items-center gap-2"
+                                    >
+                                      {schedule.schedule_name}
+                                      {schedule.is_active ? (
+                                        <Badge variant="default" className="text-xs">Active</Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-xs">Inactive</Badge>
+                                      )}
+                                    </label>
+                                    <p className="text-[12px] text-[#737373] mt-1">
+                                      Timezone: {schedule.timezone}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                          {selectedScheduleIds.length > 0 && (
+                            <div className="mt-2 p-3 bg-[#f4f4f6] rounded-[6px] border border-[#e4e4e8]">
+                              <p className="text-[12px] font-medium text-[#27272b] mb-2">
+                                Selected Schedules ({selectedScheduleIds.length}):
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedScheduleIds.map((scheduleId) => {
+                                  const schedule = availableSchedules.find(s => s.id === scheduleId);
+                                  return schedule ? (
+                                    <Badge key={scheduleId} variant="default" className="text-xs">
+                                      {schedule.schedule_name}
+                                    </Badge>
+                                  ) : null;
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <Button
+                          onClick={() => setActiveSection('settings')}
+                          variant="outline"
+                          className="px-4 py-2 rounded-[6px]"
+                          style={{ fontFamily: "'Manrope', sans-serif" }}
+                        >
+                          <ChevronLeftIcon className="w-4 h-4 mr-2" />
+                          Previous
+                        </Button>
+                        <div className="flex items-center gap-3">
+                          <Button
+                            onClick={() => saveDraft()}
+                            variant="outline"
+                            disabled={loading}
+                            className="px-4 py-2 rounded-[6px] border-[#0b99ff] text-[#0b99ff] hover:bg-[#0b99ff]/10"
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          >
+                            {loading ? 'Saving...' : 'Save as Draft'}
+                          </Button>
+                          <Button
+                            onClick={handleSubmit}
+                            disabled={loading || (!isEditMode && !isFormValid())}
+                            className={`px-6 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] transition-all ${!isEditMode && !isFormValid()
+                              ? 'bg-[#e4e4e8] text-[#737373] cursor-not-allowed border-0'
+                              : 'bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white'
+                              }`}
+                            style={{ fontFamily: "'Manrope', sans-serif" }}
+                          >
+                            {loading ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Agent' : 'Create Agent')}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -3789,7 +4089,7 @@ IMPORTANT:
       {/* Log Detail Dialog */}
       {showLogDetail && selectedLog && (
         <Dialog open={showLogDetail} onOpenChange={setShowLogDetail}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-card text-foreground border-border">
             <DialogHeader>
               <div className="flex items-center justify-between">
                 <DialogTitle className="text-[18px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
@@ -4110,7 +4410,7 @@ IMPORTANT:
       </Dialog>
       {/* Saved Prompts Selection Dialog */}
       <Dialog open={showPromptDialog} onOpenChange={setShowPromptDialog}>
-        <DialogContent className="max-w-[600px] max-h-[80vh] overflow-y-auto bg-white">
+        <DialogContent className="max-w-[600px] max-h-[80vh] overflow-y-auto bg-card text-foreground border-border">
           <DialogHeader>
             <DialogTitle>Select a Saved Prompt</DialogTitle>
             <DialogDescription>
@@ -4131,17 +4431,17 @@ IMPORTANT:
               savedPrompts.map((prompt) => (
                 <div
                   key={prompt.id}
-                  className="flex items-start justify-between p-4 border rounded-lg hover:bg-slate-50 cursor-pointer transition-colors group"
+                  className="flex items-start justify-between p-4 border rounded-lg hover:bg-muted cursor-pointer transition-colors group"
                   onClick={() => handleSelectPrompt(prompt.id)}
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h4 className="font-semibold text-sm text-slate-900">{prompt.name}</h4>
-                      <span className="text-[10px] px-2 py-0.5 bg-slate-100 rounded-full text-slate-600 uppercase tracking-wide">{prompt.category}</span>
+                      <h4 className="font-semibold text-sm text-foreground">{prompt.name}</h4>
+                      <span className="text-[10px] px-2 py-0.5 bg-muted rounded-full text-muted-foreground uppercase tracking-wide">{prompt.category}</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">Created: {new Date(prompt.created_at).toLocaleDateString()}</p>
                     {prompt.system_prompt && (
-                      <div className="text-xs text-slate-600 mt-2 line-clamp-2 font-mono bg-slate-50 p-2 rounded border border-slate-100">{prompt.system_prompt.substring(0, 150)}...</div>
+                      <div className="text-xs text-muted-foreground mt-2 line-clamp-2 font-mono bg-muted p-2 rounded border border-border">{prompt.system_prompt.substring(0, 150)}...</div>
                     )}
                   </div>
                   <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity text-primary">Select <ChevronRight className="w-4 h-4 ml-1" /></Button>

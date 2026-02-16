@@ -1,12 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useThemeMode } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import MainLayout from './MainLayout';
 import ProfileCompletionDialog from '@/components/ProfileCompletionDialog';
 
 const ProtectedLayout: React.FC = () => {
   const { user, loading } = useAuth();
+  const { setMode } = useThemeMode();
+
+  // Restore saved theme preference when entering protected routes
+  useEffect(() => {
+    const savedMode = localStorage.getItem('themeMode') as 'light' | 'dark' | null;
+    if (savedMode) {
+      setMode(savedMode);
+    }
+  }, []);
   const [profileLoading, setProfileLoading] = useState(true);
   const [showProfileDialog, setShowProfileDialog] = useState(false);
   const [profileComplete, setProfileComplete] = useState(false);
@@ -26,12 +36,12 @@ const ProtectedLayout: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('first_name, last_name, phone, country_code, company_name')
+        .select('metadata')
         .eq('id', user.id)
         .single();
 
       if (error && error.code === 'PGRST116') {
-        // Profile doesn't exist
+        // Profile doesn't exist yet — show company details dialog
         setShowProfileDialog(true);
         setProfileComplete(false);
         setProfileLoading(false);
@@ -44,17 +54,11 @@ const ProtectedLayout: React.FC = () => {
         return;
       }
 
-      // Check if required fields are filled
-      const isComplete = !!(
-        data?.first_name &&
-        data?.last_name &&
-        data?.phone &&
-        data?.country_code &&
-        data?.company_name
-      );
+      // Check if user has already completed/skipped the company details dialog
+      const dialogCompleted = data?.metadata?.profile_dialog_completed === true;
 
-      setProfileComplete(isComplete);
-      setShowProfileDialog(!isComplete);
+      setProfileComplete(dialogCompleted);
+      setShowProfileDialog(!dialogCompleted);
       setProfileLoading(false);
     } catch (err) {
       console.error('Error checking profile completion:', err);

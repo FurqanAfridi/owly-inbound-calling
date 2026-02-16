@@ -17,8 +17,8 @@ import {
   LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import logoImage from '../../assest/DNAI-Logo 1 (1).png';
-import logoImageDark from '../../assest/DNAI LOGO@2x.png';
+import logoImage from '../../assest/LOGO LIGHT MODE.png';
+import logoImageDark from '../../assest/LOGO DARK MODE.png';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeMode } from '@/contexts/ThemeContext';
 
@@ -45,12 +45,12 @@ const sidebarSections: SidebarSection[] = [
   {
     title: 'Operations',
     items: [
-      { id: 'agents', label: 'Agents', icon: <GraduationCap className="w-5 h-5" />, path: '/agents' },
       { id: 'inbound-numbers', label: 'Phone Numbers', icon: <PhoneIncoming className="w-5 h-5" />, path: '/inbound-numbers' },
+      { id: 'calendar', label: 'Calendar', icon: <CalendarFold className="w-5 h-5" />, path: '/call-schedules' },
+      { id: 'agents', label: 'Agents', icon: <GraduationCap className="w-5 h-5" />, path: '/agents' },
+      { id: 'ai-prompt', label: 'AI Prompt', icon: <Sparkles className="w-5 h-5" />, path: '/ai-prompt' },
       { id: 'knowledge-bases', label: 'Knowledge Bases', icon: <BookOpen className="w-5 h-5" />, path: '/knowledge-bases' },
       { id: 'email', label: 'Emails', icon: <Mail className="w-5 h-5" />, path: '/email' },
-      { id: 'ai-prompt', label: 'AI Prompt', icon: <Sparkles className="w-5 h-5" />, path: '/ai-prompt' },
-      { id: 'calendar', label: 'Calendar', icon: <CalendarFold className="w-5 h-5" />, path: '/call-schedules' },
     ],
   },
   {
@@ -65,7 +65,6 @@ const sidebarSections: SidebarSection[] = [
     items: [
       { id: 'billing', label: 'Billing', icon: <CreditCard className="w-5 h-5" />, path: '/billing' },
       { id: 'profile', label: 'Settings', icon: <User className="w-5 h-5" />, path: '/profile' },
-      { id: 'documentation', label: 'Documentation', icon: <BookOpen className="w-5 h-5" />, path: '/documentation' },
     ],
   },
 ];
@@ -131,7 +130,7 @@ const Sidebar = () => {
       {/* Logo */}
       <div className="h-20 flex items-center px-6 border-b border-sidebar-border/50">
         <div className={cn(
-          "flex items-center align-self: anchor-center gap-2 overflow-hidden transition-all duration-300",
+          "flex items-center gap-2 overflow-hidden transition-all duration-300",
           isCollapsed ? "justify-center w-full px-0" : ""
         )}>
           {isCollapsed ? (
@@ -141,7 +140,7 @@ const Sidebar = () => {
           ) : (
             <img
               src={mode === 'dark' ? logoImageDark : logoImage}
-              alt="DNAI Logo"
+              alt="DNAi - Duha Nashrah"
               className="h-14 w-auto object-contain"
             />
           )}

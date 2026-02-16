@@ -348,7 +348,7 @@ const TwoFactorAuth: React.FC = () => {
 
               <div className="flex flex-col items-center space-y-4">
                 {qrCodeUrl && (
-                  <div className="p-4 bg-white rounded-lg border-2 border-border">
+                  <div className="p-4 bg-card rounded-lg border-2 border-border">
                     <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48" />
                   </div>
                 )}

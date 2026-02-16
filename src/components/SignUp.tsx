@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import CountryCodeSelector from './CountryCodeSelector';
-import { assignFreePackageToUser } from '../services/subscriptionService';
 import { validatePassword } from '../utils/passwordValidation';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -11,8 +10,8 @@ import { useThemeMode } from '../contexts/ThemeContext';
 
 // Import assets
 import characterImage from '../assest/Gemini_Generated_Image_ppyqz2ppyqz2ppyq (1) 1.png';
-import logoImage from '../assest/DNAI-Logo 1.png';
-import logoImageDark from '../assest/DNAI LOGO@2x.png';
+import logoImage from '../assest/LOGO LIGHT MODE.png';
+import logoImageDark from '../assest/LOGO DARK MODE.png';
 import googleIcon from '../assest/google.svg';
 import appleIcon from '../assest/Apple.svg';
 import facebookIcon from '../assest/Symbol.png.png';
@@ -25,13 +24,30 @@ interface FormData {
   lastName: string;
   email: string;
   phone: string;
+  dateOfBirth: string;
   password: string;
   confirmPassword: string;
 }
 
+interface FieldErrors {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  password?: string;
+  confirmPassword?: string;
+  terms?: string;
+}
+
 const SignUp: React.FC = () => {
   const navigate = useNavigate();
-  const { mode } = useThemeMode();
+  const { mode, setMode } = useThemeMode();
+
+  // Force light mode on auth pages
+  useEffect(() => {
+    setMode('light');
+  }, []);
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   const [countryCode, setCountryCode] = useState<string>('+1');
@@ -40,45 +56,127 @@ const SignUp: React.FC = () => {
     lastName: '',
     email: '',
     phone: '',
+    dateOfBirth: '',
     password: '',
     confirmPassword: ''
   });
   const [agreeTerms, setAgreeTerms] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
+  // Validation helpers
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  const getMinAge13Date = (): string => {
+    const today = new Date();
+    today.setFullYear(today.getFullYear() - 13);
+    return today.toISOString().split('T')[0];
+  };
+
+  const isAtLeast13 = (dob: string): boolean => {
+    if (!dob) return false;
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age >= 13;
+  };
+
+  const clearFieldError = (field: keyof FieldErrors) => {
+    setFieldErrors(prev => {
+      const updated = { ...prev };
+      delete updated[field];
+      return updated;
     });
     setError('');
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    clearFieldError(name as keyof FieldErrors);
+
+    // Real-time validation for email
+    if (name === 'email' && value.length > 0 && !emailRegex.test(value)) {
+      setFieldErrors(prev => ({ ...prev, email: 'Please enter a valid email address' }));
+    }
+    // Real-time validation: clear confirmPassword error if they now match
+    if (name === 'confirmPassword' || name === 'password') {
+      if (name === 'confirmPassword' && formData.password && value && value !== formData.password) {
+        setFieldErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match' }));
+      } else if (name === 'confirmPassword' && value === formData.password) {
+        clearFieldError('confirmPassword');
+      }
+      if (name === 'password' && formData.confirmPassword && formData.confirmPassword !== value) {
+        setFieldErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match' }));
+      } else if (name === 'password' && formData.confirmPassword === value) {
+        clearFieldError('confirmPassword');
+      }
+    }
+  };
+
+  const handleDateOfBirthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFormData(prev => ({ ...prev, dateOfBirth: value }));
+    clearFieldError('dateOfBirth');
+
+    if (value && !isAtLeast13(value)) {
+      setFieldErrors(prev => ({ ...prev, dateOfBirth: 'You must be at least 13 years old to sign up' }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
 
-    // Validation
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.password) {
-      setError('Please fill in all required fields');
-      return;
+    // Field-specific validation
+    const errors: FieldErrors = {};
+
+    if (!formData.firstName.trim()) {
+      errors.firstName = 'First name is required';
     }
-
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      return;
+    if (!formData.lastName.trim()) {
+      errors.lastName = 'Last name is required';
     }
-
-    // Validate password strength
-    const passwordValidation = validatePassword(formData.password);
-    if (!passwordValidation.isValid) {
-      setError(passwordValidation.errors.join('. '));
-      return;
+    if (!formData.email.trim()) {
+      errors.email = 'Email address is required';
+    } else if (!emailRegex.test(formData.email)) {
+      errors.email = 'Please enter a valid email address';
     }
-
+    if (!formData.phone.trim()) {
+      errors.phone = 'Phone number is required';
+    } else if (formData.phone.length < 7) {
+      errors.phone = 'Please enter a valid phone number';
+    }
+    if (!formData.dateOfBirth) {
+      errors.dateOfBirth = 'Date of birth is required';
+    } else if (!isAtLeast13(formData.dateOfBirth)) {
+      errors.dateOfBirth = 'You must be at least 13 years old to sign up';
+    }
+    if (!formData.password) {
+      errors.password = 'Password is required';
+    } else {
+      const passwordValidation = validatePassword(formData.password);
+      if (!passwordValidation.isValid) {
+        errors.password = passwordValidation.errors.join('. ');
+      }
+    }
+    if (!formData.confirmPassword) {
+      errors.confirmPassword = 'Please confirm your password';
+    } else if (formData.password !== formData.confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match';
+    }
     if (!agreeTerms) {
-      setError('Please agree to the Terms & Privacy');
+      errors.terms = 'Please agree to the Terms & Privacy';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
 
@@ -96,6 +194,7 @@ const SignUp: React.FC = () => {
             last_name: formData.lastName,
             phone: `${countryCode}${formData.phone}`,
             country_code: countryCode,
+            date_of_birth: formData.dateOfBirth,
           },
         },
       });
@@ -104,7 +203,7 @@ const SignUp: React.FC = () => {
         if (signUpError.message?.includes('already registered') ||
           signUpError.message?.includes('User already registered') ||
           signUpError.message?.includes('email address is already registered')) {
-          setError('An account with this email already exists. Please sign in instead.');
+          setFieldErrors({ email: 'An account with this email already exists. Please sign in instead.' });
         } else {
           setError(signUpError.message || 'Failed to create account');
         }
@@ -112,57 +211,9 @@ const SignUp: React.FC = () => {
         return;
       }
 
-      if (signUpData.user) {
-        if (!signUpData.user.id) {
-          console.error('User ID is missing from signup data');
-          setError('Failed to create user account. Please try again.');
-          setLoading(false);
-          return;
-        }
-
-        const phoneNumber = formData.phone.startsWith(countryCode)
-          ? formData.phone
-          : `${countryCode}${formData.phone}`;
-
-        const profileData = {
-          id: signUpData.user.id,
-          first_name: formData.firstName || null,
-          last_name: formData.lastName || null,
-          phone: phoneNumber || null,
-          country_code: countryCode || '+1',
-          email_verified: false,
-          phone_verified: false,
-          account_status: 'active',
-          kyc_status: 'pending',
-          metadata: {},
-        };
-
-        const { error: insertError } = await supabase
-          .from('user_profiles')
-          .insert(profileData);
-
-        let profileError = insertError;
-
-        if (insertError && (insertError.code === '23505' || insertError.message?.includes('duplicate'))) {
-          const { error: upsertError } = await supabase
-            .from('user_profiles')
-            .upsert(profileData, {
-              onConflict: 'id',
-            });
-          profileError = upsertError;
-        }
-
-        if (profileError && profileError.code !== '23505') {
-          console.error('Error creating profile:', profileError);
-        }
-
-        // Assign free package to new user
-        try {
-          await assignFreePackageToUser(signUpData.user.id);
-        } catch (packageError) {
-          console.error('Error assigning free package:', packageError);
-        }
-      }
+      // Profile creation is handled automatically by the database trigger (handle_new_user)
+      // which fires on auth.users INSERT and reads user metadata (first_name, last_name, phone, country_code, date_of_birth).
+      // Free package assignment happens after email verification in VerifyEmail.tsx.
 
       // Navigate to verify email page
       navigate('/verify-email', { state: { email: formData.email, purpose: 'email_verification' } });
@@ -201,7 +252,7 @@ const SignUp: React.FC = () => {
 
       {/* Right Panel - Form Section */}
       <div className="signin-logo">
-        <img src={mode === 'dark' ? logoImageDark : logoImage} alt="DNAI Logo" />
+        <img src={mode === 'dark' ? logoImageDark : logoImage} alt="DNAi - Duha Nashrah" />
       </div>
 
       <div className="signup-form-wrapper">
@@ -218,7 +269,7 @@ const SignUp: React.FC = () => {
                   <div className="signin-label-row">
                     <Label htmlFor="firstName" className="signin-label">First Name *</Label>
                   </div>
-                  <div className="signin-input-wrapper">
+                  <div className={`signin-input-wrapper ${fieldErrors.firstName ? 'signin-input-error' : ''}`}>
                     <Input
                       id="firstName"
                       type="text"
@@ -229,13 +280,16 @@ const SignUp: React.FC = () => {
                       className="signin-input"
                     />
                   </div>
+                  {fieldErrors.firstName && (
+                    <span className="signin-field-error">{fieldErrors.firstName}</span>
+                  )}
                 </div>
 
                 <div className="signin-form-field">
                   <div className="signin-label-row">
                     <Label htmlFor="lastName" className="signin-label">Last Name *</Label>
                   </div>
-                  <div className="signin-input-wrapper">
+                  <div className={`signin-input-wrapper ${fieldErrors.lastName ? 'signin-input-error' : ''}`}>
                     <Input
                       id="lastName"
                       type="text"
@@ -246,6 +300,9 @@ const SignUp: React.FC = () => {
                       className="signin-input"
                     />
                   </div>
+                  {fieldErrors.lastName && (
+                    <span className="signin-field-error">{fieldErrors.lastName}</span>
+                  )}
                 </div>
               </div>
 
@@ -253,7 +310,7 @@ const SignUp: React.FC = () => {
                 <div className="signin-label-row">
                   <Label htmlFor="email" className="signin-label">Email Address *</Label>
                 </div>
-                <div className="signin-input-wrapper">
+                <div className={`signin-input-wrapper ${fieldErrors.email ? 'signin-input-error' : ''}`}>
                   <Input
                     id="email"
                     type="email"
@@ -264,20 +321,23 @@ const SignUp: React.FC = () => {
                     className="signin-input"
                   />
                 </div>
+                {fieldErrors.email && (
+                  <span className="signin-field-error">{fieldErrors.email}</span>
+                )}
               </div>
 
               <div className="signin-form-field">
                 <div className="signin-label-row">
                   <Label htmlFor="phone" className="signin-label">Phone Number *</Label>
                 </div>
-                <div className="signin-phone-input-group">
+                <div className={`signin-phone-input-group ${fieldErrors.phone ? 'signin-phone-group-error' : ''}`}>
                   <div className="signin-country-code-wrapper">
                     <CountryCodeSelector
                       value={countryCode}
                       onChange={setCountryCode}
                     />
                   </div>
-                  <div className="signin-input-wrapper signin-phone-input">
+                  <div className={`signin-input-wrapper signin-phone-input ${fieldErrors.phone ? 'signin-input-error' : ''}`}>
                     <Input
                       id="phone"
                       type="tel"
@@ -285,23 +345,57 @@ const SignUp: React.FC = () => {
                       placeholder="0123456789"
                       value={formData.phone}
                       onChange={(e) => {
-                        const numericValue = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        // Only allow digits, strip everything else including country code characters
+                        const numericValue = e.target.value.replace(/\D/g, '').slice(0, 15);
                         setFormData(prev => ({ ...prev, phone: numericValue }));
+                        clearFieldError('phone');
                       }}
-                      maxLength={10}
+                      onKeyDown={(e) => {
+                        // Block +, -, (, ), space and other non-numeric keys (allow backspace, tab, arrows etc.)
+                        const allowedKeys = ['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete', 'Home', 'End'];
+                        if (allowedKeys.includes(e.key)) return;
+                        if (e.ctrlKey || e.metaKey) return; // Allow copy/paste shortcuts
+                        if (!/^\d$/.test(e.key)) {
+                          e.preventDefault();
+                        }
+                      }}
+                      maxLength={15}
                       inputMode="numeric"
                       pattern="[0-9]*"
                       className="signin-input"
                     />
                   </div>
                 </div>
+                {fieldErrors.phone && (
+                  <span className="signin-field-error">{fieldErrors.phone}</span>
+                )}
+              </div>
+
+              <div className="signin-form-field">
+                <div className="signin-label-row">
+                  <Label htmlFor="dateOfBirth" className="signin-label">Date of Birth *</Label>
+                </div>
+                <div className={`signin-input-wrapper ${fieldErrors.dateOfBirth ? 'signin-input-error' : ''}`}>
+                  <Input
+                    id="dateOfBirth"
+                    type="date"
+                    name="dateOfBirth"
+                    value={formData.dateOfBirth}
+                    onChange={handleDateOfBirthChange}
+                    max={getMinAge13Date()}
+                    className="signin-input signin-date-input"
+                  />
+                </div>
+                {fieldErrors.dateOfBirth && (
+                  <span className="signin-field-error">{fieldErrors.dateOfBirth}</span>
+                )}
               </div>
 
               <div className="signin-form-field">
                 <div className="signin-label-row">
                   <Label htmlFor="password" className="signin-label">Password *</Label>
                 </div>
-                <div className="signin-password-input">
+                <div className={`signin-password-input ${fieldErrors.password ? 'signin-input-error' : ''}`}>
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
@@ -318,13 +412,16 @@ const SignUp: React.FC = () => {
                     style={{ backgroundImage: `url(${viewOffIcon})` }}
                   ></button>
                 </div>
+                {fieldErrors.password && (
+                  <span className="signin-field-error">{fieldErrors.password}</span>
+                )}
               </div>
 
               <div className="signin-form-field">
                 <div className="signin-label-row">
                   <Label htmlFor="confirmPassword" className="signin-label">Confirm Password *</Label>
                 </div>
-                <div className="signin-password-input">
+                <div className={`signin-password-input ${fieldErrors.confirmPassword ? 'signin-input-error' : ''}`}>
                   <Input
                     id="confirmPassword"
                     type={showConfirmPassword ? "text" : "password"}
@@ -341,6 +438,9 @@ const SignUp: React.FC = () => {
                     style={{ backgroundImage: `url(${viewOffIcon})` }}
                   ></button>
                 </div>
+                {fieldErrors.confirmPassword && (
+                  <span className="signin-field-error">{fieldErrors.confirmPassword}</span>
+                )}
               </div>
             </div>
 
@@ -349,13 +449,19 @@ const SignUp: React.FC = () => {
                 type="checkbox"
                 id="terms"
                 checked={agreeTerms}
-                onChange={(e) => setAgreeTerms(e.target.checked)}
-                className="signin-checkbox"
+                onChange={(e) => {
+                  setAgreeTerms(e.target.checked);
+                  if (e.target.checked) clearFieldError('terms');
+                }}
+                className={`signin-checkbox ${fieldErrors.terms ? 'signin-checkbox-error' : ''}`}
               />
               <Label htmlFor="terms" className="signin-checkbox-label">
                 I agree to the <Link to="/terms" className="signin-terms-link">Terms & Privacy</Link>
               </Label>
             </div>
+            {fieldErrors.terms && (
+              <span className="signin-field-error" style={{ marginTop: '-4px' }}>{fieldErrors.terms}</span>
+            )}
           </div>
 
           {error && (

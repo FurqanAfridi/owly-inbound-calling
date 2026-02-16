@@ -46,6 +46,12 @@ interface ScheduleOverride {
   created_at: string;
 }
 
+// Normalize time from DB format "HH:MM:SS" to input format "HH:MM"
+const normalizeTime = (time: string | null): string => {
+  if (!time) return '';
+  return time.substring(0, 5);
+};
+
 const ScheduleOverrides: React.FC<ScheduleOverridesProps> = ({ scheduleId }) => {
   const [loading, setLoading] = useState(true);
   const [overrides, setOverrides] = useState<ScheduleOverride[]>([]);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Paper } from '@mui/material';
+import { Box, Typography, Paper, useTheme } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 
@@ -19,6 +19,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
   className,
 }) => {
   const hasPositiveChange = change !== undefined && change > 0;
+  const theme = useTheme();
 
   return (
     <Paper
@@ -28,7 +29,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
         flexDirection: 'column',
         borderRadius: 2,
         border: '1px solid',
-        borderColor: 'grey.200',
+        borderColor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.200',
         bgcolor: 'background.paper',
         ...(className as any),
       }}

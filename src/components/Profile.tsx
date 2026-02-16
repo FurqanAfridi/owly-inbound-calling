@@ -869,10 +869,10 @@ const Profile: React.FC = () => {
         </Card>
 
         {/* Change Password Card */}
-        <Card className="rounded-[14px] border border-[#e5e5e5]">
+        <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] rounded-[14px] border border-[#e5e5e5]">
           <CardHeader className="px-5 pt-5 pb-0">
-            <CardTitle className="text-[18px] font-semibold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Change Password</CardTitle>
-            <CardDescription className="text-[16px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+            <CardTitle className="text-[18px] font-semibold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>Change Password</CardTitle>
+            <CardDescription className="text-[16px] dark:text-[#818898] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
               Update your password to keep your account secure
             </CardDescription>
           </CardHeader>
@@ -987,7 +987,7 @@ const Profile: React.FC = () => {
 
       {/* Phone Number Change Verification Dialog */}
       <Dialog open={showPhoneVerificationDialog} onOpenChange={setShowPhoneVerificationDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-card text-foreground border-border">
           <DialogHeader>
             <DialogTitle>Verify Email to Change Phone Number</DialogTitle>
             <DialogDescription>

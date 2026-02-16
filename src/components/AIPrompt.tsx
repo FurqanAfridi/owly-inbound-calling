@@ -227,8 +227,8 @@ export default function AIPrompt() {
     <div className="space-y-8 pb-8">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">AI Prompt Generator</h1>
-          <p className="text-slate-500 text-base">Generate production-ready AI voice agent prompts. Saved prompts can be used to autofill agent creation.</p>
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">AI Prompt Generator</h1>
+          <p className="text-muted-foreground text-base">Generate production-ready AI voice agent prompts. Saved prompts can be used to autofill agent creation.</p>
         </div>
       </div>
 
@@ -241,21 +241,21 @@ export default function AIPrompt() {
 
         {/* ====== GENERATE TAB ====== */}
         <TabsContent value="generate" className="mt-6">
-          <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] border-slate-200 shadow-sm bg-white">
-            <CardHeader className="border-b border-slate-100 pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] border-border shadow-sm bg-card">
+            <CardHeader className="border-b border-border pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
                 <Sparkles className="h-5 w-5 text-blue-600" />AI Prompt Generation
               </CardTitle>
-              <CardDescription className="text-slate-500 mt-1">
+              <CardDescription className="text-muted-foreground mt-1">
                 Fill in the essential fields below, then click Generate. Use "Advanced Prompt Setup" for extra customization.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 pt-6">
 
               {/* Document Upload */}
-              <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
                 <div className="flex items-center gap-2"><Upload className="h-4 w-4 text-blue-600" /><Label className="text-base font-semibold">Upload Company Document (Optional)</Label></div>
-                <p className="text-sm text-slate-600">Upload a PDF, DOCX, or TXT file. The system will auto-extract and fill the form.</p>
+                <p className="text-sm text-muted-foreground">Upload a PDF, DOCX, or TXT file. The system will auto-extract and fill the form.</p>
                 <div className="flex items-center gap-4">
                   <input type="file" accept=".pdf,.docx,.doc,.txt" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }} className="hidden" id="document-upload" disabled={isUploading || isExtracting} />
                   <label htmlFor="document-upload">
@@ -333,14 +333,14 @@ export default function AIPrompt() {
                   </div>
                   {formData.services && formData.services.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-2">
-                      {formData.services.map((s, i) => (<div key={i} className="flex items-center gap-2 bg-blue-100 px-3 py-1 rounded-full"><span className="text-sm">{s}</span><Button type="button" variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => removeItem("services", i)}><X className="h-3 w-3" /></Button></div>))}
+                      {formData.services.map((s, i) => (<div key={i} className="flex items-center gap-2 bg-blue-100 dark:bg-blue-900/40 px-3 py-1 rounded-full"><span className="text-sm">{s}</span><Button type="button" variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => removeItem("services", i)}><X className="h-3 w-3" /></Button></div>))}
                     </div>
                   )}
                 </div>
               </div>
 
               {/* ===== ADVANCED PROMPT SETUP TOGGLE ===== */}
-              <Button type="button" variant="outline" className="w-full border-dashed border-2 border-slate-300 hover:border-blue-400 hover:bg-blue-50/50 transition-all" onClick={() => setShowAdvanced(!showAdvanced)}>
+              <Button type="button" variant="outline" className="w-full border-dashed border-2 border-border hover:border-primary/60 hover:bg-primary/5 transition-all" onClick={() => setShowAdvanced(!showAdvanced)}>
                 <Settings2 className="mr-2 h-4 w-4" />
                 {showAdvanced ? "Hide" : "Show"} Advanced Prompt Setup
                 {showAdvanced ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
@@ -390,21 +390,21 @@ export default function AIPrompt() {
                   <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
                     <Label className="text-base font-semibold">FAQs</Label>
                     <div className="flex gap-2"><Input value={newFaq} onChange={(e) => setNewFaq(e.target.value)} onKeyPress={(e) => e.key === "Enter" && addItem("faqs", newFaq, setNewFaq)} placeholder="Add a FAQ" /><Button type="button" onClick={() => addItem("faqs", newFaq, setNewFaq)}>Add</Button></div>
-                    {formData.faqs && formData.faqs.length > 0 && (<div className="space-y-2">{formData.faqs.map((faq, i) => (<div key={i} className="flex items-center gap-2 bg-slate-100 p-2 rounded"><span className="text-sm flex-1">{faq}</span><Button type="button" variant="ghost" size="sm" onClick={() => removeItem("faqs", i)}><X className="h-4 w-4" /></Button></div>))}</div>)}
+                    {formData.faqs && formData.faqs.length > 0 && (<div className="space-y-2">{formData.faqs.map((faq, i) => (<div key={i} className="flex items-center gap-2 bg-muted p-2 rounded"><span className="text-sm flex-1">{faq}</span><Button type="button" variant="ghost" size="sm" onClick={() => removeItem("faqs", i)}><X className="h-4 w-4" /></Button></div>))}</div>)}
                   </div>
 
                   {/* Objections */}
                   <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
                     <Label className="text-base font-semibold">Objections & Responses</Label>
                     <div className="flex gap-2"><Input value={newObjection} onChange={(e) => setNewObjection(e.target.value)} onKeyPress={(e) => e.key === "Enter" && addItem("objections", newObjection, setNewObjection)} placeholder="Add objection + response" /><Button type="button" onClick={() => addItem("objections", newObjection, setNewObjection)}>Add</Button></div>
-                    {formData.objections && formData.objections.length > 0 && (<div className="space-y-2">{formData.objections.map((o, i) => (<div key={i} className="flex items-center gap-2 bg-slate-100 p-2 rounded"><span className="text-sm flex-1">{o}</span><Button type="button" variant="ghost" size="sm" onClick={() => removeItem("objections", i)}><X className="h-4 w-4" /></Button></div>))}</div>)}
+                    {formData.objections && formData.objections.length > 0 && (<div className="space-y-2">{formData.objections.map((o, i) => (<div key={i} className="flex items-center gap-2 bg-muted p-2 rounded"><span className="text-sm flex-1">{o}</span><Button type="button" variant="ghost" size="sm" onClick={() => removeItem("objections", i)}><X className="h-4 w-4" /></Button></div>))}</div>)}
                   </div>
 
                   {/* Policies */}
                   <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
                     <Label className="text-base font-semibold">Policies</Label>
                     <div className="flex gap-2"><Input value={newPolicy} onChange={(e) => setNewPolicy(e.target.value)} onKeyPress={(e) => e.key === "Enter" && addItem("policies", newPolicy, setNewPolicy)} placeholder="Add policy (refund, cancellation, etc.)" /><Button type="button" onClick={() => addItem("policies", newPolicy, setNewPolicy)}>Add</Button></div>
-                    {formData.policies && formData.policies.length > 0 && (<div className="space-y-2">{formData.policies.map((p, i) => (<div key={i} className="flex items-center gap-2 bg-slate-100 p-2 rounded"><span className="text-sm flex-1">{p}</span><Button type="button" variant="ghost" size="sm" onClick={() => removeItem("policies", i)}><X className="h-4 w-4" /></Button></div>))}</div>)}
+                    {formData.policies && formData.policies.length > 0 && (<div className="space-y-2">{formData.policies.map((p, i) => (<div key={i} className="flex items-center gap-2 bg-muted p-2 rounded"><span className="text-sm flex-1">{p}</span><Button type="button" variant="ghost" size="sm" onClick={() => removeItem("policies", i)}><X className="h-4 w-4" /></Button></div>))}</div>)}
                   </div>
                 </div>
               )}
@@ -429,9 +429,9 @@ export default function AIPrompt() {
                   <Textarea value={generatedPrompt} onChange={(e) => setGeneratedPrompt(e.target.value)} className="min-h-[400px] font-mono text-sm" />
                 </div>
                 {generatedWelcomeMessages.length > 0 && (
-                  <div className="space-y-2 p-4 bg-green-50 rounded-lg border border-green-200">
-                    <Label className="text-base font-semibold text-green-800">Generated Welcome Messages</Label>
-                    <div className="space-y-2">{generatedWelcomeMessages.map((msg, i) => (<div key={i} className="flex items-center gap-2 text-sm bg-white p-2 rounded border"><span className="text-green-700 font-medium">{i + 1}.</span><span>{msg}</span><Button variant="ghost" size="sm" onClick={() => copyToClipboard(msg, "Welcome message")}><Copy className="h-3 w-3" /></Button></div>))}</div>
+                  <div className="space-y-2 p-4 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
+                    <Label className="text-base font-semibold text-green-800 dark:text-green-300">Generated Welcome Messages</Label>
+                    <div className="space-y-2">{generatedWelcomeMessages.map((msg, i) => (<div key={i} className="flex items-center gap-2 text-sm bg-card p-2 rounded border border-border"><span className="text-green-700 dark:text-green-400 font-medium">{i + 1}.</span><span>{msg}</span><Button variant="ghost" size="sm" onClick={() => copyToClipboard(msg, "Welcome message")}><Copy className="h-3 w-3" /></Button></div>))}</div>
                   </div>
                 )}
               </>)}
@@ -441,10 +441,10 @@ export default function AIPrompt() {
 
         {/* ====== FORMAT TAB ====== */}
         <TabsContent value="format" className="mt-6">
-          <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] border-slate-200 shadow-sm bg-white">
-            <CardHeader className="border-b border-slate-100 pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900"><FileText className="h-5 w-5 text-blue-600" />Prompt Formatter</CardTitle>
-              <CardDescription className="text-slate-500 mt-1">Convert your raw unstructured prompt into a clear, structured, professional AI prompt</CardDescription>
+          <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] border-border shadow-sm bg-card">
+            <CardHeader className="border-b border-border pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground"><FileText className="h-5 w-5 text-blue-600" />Prompt Formatter</CardTitle>
+              <CardDescription className="text-muted-foreground mt-1">Convert your raw unstructured prompt into a clear, structured, professional AI prompt</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
@@ -461,10 +461,10 @@ export default function AIPrompt() {
 
         {/* ====== MY PROMPTS TAB ====== */}
         <TabsContent value="my-prompts" className="mt-6">
-          <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] border-slate-200 shadow-sm bg-white">
-            <CardHeader className="border-b border-slate-100 pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900"><List className="h-5 w-5 text-blue-600" />My Prompts</CardTitle>
-              <CardDescription className="text-slate-500 mt-1">View, manage, and reuse your saved prompts. These can be selected during agent creation to autofill forms.</CardDescription>
+          <Card className="dark:bg-[#1d212b] dark:border-[#2f3541] border-border shadow-sm bg-card">
+            <CardHeader className="border-b border-border pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground"><List className="h-5 w-5 text-blue-600" />My Prompts</CardTitle>
+              <CardDescription className="text-muted-foreground mt-1">View, manage, and reuse your saved prompts. These can be selected during agent creation to autofill forms.</CardDescription>
             </CardHeader>
             <CardContent>
               {promptsLoading ? (<div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
@@ -517,7 +517,7 @@ export default function AIPrompt() {
 
       {/* Save Dialog */}
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl bg-card text-foreground border-border">
           <DialogHeader><DialogTitle>Save Prompt</DialogTitle><DialogDescription>Save your prompt for later use and agent creation autofill</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2"><Label>Name</Label><Input value={savePromptName} onChange={(e) => setSavePromptName(e.target.value)} placeholder="e.g., Sales Agent Prompt" /></div>
@@ -535,7 +535,7 @@ export default function AIPrompt() {
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-card text-foreground border-border">
           <DialogHeader><DialogTitle>Edit Prompt</DialogTitle><DialogDescription>Update your prompt details</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2"><Label>Name</Label><Input value={editPromptName} onChange={(e) => setEditPromptName(e.target.value)} placeholder="Enter prompt name" /></div>
@@ -555,7 +555,7 @@ export default function AIPrompt() {
 
       {/* Delete Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-card text-foreground border-border">
           <DialogHeader><DialogTitle>Delete Prompt</DialogTitle><DialogDescription>Are you sure you want to delete this prompt? This action cannot be undone.</DialogDescription></DialogHeader>
           <DialogFooter><Button variant="outline" onClick={() => { setDeleteDialogOpen(false); setPromptToDelete(null); }}>Cancel</Button><Button variant="destructive" onClick={confirmDeletePrompt}>Delete</Button></DialogFooter>
         </DialogContent>

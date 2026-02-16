@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useThemeMode } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { emailService } from '../services/emailService';
 import { Button } from './ui/button';
@@ -14,6 +15,12 @@ import characterImage from '../assest/resetpassword.png';
 const ResetPassword: React.FC = () => {
   const navigate = useNavigate();
   const { resetPassword } = useAuth();
+  const { setMode } = useThemeMode();
+
+  // Force light mode on auth pages
+  useEffect(() => {
+    setMode('light');
+  }, []);
   const [email, setEmail] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');

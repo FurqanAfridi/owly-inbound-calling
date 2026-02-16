@@ -768,14 +768,14 @@ const Billing: React.FC = () => {
           <Card
             sx={{
               borderRadius: '14px',
-              border: '1px solid #e5e5e5',
-              borderColor: '#e5e5e5',
+              border: '1px solid',
+              borderColor: 'divider',
               width: '100%',
               maxWidth: '100%',
             }}
           >
             <CardContent sx={{ px: 5, py: 5 }}>
-              <Typography variant="h6" fontWeight={600} gutterBottom sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '18px', color: '#27272b' }}>
+              <Typography variant="h6" fontWeight={600} gutterBottom sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '18px', color: 'text.primary' }}>
                 Credit System
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mt: 2 }}>
@@ -811,15 +811,15 @@ const Billing: React.FC = () => {
           <Card
             sx={{
               borderRadius: '14px',
-              border: '1px solid #e5e5e5',
-              borderColor: '#e5e5e5',
+              border: '1px solid',
+              borderColor: 'divider',
               width: '100%',
               maxWidth: '100%',
             }}
           >
             <CardContent sx={{ px: 5, py: 5 }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h6" fontWeight={600} sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '18px', color: '#27272b' }}>
+                <Typography variant="h6" fontWeight={600} sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '18px', color: 'text.primary' }}>
                   Credit Balance
                 </Typography>
                 <Chip
@@ -863,14 +863,14 @@ const Billing: React.FC = () => {
             <Card
               sx={{
                 borderRadius: '14px',
-                border: '1px solid #e5e5e5',
-                borderColor: '#e5e5e5',
+                border: '1px solid',
+                borderColor: 'divider',
                 width: '100%',
                 maxWidth: '100%',
               }}
             >
               <CardContent sx={{ px: 5, py: 5 }}>
-                <Typography variant="h6" fontWeight={600} gutterBottom sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '18px', color: '#27272b' }}>
+                <Typography variant="h6" fontWeight={600} gutterBottom sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '18px', color: 'text.primary' }}>
                   {subscription?.package?.tier === 'free' 
                     ? 'Upgrade Your Package' 
                     : 'Subscription Packages'}
@@ -913,7 +913,7 @@ const Billing: React.FC = () => {
                             maxWidth: { xs: '100%', sm: '100%', md: '100%', lg: '400px' },
                             borderRadius: '14px',
                             border: pkg.is_featured ? '2px solid' : '1px solid',
-                            borderColor: pkg.is_featured ? 'primary.main' : '#e5e5e5',
+                            borderColor: pkg.is_featured ? 'primary.main' : 'divider',
                             position: 'relative',
                             opacity: isCurrentPackage ? 0.7 : 1,
                             transition: 'all 0.3s ease',
@@ -1071,7 +1071,7 @@ const Billing: React.FC = () => {
               <CardContent sx={{ px: 5, py: 5 }}>
                 <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={2} mb={2}>
                   <Box>
-                    <Typography variant="h5" fontWeight={600} gutterBottom sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '20px', color: '#27272b' }}>
+                    <Typography variant="h5" fontWeight={600} gutterBottom sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '20px', color: 'text.primary' }}>
                       {subscription.package?.name || 'Current Subscription'}
                     </Typography>
                     {subscription.package?.description && (
@@ -1132,7 +1132,8 @@ const Billing: React.FC = () => {
           )}
 
           {/* Tabs for Transactions and Invoices */}
-          <Card sx={{ borderRadius: '14px', border: '1px solid #e5e5e5', width: '100%', maxWidth: '100%' }}>
+          <Card sx={{ borderRadius: '14px', border: '1px solid',
+              borderColor: 'divider', width: '100%', maxWidth: '100%' }}>
             <CardContent sx={{ px: 5, py: 5 }}>
               <Tabs value={currentTab} onChange={(e, newValue) => setCurrentTab(newValue)} sx={{ mb: 3 }}>
                 <Tab icon={<HistoryIcon />} iconPosition="start" label="Transactions" />
@@ -1142,7 +1143,7 @@ const Billing: React.FC = () => {
               {/* Transactions Tab */}
               {currentTab === 0 && (
                 <Box>
-                  <Typography variant="h6" fontWeight={600} gutterBottom sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '18px', color: '#27272b' }}>
+                  <Typography variant="h6" fontWeight={600} gutterBottom sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '18px', color: 'text.primary' }}>
                     Credit Transactions
                   </Typography>
                   {transactions.length === 0 ? (
@@ -1154,11 +1155,11 @@ const Billing: React.FC = () => {
                       <Table>
                         <TableHead>
                           <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100' }}>
-                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Date</TableCell>
-                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Type</TableCell>
-                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Amount</TableCell>
-                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Balance</TableCell>
-                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Description</TableCell>
+                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Date</TableCell>
+                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Type</TableCell>
+                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Amount</TableCell>
+                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Balance</TableCell>
+                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Description</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
@@ -1191,7 +1192,7 @@ const Billing: React.FC = () => {
               {/* Invoices Tab */}
               {currentTab === 1 && (
                 <Box>
-                  <Typography variant="h6" fontWeight={600} gutterBottom sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '18px', color: '#27272b' }}>
+                  <Typography variant="h6" fontWeight={600} gutterBottom sx={{ fontFamily: "'Manrope', sans-serif", fontSize: '18px', color: 'text.primary' }}>
                     Invoices
                   </Typography>
                   {invoices.length === 0 ? (
@@ -1203,15 +1204,15 @@ const Billing: React.FC = () => {
                       <Table>
                         <TableHead>
                           <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100' }}>
-                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Invoice #</TableCell>
-                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Date</TableCell>
-                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Due Date</TableCell>
-                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Subtotal</TableCell>
-                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Tax</TableCell>
-                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Discount</TableCell>
-                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Total</TableCell>
-                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Status</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: '#27272b' }}>Actions</TableCell>
+                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Invoice #</TableCell>
+                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Date</TableCell>
+                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Due Date</TableCell>
+                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Subtotal</TableCell>
+                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Tax</TableCell>
+                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Discount</TableCell>
+                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Total</TableCell>
+                            <TableCell sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Status</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600, fontFamily: "'Manrope', sans-serif", fontSize: '16px', color: 'text.primary' }}>Actions</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>

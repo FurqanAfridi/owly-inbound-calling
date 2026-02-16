@@ -302,7 +302,7 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
 
       {/* Notifications Dialog */}
       <Dialog open={notificationsOpen} onOpenChange={setNotificationsOpen}>
-        <DialogContent className="max-w-md" style={{ fontFamily: "'Manrope', sans-serif" }}>
+        <DialogContent className="max-w-md bg-card text-foreground border-border" style={{ fontFamily: "'Manrope', sans-serif" }}>
           <DialogHeader>
             <DialogTitle className="text-[18px] font-bold">Notifications</DialogTitle>
             <DialogDescription className="text-[14px] text-[#737373]">
@@ -321,14 +321,14 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
                   className={`p-3 rounded-lg border ${
                     !notification.read_at 
                       ? 'bg-[rgba(48,134,255,0.05)] border-[rgba(48,134,255,0.2)]' 
-                      : 'bg-white border-[#e5e5e5]'
+                      : 'dark:bg-[#1d212b] bg-white dark:border-[#2f3541] border-[#e5e5e5]'
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <p className="text-[14px] font-semibold text-[#27272b]">{notification.title}</p>
-                      <p className="text-[12px] text-[#737373] mt-1">{notification.message}</p>
-                      <p className="text-[12px] text-[#737373] mt-1">
+                      <p className="text-[14px] font-semibold dark:text-[#f9fafb] text-[#27272b]">{notification.title}</p>
+                      <p className="text-[12px] dark:text-[#818898] text-[#737373] mt-1">{notification.message}</p>
+                      <p className="text-[12px] dark:text-[#818898] text-[#737373] mt-1">
                         {new Date(notification.created_at).toLocaleString()}
                       </p>
                     </div>

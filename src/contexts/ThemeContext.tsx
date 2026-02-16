@@ -7,6 +7,7 @@ type ThemeMode = 'light' | 'dark';
 interface ThemeContextType {
   mode: ThemeMode;
   toggleTheme: () => void;
+  setMode: (mode: ThemeMode) => void;
   theme: Theme;
 }
 
@@ -202,6 +203,36 @@ const createAppTheme = (mode: ThemeMode): Theme => {
           },
         },
       },
+      MuiDialog: {
+        styleOverrides: {
+          paper: {
+            backgroundColor: isLight ? '#ffffff' : '#1d212b',
+            backgroundImage: 'none',
+            color: isLight ? '#020817' : '#f9fafb',
+          },
+        },
+      },
+      MuiDialogTitle: {
+        styleOverrides: {
+          root: {
+            color: isLight ? '#020817' : '#f9fafb',
+          },
+        },
+      },
+      MuiDialogContent: {
+        styleOverrides: {
+          root: {
+            color: isLight ? '#020817' : '#f9fafb',
+          },
+        },
+      },
+      MuiDialogContentText: {
+        styleOverrides: {
+          root: {
+            color: isLight ? '#65758b' : '#818898',
+          },
+        },
+      },
       MuiTextField: {
         styleOverrides: {
           root: {
@@ -220,7 +251,7 @@ interface ThemeContextProviderProps {
 }
 
 export const ThemeContextProvider: React.FC<ThemeContextProviderProps> = ({ children }) => {
-  const [mode, setMode] = useState<ThemeMode>(() => {
+  const [mode, setModeState] = useState<ThemeMode>(() => {
     // Get saved theme from localStorage or default to light
     const savedMode = localStorage.getItem('themeMode') as ThemeMode;
     return savedMode || 'light';
@@ -230,8 +261,13 @@ export const ThemeContextProvider: React.FC<ThemeContextProviderProps> = ({ chil
 
   const toggleTheme = () => {
     const newMode = mode === 'light' ? 'dark' : 'light';
-    setMode(newMode);
+    setModeState(newMode);
     localStorage.setItem('themeMode', newMode);
+  };
+
+  // Set mode without persisting to localStorage (used by auth pages to force light mode)
+  const setMode = (newMode: ThemeMode) => {
+    setModeState(newMode);
   };
 
   // Initialize dark class on mount and update when mode changes
@@ -242,11 +278,10 @@ export const ThemeContextProvider: React.FC<ThemeContextProviderProps> = ({ chil
     } else {
       document.documentElement.classList.remove('dark');
     }
-    localStorage.setItem('themeMode', mode);
   }, [mode]);
 
   return (
-    <ThemeContext.Provider value={{ mode, toggleTheme, theme }}>
+    <ThemeContext.Provider value={{ mode, toggleTheme, setMode, theme }}>
       <MUIThemeProvider theme={theme}>
         <CssBaseline />
         {children}

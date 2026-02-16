@@ -262,7 +262,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({ calls, onViewMore }
           </div>
 
           {/* Data Rows */}
-          <div className="dark:bg-[#1d212b] bg-white">
+          <div className="bg-card text-foreground border-border">
             {calls.length === 0 ? (
               <div className="px-4 py-16 text-center">
                 <p className="text-[14px] font-medium dark:text-[#818898] text-[#737373]">No calls found</p>
@@ -273,7 +273,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({ calls, onViewMore }
                   key={call.id}
                   className={`flex gap-4 items-center py-3 px-4 min-w-max ${
                     index !== calls.length - 1 ? 'dark:border-[#2f3541] border-b border-[#e5e5e5]' : ''
-                  } ${index % 2 === 0 ? 'dark:bg-[#1d212b] bg-white' : 'dark:bg-[#2f3541] bg-[#f8f8f8]'}`}
+                  } ${index % 2 === 0 ? 'bg-card text-foreground border-border' : 'dark:bg-[#2f3541] bg-[#f8f8f8]'}`}
                 >
                   <div className="flex items-center flex-1 min-w-[140px]">
                     <p className="text-[14px] font-medium dark:text-[#f9fafb] text-black leading-normal truncate">
@@ -369,7 +369,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({ calls, onViewMore }
 
       {/* Transcript Dialog */}
       <Dialog open={!!selectedTranscript} onOpenChange={(open) => !open && setSelectedTranscript(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col dark:bg-[#1d212b] bg-white">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col bg-card text-foreground border-border">
           <DialogHeader>
             <DialogTitle className="text-[20px] font-bold dark:text-[#f9fafb] text-[#0a0a0a]">
               Call Transcript
@@ -460,7 +460,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({ calls, onViewMore }
 
       {/* Call Details Dialog */}
       <Dialog open={!!selectedCall} onOpenChange={handleDialogClose}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col dark:bg-[#1d212b] bg-white">
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col bg-card text-foreground border-border">
           <DialogHeader>
             <DialogTitle className="text-[20px] font-bold dark:text-[#f9fafb] text-[#0a0a0a]">
               Call Details

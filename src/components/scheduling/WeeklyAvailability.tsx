@@ -14,6 +14,7 @@ import {
   TableRow,
   Alert,
   CircularProgress,
+  MenuItem,
 } from '@mui/material';
 import { Save as SaveIcon } from '@mui/icons-material';
 import { supabase } from '../../lib/supabase';
@@ -42,6 +43,101 @@ const DAYS = [
   { value: 6, label: 'Saturday' },
 ];
 
+const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
+const MINUTES = ['00', '15', '30', '45'];
+
+interface TimePickerProps {
+  value: string | null;
+  onChange: (value: string | null) => void;
+  disabled?: boolean;
+  error?: boolean;
+}
+
+const TimePicker: React.FC<TimePickerProps> = ({ value, onChange, disabled, error }) => {
+  const [h, m] = (value || '09:00').split(':');
+
+  const handleHourChange = (newH: string) => {
+    if (newH === '') {
+      onChange(null);
+    } else {
+      onChange(`${newH}:${m || '00'}`);
+    }
+  };
+
+  const handleMinuteChange = (newM: string) => {
+    onChange(`${h || '00'}:${newM}`);
+  };
+
+  return (
+    <Box display="flex" gap={0.5} alignItems="center">
+      <TextField
+        select
+        value={value === null ? '' : h}
+        onChange={(e) => handleHourChange(e.target.value)}
+        disabled={disabled}
+        size="small"
+        sx={{ width: 70 }}
+        error={error}
+        SelectProps={{
+          MenuProps: { PaperProps: { sx: { maxHeight: 200 } } }
+        }}
+      >
+        {!value && <MenuItem value="">--</MenuItem>}
+        {HOURS.map((hour) => (
+          <MenuItem key={hour} value={hour}>{hour}</MenuItem>
+        ))}
+      </TextField>
+      <Typography variant="body2">:</Typography>
+      <TextField
+        select
+        value={value === null ? '' : m}
+        onChange={(e) => handleMinuteChange(e.target.value)}
+        disabled={disabled || value === null}
+        size="small"
+        sx={{ width: 70 }}
+        error={error}
+        SelectProps={{
+          MenuProps: { PaperProps: { sx: { maxHeight: 200 } } }
+        }}
+      >
+        {MINUTES.map((min) => (
+          <MenuItem key={min} value={min}>{min}</MenuItem>
+        ))}
+      </TextField>
+    </Box>
+  );
+};
+
+// Normalize time from DB format "HH:MM:SS" to input format "HH:mm"
+const normalizeTime = (time: string | null): string => {
+  if (!time) return '';
+  // Handle various formats, ensuring we return HH:mm
+  const parts = time.split(':');
+  if (parts.length < 2) return '';
+  const hours = parts[0].padStart(2, '0');
+  const minutes = parts[1].padStart(2, '0');
+  return `${hours}:${minutes}`;
+};
+
+// Ensure time is in proper 24-hour "HH:mm" format for DB
+const formatTimeForDB = (time: string): string => {
+  if (!time) return '00:00';
+  const parts = time.split(':');
+  if (parts.length < 2) return '00:00';
+  const hours = parts[0].padStart(2, '0');
+  const minutes = parts[1].padStart(2, '0');
+  return `${hours}:${minutes}`;
+};
+
+// Helper to compare times in HH:mm format
+const isAfter = (time1: string, time2: string): boolean => {
+  const [h1, m1] = time1.split(':').map(Number);
+  const [h2, m2] = time2.split(':').map(Number);
+  if (h1 > h2) return true;
+  if (h1 === h2 && m1 > m2) return true;
+  return false;
+};
+
 const WeeklyAvailability: React.FC<WeeklyAvailabilityProps> = ({ scheduleId }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -67,10 +163,19 @@ const WeeklyAvailability: React.FC<WeeklyAvailabilityProps> = ({ scheduleId }) =
 
       if (fetchError) throw fetchError;
 
-      // Initialize all days if not present
+      // Initialize all days if not present, normalize time formats
       const daysData: DayAvailability[] = DAYS.map((day) => {
         const existing = data?.find((d: any) => d.day_of_week === day.value);
-        return existing || {
+        if (existing) {
+          return {
+            ...existing,
+            start_time: normalizeTime(existing.start_time),
+            end_time: normalizeTime(existing.end_time),
+            break_start_time: existing.break_start_time ? normalizeTime(existing.break_start_time) : null,
+            break_end_time: existing.break_end_time ? normalizeTime(existing.break_end_time) : null,
+          };
+        }
+        return {
           day_of_week: day.value,
           is_available: false,
           start_time: '09:00',
@@ -101,17 +206,62 @@ const WeeklyAvailability: React.FC<WeeklyAvailabilityProps> = ({ scheduleId }) =
     setSuccess(null);
 
     try {
+      // Validate all days before saving
       for (const day of availability) {
+        const dayLabel = DAYS.find(d => d.value === day.day_of_week)?.label || `Day ${day.day_of_week}`;
+        const startTime = formatTimeForDB(day.start_time);
+        const endTime = formatTimeForDB(day.end_time);
+
+        // Validate end_time > start_time (required by DB constraint)
+        if (!isAfter(endTime, startTime)) {
+          setError(`${dayLabel}: End time (${endTime}) must be after start time (${startTime}). Please use 24-hour format (e.g., 17:00 for 5 PM).`);
+          setSaving(false);
+          return;
+        }
+
+        // Validate break times if both provided
+        if (day.break_start_time && day.break_end_time) {
+          const breakStart = formatTimeForDB(day.break_start_time);
+          const breakEnd = formatTimeForDB(day.break_end_time);
+
+          if (!isAfter(breakEnd, breakStart)) {
+            setError(`${dayLabel}: Break end time (${breakEnd}) must be after break start time (${breakStart}).`);
+            setSaving(false);
+            return;
+          }
+
+          // Also validate break is within start/end times
+          if (!isAfter(breakStart, startTime) || !isAfter(endTime, breakEnd)) {
+            setError(`${dayLabel}: Break must be within the work hours (${startTime} - ${endTime}).`);
+            setSaving(false);
+            return;
+          }
+        }
+
+        // Validate that break times are either both set or both null
+        if ((day.break_start_time && !day.break_end_time) || (!day.break_start_time && day.break_end_time)) {
+          setError(`${dayLabel}: Both break start and end times must be set, or both left empty.`);
+          setSaving(false);
+          return;
+        }
+      }
+
+      for (const day of availability) {
+        const startTime = formatTimeForDB(day.start_time);
+        const endTime = formatTimeForDB(day.end_time);
+        const breakStart = day.break_start_time ? formatTimeForDB(day.break_start_time) : null;
+        const breakEnd = day.break_end_time ? formatTimeForDB(day.break_end_time) : null;
+
         if (day.id) {
           // Update existing
           const { error: updateError } = await supabase
             .from('weekly_availability')
             .update({
               is_available: day.is_available,
-              start_time: day.start_time,
-              end_time: day.end_time,
-              break_start_time: day.break_start_time || null,
-              break_end_time: day.break_end_time || null,
+              start_time: startTime,
+              end_time: endTime,
+              break_start_time: breakStart,
+              break_end_time: breakEnd,
             })
             .eq('id', day.id);
 
@@ -122,10 +272,10 @@ const WeeklyAvailability: React.FC<WeeklyAvailabilityProps> = ({ scheduleId }) =
             schedule_id: scheduleId,
             day_of_week: day.day_of_week,
             is_available: day.is_available,
-            start_time: day.start_time,
-            end_time: day.end_time,
-            break_start_time: day.break_start_time || null,
-            break_end_time: day.break_end_time || null,
+            start_time: startTime,
+            end_time: endTime,
+            break_start_time: breakStart,
+            break_end_time: breakEnd,
           });
 
           if (insertError) throw insertError;
@@ -205,46 +355,45 @@ const WeeklyAvailability: React.FC<WeeklyAvailabilityProps> = ({ scheduleId }) =
                       />
                     </TableCell>
                     <TableCell>
-                      <TextField
-                        type="time"
+                      <TimePicker
                         value={day.start_time}
-                        onChange={(e) => handleDayChange(index, 'start_time', e.target.value)}
+                        onChange={(val) => handleDayChange(index, 'start_time', val || '00:00')}
                         disabled={!day.is_available}
-                        size="small"
-                        sx={{ width: 120 }}
+                        error={day.is_available && !isAfter(day.end_time, day.start_time)}
                       />
                     </TableCell>
                     <TableCell>
-                      <TextField
-                        type="time"
-                        value={day.end_time}
-                        onChange={(e) => handleDayChange(index, 'end_time', e.target.value)}
+                      <Box>
+                        <TimePicker
+                          value={day.end_time}
+                          onChange={(val) => handleDayChange(index, 'end_time', val || '23:59')}
+                          disabled={!day.is_available}
+                          error={day.is_available && !isAfter(day.end_time, day.start_time)}
+                        />
+                        {day.is_available && !isAfter(day.end_time, day.start_time) && (
+                          <Typography variant="caption" color="error">Must be after start</Typography>
+                        )}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <TimePicker
+                        value={day.break_start_time}
+                        onChange={(val) => handleDayChange(index, 'break_start_time', val)}
                         disabled={!day.is_available}
-                        size="small"
-                        sx={{ width: 120 }}
                       />
                     </TableCell>
                     <TableCell>
-                      <TextField
-                        type="time"
-                        value={day.break_start_time || ''}
-                        onChange={(e) => handleDayChange(index, 'break_start_time', e.target.value || null)}
-                        disabled={!day.is_available}
-                        size="small"
-                        sx={{ width: 120 }}
-                        placeholder="Optional"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <TextField
-                        type="time"
-                        value={day.break_end_time || ''}
-                        onChange={(e) => handleDayChange(index, 'break_end_time', e.target.value || null)}
-                        disabled={!day.is_available || !day.break_start_time}
-                        size="small"
-                        sx={{ width: 120 }}
-                        placeholder="Optional"
-                      />
+                      <Box>
+                        <TimePicker
+                          value={day.break_end_time}
+                          onChange={(val) => handleDayChange(index, 'break_end_time', val)}
+                          disabled={!day.is_available || !day.break_start_time}
+                          error={!!(day.break_start_time && day.break_end_time && !isAfter(day.break_end_time, day.break_start_time))}
+                        />
+                        {day.break_start_time && day.break_end_time && !isAfter(day.break_end_time, day.break_start_time) && (
+                          <Typography variant="caption" color="error">Must be after break start</Typography>
+                        )}
+                      </Box>
                     </TableCell>
                   </TableRow>
                 );

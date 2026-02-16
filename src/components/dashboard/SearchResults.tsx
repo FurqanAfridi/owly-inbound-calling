@@ -188,12 +188,12 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, open, onClose }) =
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col" style={{ fontFamily: "'Manrope', sans-serif" }}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col bg-card text-foreground border-border" style={{ fontFamily: "'Manrope', sans-serif" }}>
         <div className="flex items-center gap-2 mb-4">
-          <Search className="w-5 h-5 text-[#737373]" />
-          <h2 className="text-[18px] font-semibold text-[#27272b]">Search Results</h2>
+          <Search className="w-5 h-5 dark:text-[#818898] text-[#737373]" />
+          <h2 className="text-[18px] font-semibold dark:text-[#f9fafb] text-[#27272b]">Search Results</h2>
           {query && (
-            <span className="text-[14px] text-[#737373]">for "{query}"</span>
+            <span className="text-[14px] dark:text-[#818898] text-[#737373]">for "{query}"</span>
           )}
         </div>
 
@@ -204,7 +204,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, open, onClose }) =
             </div>
           ) : results.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-[14px] text-[#737373]">No results found</p>
+              <p className="text-[14px] dark:text-[#818898] text-[#737373]">No results found</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -212,7 +212,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, open, onClose }) =
                 <button
                   key={`${result.type}-${result.id}`}
                   onClick={() => handleResultClick(result)}
-                  className="w-full text-left p-3 rounded-lg border border-[#e5e5e5] hover:bg-[rgba(11,153,255,0.05)] hover:border-[#0b99ff] transition-colors"
+                  className="w-full text-left p-3 rounded-lg border dark:border-[#2f3541] border-[#e5e5e5] hover:bg-[rgba(11,153,255,0.05)] hover:border-[#0b99ff] transition-colors"
                 >
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-lg bg-[rgba(11,153,255,0.1)] flex items-center justify-center text-[#0b99ff] flex-shrink-0">
@@ -220,14 +220,14 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, open, onClose }) =
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <p className="text-[14px] font-semibold text-[#27272b] truncate">
+                        <p className="text-[14px] font-semibold dark:text-[#f9fafb] text-[#27272b] truncate">
                           {result.title}
                         </p>
-                        <span className="text-[12px] text-[#737373] bg-[#f8f8f8] px-2 py-0.5 rounded">
+                        <span className="text-[12px] dark:text-[#818898] text-[#737373] dark:bg-[#2f3541] bg-[#f8f8f8] px-2 py-0.5 rounded">
                           {getTypeLabel(result.type)}
                         </span>
                       </div>
-                      <p className="text-[12px] text-[#737373] truncate">
+                      <p className="text-[12px] dark:text-[#818898] text-[#737373] truncate">
                         {result.subtitle}
                       </p>
                     </div>

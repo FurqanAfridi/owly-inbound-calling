@@ -161,7 +161,7 @@ const Sidebar: React.FC = () => {
             fontSize: '0.875rem' 
           }}
         >
-          Inbound House DNAI
+          DNAi - Duha Nashrah
         </Typography>
       </Box>
     </Box>

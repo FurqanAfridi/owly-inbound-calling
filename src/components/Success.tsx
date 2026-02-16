@@ -1,10 +1,17 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../App.css';
 import characterImage from '../assest/success.png';
+import { useThemeMode } from '../contexts/ThemeContext';
 
 const Success: React.FC = () => {
   const navigate = useNavigate();
+  const { setMode } = useThemeMode();
+
+  // Force light mode on auth pages
+  useEffect(() => {
+    setMode('light');
+  }, []);
 
   return (
     <div className="centered-container">
