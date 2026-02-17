@@ -136,11 +136,11 @@ const CallStatusSummary: React.FC<CallStatusSummaryProps> = ({
     const leadsSliceAngle = totalCalls > 0 ? (leads / totalCalls) * totalAngle : 0;
     
     // Start from top (0 degrees, which is -90 in our coordinate system)
-    // Add completed (non-leads) slice (blue #0b99ff)
+    // Add completed (non-leads) slice (blue #00c19c)
     if (compNonLeads > 0) {
       const sliceAngle = Math.min(completedSliceAngle, 360 - currentAngle);
       if (sliceAngle >= 0.1) {
-        const slice = createDonutSlice(currentAngle, currentAngle + sliceAngle, '#0b99ff');
+        const slice = createDonutSlice(currentAngle, currentAngle + sliceAngle, '#00c19c');
         if (slice) {
           slices.push(slice);
           currentAngle += sliceAngle;
@@ -243,7 +243,7 @@ const CallStatusSummary: React.FC<CallStatusSummaryProps> = ({
                 </p>
               </div>
               <div className="flex gap-[10px] items-center">
-                <div className="w-[9px] h-[9px] bg-[#0b99ff] shrink-0 rounded-full" />
+                <div className="w-[9px] h-[9px] bg-[#00c19c] shrink-0 rounded-full" />
                 <p 
                   className="text-[14px] font-normal dark:text-[#f9fafb] text-[#141414] leading-[1.5] whitespace-nowrap"
                   style={{ fontFamily: "'Manrope', sans-serif" }}

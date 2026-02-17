@@ -27,7 +27,7 @@
     --popover-foreground: 220 84% 5%; /* #020817 */
 
     /* Primary colors */
-    --primary: 217 91% 60%; /* #3c83f6 */
+    --primary: 168 100% 38%; /* #00c19c */
     --primary-foreground: 0 0% 100%; /* #ffffff */
 
     /* Secondary colors */
@@ -35,7 +35,7 @@
     --secondary-foreground: 220 46% 11%; /* #0f1729 */
 
     /* Accent colors */
-    --accent: 217 91% 60%; /* #3c83f6 */
+    --accent: 168 100% 38%; /* #00c19c */
     --accent-foreground: 0 0% 100%; /* #ffffff */
 
     /* Muted colors */
@@ -61,24 +61,24 @@
     /* Border and input colors */
     --border: 215 33% 91%; /* #e1e7ef */
     --input: 215 33% 91%; /* #e1e7ef */
-    --ring: 217 91% 60%; /* #3c83f6 */
+    --ring: 168 100% 38%; /* #00c19c */
 
     --radius: 1rem;
 
     /* Sidebar colors */
     --sidebar-background: 210 40% 96%;
     --sidebar-foreground: 220 84% 5%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary: 168 100% 38%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 210 40% 96%;
     --sidebar-accent-foreground: 220 84% 5%;
     --sidebar-border: 215 33% 91%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-ring: 168 100% 38%;
     --sidebar-muted: 215 16% 47%;
 
     /* Glow effects */
-    --glow-primary: 0 0 30px hsl(217 91% 60% / 0.4);
-    --glow-accent: 0 0 30px hsl(217 91% 60% / 0.4);
+    --glow-primary: 0 0 30px hsl(168 100% 38% / 0.4);
+    --glow-accent: 0 0 30px hsl(168 100% 38% / 0.4);
     --glow-success: 0 0 30px hsl(142 71% 45% / 0.4);
     --glow-warning: 0 0 30px hsl(38 92% 50% / 0.4);
     --glow-secondary: 0 0 30px hsl(210 40% 96% / 0.4);
@@ -98,7 +98,7 @@
     --popover-foreground: 210 33% 98%; /* #f9fafb */
 
     /* Primary colors */
-    --primary: 217 84% 53%; /* #2564eb */
+    --primary: 168 100% 31%; /* #009e80 */
     --primary-foreground: 210 33% 98%; /* #f9fafb */
 
     /* Secondary colors */
@@ -137,7 +137,7 @@
     /* Sidebar colors */
     --sidebar-background: 215 22% 10%;
     --sidebar-foreground: 210 33% 98%;
-    --sidebar-primary: 217 84% 53%;
+    --sidebar-primary: 168 100% 31%;
     --sidebar-primary-foreground: 210 33% 98%;
     --sidebar-accent: 215 16% 22%;
     --sidebar-accent-foreground: 210 33% 98%;
@@ -146,7 +146,7 @@
     --sidebar-muted: 215 12% 55%;
 
     /* Glow effects */
-    --glow-primary: 0 0 30px hsl(217 84% 53% / 0.4);
+    --glow-primary: 0 0 30px hsl(168 100% 31% / 0.4);
     --glow-accent: 0 0 30px hsl(188 85% 53% / 0.4);
     --glow-success: 0 0 30px hsl(142 71% 45% / 0.4);
     --glow-warning: 0 0 30px hsl(38 92% 50% / 0.4);

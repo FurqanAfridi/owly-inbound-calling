@@ -99,7 +99,6 @@ const VoiceAgents: React.FC = () => {
         .from('inbound_numbers')
         .select('id, phone_number, phone_label')
         .eq('user_id', user.id)
-        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -217,6 +216,22 @@ const VoiceAgents: React.FC = () => {
       return;
     }
 
+    // If trying to activate, check if agent has a phone number assigned
+    if (newStatus === 'active') {
+      // Fetch full agent to check phone_number
+      const { data: checkAgent } = await supabase
+        .from('voice_agents')
+        .select('phone_number')
+        .eq('id', agent.id)
+        .eq('user_id', user?.id)
+        .single();
+
+      if (!checkAgent?.phone_number) {
+        alert(`Cannot activate "${agent.name}" — no phone number is assigned. Please edit the agent and assign a phone number first.`);
+        return;
+      }
+    }
+
     if (!window.confirm(`Are you sure you want to ${newStatus === 'active' ? 'enable' : 'disable'} "${agent.name}"?`)) {
       return;
     }
@@ -310,7 +325,7 @@ const VoiceAgents: React.FC = () => {
         <div className="flex gap-[12px] items-center justify-end">
           <Button
             onClick={() => navigate('/create-agent')}
-            className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white text-[14px] font-medium h-[36px] px-4 rounded-[8px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+            className="bg-[#00c19c] hover:bg-[#00c19c]/90 text-white text-[14px] font-medium h-[36px] px-4 rounded-[8px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
             style={{ fontFamily: "'Manrope', sans-serif" }}
           >
             <Plus className="w-5 h-5 mr-2" />
@@ -344,8 +359,8 @@ const VoiceAgents: React.FC = () => {
           {/* Agents List */}
           {agents.length === 0 ? (
             <div className="flex flex-col items-center gap-4 text-center py-12">
-              <div className="w-20 h-20 rounded-full bg-[#0b99ff]/20 flex items-center justify-center">
-                <Phone className="w-10 h-10 text-[#0b99ff]" />
+              <div className="w-20 h-20 rounded-full bg-[#00c19c]/20 flex items-center justify-center">
+                <Phone className="w-10 h-10 text-[#00c19c]" />
               </div>
               <div>
                 <h3 className="text-[24px] font-bold dark:text-[#f9fafb] text-[#27272b] mb-2" style={{ fontFamily: "'Manrope', sans-serif" }}>
@@ -357,7 +372,7 @@ const VoiceAgents: React.FC = () => {
               </div>
               <Button
                 onClick={() => navigate('/create-agent')}
-                className="mt-4 bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white text-[14px] font-medium"
+                className="mt-4 bg-[#00c19c] hover:bg-[#00c19c]/90 text-white text-[14px] font-medium"
                 style={{ fontFamily: "'Manrope', sans-serif" }}
               >
                 <Plus className="w-5 h-5 mr-2" />
@@ -383,7 +398,7 @@ const VoiceAgents: React.FC = () => {
                             agent.status === 'active'
                               ? 'bg-[#f0fdf4] border border-[#05df72] text-[#016630]'
                               : agent.status === 'activating'
-                              ? 'bg-[#eff6ff] border border-[#3b82f6] text-[#1e40af] animate-pulse'
+                              ? 'bg-[#ecfdf5] border border-[#00c19c] text-[#008068] animate-pulse'
                               : agent.status === 'draft'
                               ? 'bg-[#fffbeb] border border-[#f59e0b] text-[#92400e]'
                               : 'bg-[#fef2f2] border border-[#ff6467] text-[#9f0712]'
@@ -393,7 +408,7 @@ const VoiceAgents: React.FC = () => {
                           {agent.status === 'active' ? 'Active' : agent.status === 'activating' ? 'Activating...' : agent.status === 'draft' ? 'Draft' : 'Inactive'}
                         </Badge>
                       </div>
-                      <p className="text-[12px] font-normal text-[#0b99ff]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                      <p className="text-[12px] font-normal text-[#00c19c]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                         {agent.company_name || 'No company'}
                       </p>
                     </div>

@@ -1080,15 +1080,15 @@ const UserManualDocs = () => {
 
       <style>{`
         .tip-box {
-          background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%);
-          border-left: 4px solid #3b82f6;
+          background: linear-gradient(135deg, rgba(0, 193, 156, 0.1) 0%, rgba(0, 158, 128, 0.1) 100%);
+          border-left: 4px solid #00c19c;
           padding: 1.25rem;
           margin: 2rem 0;
           border-radius: 0.75rem;
         }
         
         .tip-box strong {
-          color: #2563eb;
+          color: #009e80;
           display: block;
           margin-bottom: 0.5rem;
           font-size: 0.875rem;

@@ -320,7 +320,7 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
                   key={notification.id}
                   className={`p-3 rounded-lg border ${
                     !notification.read_at 
-                      ? 'bg-[rgba(48,134,255,0.05)] border-[rgba(48,134,255,0.2)]' 
+                      ? 'bg-[rgba(0,193,156,0.05)] border-[rgba(0,193,156,0.2)]' 
                       : 'dark:bg-[#1d212b] bg-white dark:border-[#2f3541] border-[#e5e5e5]'
                   }`}
                 >
@@ -333,7 +333,7 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
                       </p>
                     </div>
                     {!notification.read_at && (
-                      <Badge variant="outline" className="ml-2 bg-[#0b99ff] text-white border-none">
+                      <Badge variant="outline" className="ml-2 bg-[#00c19c] text-white border-none">
                         New
                       </Badge>
                     )}

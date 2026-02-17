@@ -65,7 +65,7 @@ const AgentsList: React.FC<AgentsListProps> = ({
             >
               <div className="flex flex-col leading-[1.5] pb-px">
                 <p className="text-[14px] font-medium dark:text-[#f9fafb] text-[#141414]">{agent.name}</p>
-                <p className="text-[12px] font-normal text-[#0b99ff]">{agent.label}</p>
+                <p className="text-[12px] font-normal text-[#00c19c]">{agent.label}</p>
               </div>
               <div className="flex items-center justify-end">
                 <DropdownMenu open={openMenuId === agent.id} onOpenChange={(open) => setOpenMenuId(open ? agent.id : null)}>

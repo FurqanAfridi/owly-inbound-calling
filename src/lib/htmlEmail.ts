@@ -17,7 +17,7 @@ export const DESIGN_STYLES = [
 
 export const ACCENT_COLORS = [
   { value: "#4F46E5", label: "Indigo" },
-  { value: "#3B82F6", label: "Blue" },
+  { value: "#00c19c", label: "Teal" },
   { value: "#10B981", label: "Green" },
   { value: "#F59E0B", label: "Amber" },
   { value: "#EF4444", label: "Red" },

@@ -191,7 +191,7 @@
 
 .provider-btn:hover {
   background: #3d4149;
-  border-color: #4d94ff;
+  border-color: #00c19c;
   transform: translateY(-2px);
 }
 
@@ -215,7 +215,7 @@
 }
 
 .provider-badge {
-  background: #4d94ff;
+  background: #00c19c;
   color: white;
   padding: 0.25rem 0.75rem;
   border-radius: 4px;
@@ -226,8 +226,8 @@
 
 .change-provider-btn {
   background: transparent;
-  border: 1px solid #4d94ff;
-  color: #4d94ff;
+  border: 1px solid #00c19c;
+  color: #00c19c;
   padding: 0.5rem 1rem;
   border-radius: 6px;
   font-size: 0.75rem;
@@ -236,7 +236,7 @@
 }
 
 .change-provider-btn:hover {
-  background: #4d94ff;
+  background: #00c19c;
   color: white;
 }
 
@@ -341,7 +341,7 @@
 
 .modal-body input:focus,
 .modal-body select:focus {
-  border-color: #4d94ff;
+  border-color: #00c19c;
   box-shadow: 0 0 0 3px rgba(77, 148, 255, 0.1);
 }
 
@@ -383,7 +383,7 @@
   width: 18px;
   height: 18px;
   cursor: pointer;
-  accent-color: #4d94ff;
+  accent-color: #00c19c;
 }
 
 .field-hint {
@@ -434,13 +434,13 @@
 }
 
 .btn-import {
-  background: linear-gradient(135deg, #4d94ff 0%, #3a7dd9 100%);
+  background: linear-gradient(135deg, #00c19c 0%, #009e80 100%);
   color: white;
   box-shadow: 0 2px 4px rgba(77, 148, 255, 0.3);
 }
 
 .btn-import:hover {
-  background: linear-gradient(135deg, #3a7dd9 0%, #2a6dc9 100%);
+  background: linear-gradient(135deg, #009e80 0%, #2a6dc9 100%);
   box-shadow: 0 4px 8px rgba(77, 148, 255, 0.4);
   transform: translateY(-1px);
 }

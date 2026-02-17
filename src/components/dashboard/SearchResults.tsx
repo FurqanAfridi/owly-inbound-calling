@@ -86,7 +86,6 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, open, onClose }) =
           .from('inbound_numbers')
           .select('id, phone_number, phone_label')
           .eq('user_id', user.id)
-          .is('deleted_at', null)
           .or(`phone_number.ilike.${searchPattern},phone_label.ilike.${searchPattern}`)
           .limit(10);
 
@@ -200,7 +199,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, open, onClose }) =
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="w-6 h-6 border-2 border-[#0b99ff] border-t-transparent rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-[#00c19c] border-t-transparent rounded-full animate-spin" />
             </div>
           ) : results.length === 0 ? (
             <div className="text-center py-8">
@@ -212,10 +211,10 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, open, onClose }) =
                 <button
                   key={`${result.type}-${result.id}`}
                   onClick={() => handleResultClick(result)}
-                  className="w-full text-left p-3 rounded-lg border dark:border-[#2f3541] border-[#e5e5e5] hover:bg-[rgba(11,153,255,0.05)] hover:border-[#0b99ff] transition-colors"
+                  className="w-full text-left p-3 rounded-lg border dark:border-[#2f3541] border-[#e5e5e5] hover:bg-[rgba(0,193,156,0.05)] hover:border-[#00c19c] transition-colors"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[rgba(11,153,255,0.1)] flex items-center justify-center text-[#0b99ff] flex-shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-[rgba(0,193,156,0.1)] flex items-center justify-center text-[#00c19c] flex-shrink-0">
                       {getIcon(result.type)}
                     </div>
                     <div className="flex-1 min-w-0">

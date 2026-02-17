@@ -25,11 +25,11 @@ const TimeUsageCard: React.FC<TimeUsageCardProps> = ({
           </div>
           <div className="flex gap-[5px] items-center w-full">
             <div 
-              className="bg-[#0b99ff] h-11 rounded-[4px]"
+              className="bg-[#00c19c] h-11 rounded-[4px]"
               style={{ width: `${usedPercentage}%` }}
             />
             <div 
-              className="bg-[rgba(11,153,255,0.6)] flex-1 h-11 rounded-[4px]"
+              className="bg-[rgba(0,193,156,0.6)] flex-1 h-11 rounded-[4px]"
               style={{ width: `${100 - usedPercentage}%` }}
             />
           </div>

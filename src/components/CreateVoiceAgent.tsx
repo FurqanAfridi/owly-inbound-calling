@@ -86,6 +86,7 @@ const CreateVoiceAgent: React.FC = () => {
   const [selectedNumberId, setSelectedNumberId] = useState<string>('');
   const [loadingNumbers, setLoadingNumbers] = useState(true);
   const [editingAgent, setEditingAgent] = useState<any>(null);
+  const isDraft = isEditMode && editingAgent?.status === 'draft';
   const [showNumberWarning, setShowNumberWarning] = useState(false);
   const [pendingNumberId, setPendingNumberId] = useState<string>('');
   const [previousAgent, setPreviousAgent] = useState<{ id: string; name: string } | null>(null);
@@ -614,7 +615,6 @@ const CreateVoiceAgent: React.FC = () => {
         .select('*')
         .eq('user_id', user.id)
         .eq('status', 'active')
-        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -751,8 +751,7 @@ const CreateVoiceAgent: React.FC = () => {
           .from('inbound_numbers')
           .select('*')
           .eq('user_id', user.id)
-          .eq('status', 'active')
-          .is('deleted_at', null);
+          .eq('status', 'active');
 
         if (numbersData && data.phone_number) {
           const matchingNumber = numbersData.find(
@@ -1809,8 +1808,8 @@ IMPORTANT:
       return;
     }
 
-    // Only check credits for new agents, not edits
-    if (!isEditMode) {
+    // Check credits for new agents and drafts being created (not active/inactive edits)
+    if (!isEditMode || isDraft) {
       const creditCheck = await hasEnoughCredits(user.id, CREDIT_RATES.AGENT_CREATION);
 
       if (!creditCheck.hasEnough) {
@@ -1939,7 +1938,7 @@ IMPORTANT:
         phone_provider: selectedNumber!.provider,
         phone_number: selectedNumber!.phone_number,
         phone_label: selectedNumber!.phone_label || '',
-        status: isEditMode ? 'active' : 'activating',
+        status: (isEditMode && !isDraft) ? 'active' : 'activating',
         created_at: currentTime,
         updated_at: currentTime,
         knowledge_base_id: formData.knowledgeBaseId || null,
@@ -2006,7 +2005,8 @@ IMPORTANT:
       }
 
       // Call appropriate webhook based on mode
-      if (isEditMode) {
+      // Draft agents use creation webhook; only active/inactive agents use edit webhook
+      if (isEditMode && !isDraft) {
         const editWebhookUrl = process.env.REACT_APP_EDIT_AGENT_WEBHOOK_URL;
         if (!editWebhookUrl) {
           throw new Error('Edit agent webhook URL is not configured');
@@ -2179,8 +2179,8 @@ IMPORTANT:
       }
 
       let data: any;
-      if (isEditMode) {
-        // Update existing agent - preserve existing metadata and merge with new call availability
+      if (isEditMode && !isDraft) {
+        // Update existing active/inactive agent - preserve existing metadata and merge with new call availability
         const existingMetadata = editingAgent?.metadata || {};
         const updatedMetadata = {
           ...existingMetadata,
@@ -2231,8 +2231,80 @@ IMPORTANT:
             .from('agent_schedules')
             .insert(scheduleLinks);
         }
+      } else if (isDraft) {
+        // Draft agent being created — update existing draft row with full agent data
+        const { data: updateData, error: updateError } = await supabase
+          .from('voice_agents')
+          .update({
+            ...agentData,
+            confidence: formData.confidence,
+            verbosity: formData.verbosity,
+            fallback_enabled: formData.fallbackEnabled,
+            fallback_number: formData.fallbackEnabled ? formData.fallbackNumber : null,
+            metadata: {
+              call_availability_start: formData.callAvailabilityStart,
+              call_availability_end: formData.callAvailabilityEnd,
+              call_availability_days: formData.callAvailabilityDays,
+              fallback_config: {
+                enabled: formData.fallbackEnabled,
+                number: formData.fallbackNumber,
+              },
+            },
+            updated_at: currentTime,
+          })
+          .eq('id', currentAgentId)
+          .eq('user_id', user.id)
+          .select()
+          .single();
+
+        if (updateError) {
+          throw updateError;
+        }
+        data = updateData;
+
+        // Update schedule assignments
+        await supabase
+          .from('agent_schedules')
+          .delete()
+          .eq('agent_id', currentAgentId);
+
+        if (selectedScheduleIds.length > 0) {
+          const scheduleLinks = selectedScheduleIds.map(scheduleId => ({
+            agent_id: currentAgentId,
+            schedule_id: scheduleId,
+          }));
+          await supabase
+            .from('agent_schedules')
+            .insert(scheduleLinks);
+        }
+
+        // Deduct credits for draft → created (same as new agent)
+        const creditDeduction = await deductAgentCreationCredits(
+          user.id,
+          data.id,
+          formData.agentName
+        );
+
+        if (!creditDeduction.success) {
+          // Revert to draft status if credit deduction fails
+          await supabase
+            .from('voice_agents')
+            .update({ status: 'draft', updated_at: new Date().toISOString() })
+            .eq('id', data.id);
+
+          await supabase
+            .from('inbound_numbers')
+            .update({
+              is_in_use: false,
+              assigned_to_agent_id: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', selectedNumberId);
+
+          throw new Error(creditDeduction.error || 'Failed to deduct credits. Agent creation cancelled.');
+        }
       } else {
-        // Insert new agent
+        // Insert brand new agent
         const { data: insertData, error: insertError } = await supabase
           .from('voice_agents')
           .insert(agentData)
@@ -2379,7 +2451,7 @@ IMPORTANT:
       // Bind webhook should only be called when agent status is changed to 'active' (enabled)
       // This is handled in VoiceAgents.tsx when toggling agent status
 
-      if (isEditMode) {
+      if (isEditMode && !isDraft) {
         setStatusMessage({
           type: 'success',
           text: 'Agent updated successfully!'
@@ -2464,7 +2536,7 @@ IMPORTANT:
           <h1 className="text-[24px] font-bold dark:text-[#f9fafb] text-[#27272b] leading-[32px] tracking-[-0.6px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
             {isEditMode ? (formData.agentName || editingAgent?.name || 'Agent') : 'Create New Agent'}
           </h1>
-          <p className="text-[16px] font-normal text-[#0b99ff] leading-[24px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+          <p className="text-[16px] font-normal text-[#00c19c] leading-[24px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
             {formData.companyName || editingAgent?.company_name || ''}
           </p>
         </div>
@@ -2489,7 +2561,7 @@ IMPORTANT:
           </Button>
           <Button
             onClick={() => navigate('/agents')}
-            className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white h-[36px] px-4 rounded-[8px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+            className="bg-[#00c19c] hover:bg-[#00c19c]/90 text-white h-[36px] px-4 rounded-[8px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
             style={{ fontFamily: "'Manrope', sans-serif" }}
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
@@ -2554,7 +2626,7 @@ IMPORTANT:
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[18px] font-bold text-[#0b99ff]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                <span className="text-[18px] font-bold text-[#00c19c]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                   {getProgress()}%
                 </span>
                 <span className="text-[14px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
@@ -2566,7 +2638,7 @@ IMPORTANT:
             {/* The actual progress bar */}
             <div className="w-full h-[8px] bg-[#f4f4f6] dark:bg-[#2f3541] rounded-full overflow-hidden mb-6">
               <div
-                className="h-full bg-gradient-to-r from-[#0b99ff] to-[#3086ff] transition-all duration-500 ease-in-out"
+                className="h-full bg-gradient-to-r from-[#00c19c] to-[#00c19c] transition-all duration-500 ease-in-out"
                 style={{ width: `${getProgress()}%` }}
               />
             </div>
@@ -2587,9 +2659,9 @@ IMPORTANT:
                   <div key={section.id} className="flex-1 flex flex-col gap-2 items-center">
                     <div className="flex items-center gap-2 w-full">
                       <div className={`shrink-0 size-8 rounded-full flex items-center justify-center border-2 transition-all ${isComplete
-                        ? 'border-[#0b99ff] bg-[#0b99ff] text-white'
+                        ? 'border-[#00c19c] bg-[#00c19c] text-white'
                         : isActive
-                          ? 'border-[#0b99ff] text-[#0b99ff] bg-white'
+                          ? 'border-[#00c19c] text-[#00c19c] bg-white'
                           : 'border-[#e4e4e8] text-[#737373] bg-white'
                         }`}>
                         {isComplete ? (
@@ -2601,7 +2673,7 @@ IMPORTANT:
                         )}
                       </div>
                       <div className="flex-1 flex flex-col items-start overflow-hidden">
-                        <span className={`text-[13px] font-semibold whitespace-nowrap ${isActive ? 'text-[#0b99ff]' : isComplete ? 'text-[#27272b]' : 'text-[#737373]'
+                        <span className={`text-[13px] font-semibold whitespace-nowrap ${isActive ? 'text-[#00c19c]' : isComplete ? 'text-[#27272b]' : 'text-[#737373]'
                           }`}>
                           {section.label}
                         </span>
@@ -2622,7 +2694,7 @@ IMPORTANT:
               <button
                 onClick={() => setActiveSection('details')}
                 className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'details'
-                  ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                  ? 'dark:bg-[rgba(0,193,156,0.15)] dark:text-[#f9fafb] bg-[rgba(0,193,156,0.1)] font-semibold text-[#27272b]'
                   : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
                   }`}
                 style={{ fontFamily: "'Manrope', sans-serif" }}
@@ -2633,7 +2705,7 @@ IMPORTANT:
               <button
                 onClick={() => setActiveSection('voice')}
                 className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'voice'
-                  ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                  ? 'dark:bg-[rgba(0,193,156,0.15)] dark:text-[#f9fafb] bg-[rgba(0,193,156,0.1)] font-semibold text-[#27272b]'
                   : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
                   }`}
                 style={{ fontFamily: "'Manrope', sans-serif" }}
@@ -2644,7 +2716,7 @@ IMPORTANT:
               <button
                 onClick={() => setActiveSection('settings')}
                 className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'settings'
-                  ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                  ? 'dark:bg-[rgba(0,193,156,0.15)] dark:text-[#f9fafb] bg-[rgba(0,193,156,0.1)] font-semibold text-[#27272b]'
                   : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
                   }`}
                 style={{ fontFamily: "'Manrope', sans-serif" }}
@@ -2655,7 +2727,7 @@ IMPORTANT:
               <button
                 onClick={() => setActiveSection('schedules')}
                 className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'schedules'
-                  ? 'dark:bg-[rgba(48,134,255,0.15)] dark:text-[#f9fafb] bg-[rgba(48,134,255,0.1)] font-semibold text-[#27272b]'
+                  ? 'dark:bg-[rgba(0,193,156,0.15)] dark:text-[#f9fafb] bg-[rgba(0,193,156,0.1)] font-semibold text-[#27272b]'
                   : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
                   }`}
                 style={{ fontFamily: "'Manrope', sans-serif" }}
@@ -2690,7 +2762,7 @@ IMPORTANT:
                             name="agentName"
                             value={formData.agentName}
                             onChange={handleInputChange}
-                            className={`border rounded-[6px] px-3 py-2 ${highlightEmptyFields && !formData.agentName ? "border-red-500 ring-1 ring-red-500" : "border-[#0b99ff]"}`}
+                            className={`border rounded-[6px] px-3 py-2 ${highlightEmptyFields && !formData.agentName ? "border-red-500 ring-1 ring-red-500" : "border-[#00c19c]"}`}
                             style={{ fontFamily: "'Manrope', sans-serif" }}
                           />
                         </div>
@@ -2769,7 +2841,7 @@ IMPORTANT:
                           onClick={() => saveDraft()}
                           variant="outline"
                           disabled={loading}
-                          className="px-4 py-2 rounded-[6px] border-[#0b99ff] text-[#0b99ff] hover:bg-[#0b99ff]/10"
+                          className="px-4 py-2 rounded-[6px] border-[#00c19c] text-[#00c19c] hover:bg-[#00c19c]/10"
                           style={{ fontFamily: "'Manrope', sans-serif" }}
                         >
                           {loading ? 'Saving...' : 'Save as Draft'}
@@ -2777,7 +2849,7 @@ IMPORTANT:
                         <Button
                           onClick={() => saveDraft('voice')}
                           disabled={loading}
-                          className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                          className="bg-[#00c19c] hover:bg-[#00c19c]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
                           style={{ fontFamily: "'Manrope', sans-serif" }}
                         >
                           {loading ? 'Saving...' : 'Save & Continue'}
@@ -2799,18 +2871,18 @@ IMPORTANT:
                           <Label className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                             Welcome Messages *: <span className="text-[#737373] font-normal">(Minimum 5 messages)</span>
                           </Label>
-                          <div className={`border rounded-[6px] p-2 min-h-[100px] flex flex-wrap gap-2 ${highlightEmptyFields && welcomeMessages.length === 0 ? "border-red-500 ring-1 ring-red-500" : "border-[#0b99ff]"}`}>
+                          <div className={`border rounded-[6px] p-2 min-h-[100px] flex flex-wrap gap-2 ${highlightEmptyFields && welcomeMessages.length === 0 ? "border-red-500 ring-1 ring-red-500" : "border-[#00c19c]"}`}>
                             {welcomeMessages.map((msg, index) => (
                               <div
                                 key={index}
-                                className="border border-[#0b99ff] rounded-[9px] px-2.5 py-1.5 flex items-center gap-2.5 bg-white"
+                                className="border border-[#00c19c] rounded-[9px] px-2.5 py-1.5 flex items-center gap-2.5 bg-white"
                               >
-                                <span className="text-[14px] text-[#0b99ff]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                <span className="text-[14px] text-[#00c19c]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                                   {msg}
                                 </span>
                                 <button
                                   onClick={() => handleRemoveWelcomeMessage(index)}
-                                  className="text-[#0b99ff] hover:text-[#0b99ff]/70"
+                                  className="text-[#00c19c] hover:text-[#00c19c]/70"
                                 >
                                   <X className="w-4 h-4" />
                                 </button>
@@ -2823,14 +2895,14 @@ IMPORTANT:
                               onChange={(e) => setNewWelcomeMessage(e.target.value)}
                               onKeyDown={handleWelcomeMessageKeyDown}
                               placeholder="Type message and press Enter or comma"
-                              className="flex-1 border border-[#0b99ff] rounded-[6px] px-3 py-2"
+                              className="flex-1 border border-[#00c19c] rounded-[6px] px-3 py-2"
                               style={{ fontFamily: "'Manrope', sans-serif" }}
                             />
                             <Button
                               type="button"
                               onClick={handleAddWelcomeMessage}
                               disabled={!newWelcomeMessage.trim()}
-                              className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white px-2.5 py-1.5 rounded-[9px] text-[14px] font-semibold h-auto"
+                              className="bg-[#00c19c] hover:bg-[#00c19c]/90 text-white px-2.5 py-1.5 rounded-[9px] text-[14px] font-semibold h-auto"
                               style={{ fontFamily: "'Manrope', sans-serif" }}
                             >
                               + Add Welcome Message
@@ -2893,7 +2965,7 @@ IMPORTANT:
                             onClick={() => saveDraft()}
                             variant="outline"
                             disabled={loading}
-                            className="px-4 py-2 rounded-[6px] border-[#0b99ff] text-[#0b99ff] hover:bg-[#0b99ff]/10"
+                            className="px-4 py-2 rounded-[6px] border-[#00c19c] text-[#00c19c] hover:bg-[#00c19c]/10"
                             style={{ fontFamily: "'Manrope', sans-serif" }}
                           >
                             {loading ? 'Saving...' : 'Save as Draft'}
@@ -2901,7 +2973,7 @@ IMPORTANT:
                           <Button
                             onClick={() => saveDraft('settings')}
                             disabled={loading}
-                            className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                            className="bg-[#00c19c] hover:bg-[#00c19c]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
                             style={{ fontFamily: "'Manrope', sans-serif" }}
                           >
                             {loading ? 'Saving...' : 'Save & Continue'}
@@ -2945,8 +3017,8 @@ IMPORTANT:
                                     type="button"
                                     onClick={() => handleSelectChange('voice', voice.value)}
                                     className={`p-3 rounded-[6px] border-2 transition-all text-left ${formData.voice === voice.value
-                                      ? 'border-[#0b99ff] bg-[rgba(11,153,255,0.1)]'
-                                      : 'border-[#d4d4da] bg-white hover:border-[#0b99ff]/50'
+                                      ? 'border-[#00c19c] bg-[rgba(0,193,156,0.1)]'
+                                      : 'border-[#d4d4da] bg-white hover:border-[#00c19c]/50'
                                       }`}
                                   >
                                     <div className="flex items-start justify-between gap-2">
@@ -2977,12 +3049,12 @@ IMPORTANT:
                                             e.stopPropagation();
                                             handlePlayAudio(voice.audioUrl!, voice.value);
                                           }}
-                                          className="p-1.5 rounded-full bg-[rgba(11,153,255,0.2)] hover:bg-[rgba(11,153,255,0.3)] transition-colors"
+                                          className="p-1.5 rounded-full bg-[rgba(0,193,156,0.2)] hover:bg-[rgba(0,193,156,0.3)] transition-colors"
                                         >
                                           {playingAudio === voice.value ? (
-                                            <Volume2 className="w-4 h-4 text-[#0b99ff]" />
+                                            <Volume2 className="w-4 h-4 text-[#00c19c]" />
                                           ) : (
-                                            <Play className="w-4 h-4 text-[#0b99ff]" />
+                                            <Play className="w-4 h-4 text-[#00c19c]" />
                                           )}
                                         </button>
                                       )}
@@ -2999,8 +3071,8 @@ IMPORTANT:
                                     type="button"
                                     onClick={() => handleSelectChange('voice', voice.value)}
                                     className={`p-3 rounded-[6px] border-2 transition-all text-left ${formData.voice === voice.value
-                                      ? 'border-[#0b99ff] bg-[rgba(11,153,255,0.1)]'
-                                      : 'border-[#d4d4da] bg-white hover:border-[#0b99ff]/50'
+                                      ? 'border-[#00c19c] bg-[rgba(0,193,156,0.1)]'
+                                      : 'border-[#d4d4da] bg-white hover:border-[#00c19c]/50'
                                       }`}
                                   >
                                     <div className="flex items-center justify-between gap-2">
@@ -3282,7 +3354,7 @@ IMPORTANT:
                             onClick={() => saveDraft()}
                             variant="outline"
                             disabled={loading}
-                            className="px-4 py-2 rounded-[6px] border-[#0b99ff] text-[#0b99ff] hover:bg-[#0b99ff]/10"
+                            className="px-4 py-2 rounded-[6px] border-[#00c19c] text-[#00c19c] hover:bg-[#00c19c]/10"
                             style={{ fontFamily: "'Manrope', sans-serif" }}
                           >
                             {loading ? 'Saving...' : 'Save as Draft'}
@@ -3290,7 +3362,7 @@ IMPORTANT:
                           <Button
                             onClick={() => saveDraft('schedules')}
                             disabled={loading}
-                            className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                            className="bg-[#00c19c] hover:bg-[#00c19c]/90 text-white px-4 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
                             style={{ fontFamily: "'Manrope', sans-serif" }}
                           >
                             {loading ? 'Saving...' : 'Save & Continue'}
@@ -3319,7 +3391,7 @@ IMPORTANT:
                           <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto border border-[#d4d4da] rounded-[6px] p-4">
                             {loadingSchedules ? (
                               <div className="flex items-center justify-center py-8">
-                                <div className="w-6 h-6 border-2 border-[#0b99ff] border-t-transparent rounded-full animate-spin" />
+                                <div className="w-6 h-6 border-2 border-[#00c19c] border-t-transparent rounded-full animate-spin" />
                                 <p className="text-[14px] text-[#8c8c8c] ml-3">Loading schedules...</p>
                               </div>
                             ) : availableSchedules.length === 0 ? (
@@ -3342,7 +3414,7 @@ IMPORTANT:
                                 <div
                                   key={schedule.id}
                                   className={`flex items-center gap-3 p-3 rounded-[6px] border-2 transition-all ${selectedScheduleIds.includes(schedule.id)
-                                    ? 'border-[#0b99ff] bg-[rgba(11,153,255,0.05)]'
+                                    ? 'border-[#00c19c] bg-[rgba(0,193,156,0.05)]'
                                     : 'border-[#e4e4e8] bg-white hover:border-[#d4d4da]'
                                     }`}
                                 >
@@ -3414,7 +3486,7 @@ IMPORTANT:
                             onClick={() => saveDraft()}
                             variant="outline"
                             disabled={loading}
-                            className="px-4 py-2 rounded-[6px] border-[#0b99ff] text-[#0b99ff] hover:bg-[#0b99ff]/10"
+                            className="px-4 py-2 rounded-[6px] border-[#00c19c] text-[#00c19c] hover:bg-[#00c19c]/10"
                             style={{ fontFamily: "'Manrope', sans-serif" }}
                           >
                             {loading ? 'Saving...' : 'Save as Draft'}
@@ -3424,11 +3496,11 @@ IMPORTANT:
                             disabled={loading || (!isEditMode && !isFormValid())}
                             className={`px-6 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] transition-all ${!isEditMode && !isFormValid()
                               ? 'bg-[#e4e4e8] text-[#737373] cursor-not-allowed border-0'
-                              : 'bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white'
+                              : 'bg-[#00c19c] hover:bg-[#00c19c]/90 text-white'
                               }`}
                             style={{ fontFamily: "'Manrope', sans-serif" }}
                           >
-                            {loading ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Agent' : 'Create Agent')}
+                            {loading ? ((isEditMode && !isDraft) ? 'Updating...' : 'Creating...') : ((isEditMode && !isDraft) ? 'Update Agent' : 'Create Agent')}
                           </Button>
                         </div>
                       </div>
@@ -3463,7 +3535,7 @@ IMPORTANT:
                 {[26, 37, 66, 54, 43, 26].map((height, i) => (
                   <div
                     key={i}
-                    className={`h-[${height}px] rounded-tl-full rounded-tr-full w-4 ${i === 2 ? 'bg-gradient-to-b from-[rgba(11,153,255,0.5)] to-[rgba(48,134,255,0.05)]' : 'bg-gradient-to-b from-white/20 to-transparent'
+                    className={`h-[${height}px] rounded-tl-full rounded-tr-full w-4 ${i === 2 ? 'bg-gradient-to-b from-[rgba(0,193,156,0.5)] to-[rgba(0,193,156,0.05)]' : 'bg-gradient-to-b from-white/20 to-transparent'
                       }`}
                     style={{ height: `${height}px` }}
                   />
@@ -3489,7 +3561,7 @@ IMPORTANT:
                 {[26, 37, 66, 54, 43, 26].map((height, i) => (
                   <div
                     key={i}
-                    className={`h-[${height}px] rounded-tl-full rounded-tr-full w-4 ${i === 2 ? 'bg-gradient-to-b from-[rgba(11,153,255,0.5)] to-[rgba(48,134,255,0.05)]' : 'bg-gradient-to-b from-white/20 to-transparent'
+                    className={`h-[${height}px] rounded-tl-full rounded-tr-full w-4 ${i === 2 ? 'bg-gradient-to-b from-[rgba(0,193,156,0.5)] to-[rgba(0,193,156,0.05)]' : 'bg-gradient-to-b from-white/20 to-transparent'
                       }`}
                     style={{ height: `${height}px` }}
                   />
@@ -3522,7 +3594,7 @@ IMPORTANT:
                 {[26, 37, 66, 54, 43, 26].map((height, i) => (
                   <div
                     key={i}
-                    className={`h-[${height}px] rounded-tl-full rounded-tr-full w-4 ${i === 2 ? 'bg-gradient-to-b from-[rgba(11,153,255,0.5)] to-[rgba(48,134,255,0.05)]' : 'bg-gradient-to-b from-white/20 to-transparent'
+                    className={`h-[${height}px] rounded-tl-full rounded-tr-full w-4 ${i === 2 ? 'bg-gradient-to-b from-[rgba(0,193,156,0.5)] to-[rgba(0,193,156,0.05)]' : 'bg-gradient-to-b from-white/20 to-transparent'
                       }`}
                     style={{ height: `${height}px` }}
                   />
@@ -3548,7 +3620,7 @@ IMPORTANT:
                 {[26, 37, 66, 54, 43, 26].map((height, i) => (
                   <div
                     key={i}
-                    className={`h-[${height}px] rounded-tl-full rounded-tr-full w-4 ${i === 2 ? 'bg-gradient-to-b from-[rgba(11,153,255,0.5)] to-[rgba(48,134,255,0.05)]' : 'bg-gradient-to-b from-white/20 to-transparent'
+                    className={`h-[${height}px] rounded-tl-full rounded-tr-full w-4 ${i === 2 ? 'bg-gradient-to-b from-[rgba(0,193,156,0.5)] to-[rgba(0,193,156,0.05)]' : 'bg-gradient-to-b from-white/20 to-transparent'
                       }`}
                     style={{ height: `${height}px` }}
                   />
@@ -3587,13 +3659,13 @@ IMPORTANT:
                       </p>
                     </div>
                     <div className="flex gap-[10px] items-center w-full">
-                      <div className="bg-[#0b99ff] shrink-0 size-[9px]" />
+                      <div className="bg-[#00c19c] shrink-0 size-[9px]" />
                       <p className="text-[14px] font-normal text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                         Forwarded
                       </p>
                     </div>
                     <div className="flex gap-[10px] items-center w-full">
-                      <div className="bg-[rgba(11,153,255,0.6)] shrink-0 size-[9px]" />
+                      <div className="bg-[rgba(0,193,156,0.6)] shrink-0 size-[9px]" />
                       <p className="text-[14px] font-normal text-[#141414]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                         Lead
                       </p>
@@ -3736,7 +3808,7 @@ IMPORTANT:
                 </table>
               </div>
               <div className="flex h-[52px] items-center justify-between pb-4 pt-[30px] w-full">
-                <Button className="bg-[#0b99ff] hover:bg-[#0b99ff]/90 text-white h-9 px-4">
+                <Button className="bg-[#00c19c] hover:bg-[#00c19c]/90 text-white h-9 px-4">
                   <Plus className="w-5 h-5 mr-2" />
                   Add New Schedule
                 </Button>
@@ -3756,7 +3828,7 @@ IMPORTANT:
                   <Button variant="ghost" size="sm" className="h-9 w-9">
                     ...
                   </Button>
-                  <Button variant="outline" size="sm" className="h-9 px-4 border-[#0b99ff] text-[#0b99ff]">
+                  <Button variant="outline" size="sm" className="h-9 px-4 border-[#00c19c] text-[#00c19c]">
                     Next
                   </Button>
                 </div>
@@ -4022,7 +4094,7 @@ IMPORTANT:
                       setSelectedLog(log);
                       setShowLogDetail(true);
                     }}
-                    className="text-[12px] font-medium text-[#0b99ff] underline decoration-solid leading-[16px]"
+                    className="text-[12px] font-medium text-[#00c19c] underline decoration-solid leading-[16px]"
                     style={{ fontFamily: "'Manrope', sans-serif" }}
                   >
                     View Detail
@@ -4075,7 +4147,7 @@ IMPORTANT:
               <Button
                 variant="outline"
                 size="sm"
-                className="h-9 px-4 border-[#0b99ff] text-[#0b99ff]"
+                className="h-9 px-4 border-[#00c19c] text-[#00c19c]"
                 onClick={() => setLogsPage(prev => prev + 1)}
               >
                 Next

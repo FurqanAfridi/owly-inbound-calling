@@ -4,7 +4,7 @@ import videoframeImage from '@/assest/videoframe_0 (1) 1.png';
 
 const GenieCard: React.FC = () => {
   return (
-    <Card className="dark:bg-[rgba(48,134,255,0.15)] bg-[rgba(48,134,255,0.1)] dark:border-[rgba(11,153,255,0.2)] border border-[rgba(11,153,255,0.1)] rounded-[14px]">
+    <Card className="dark:bg-[rgba(0,193,156,0.15)] bg-[rgba(0,193,156,0.1)] dark:border-[rgba(0,193,156,0.2)] border border-[rgba(0,193,156,0.1)] rounded-[14px]">
       <CardContent className="p-5 flex flex-col gap-2 items-center justify-center">
         <div className="flex flex-col gap-2 w-full">
           <h2 className="text-[24px] font-bold dark:text-[#f9fafb] text-[#27272b] tracking-[-0.6px] leading-[32px]" style={{ fontFamily: "'Manrope', sans-serif" }}>Genie</h2>

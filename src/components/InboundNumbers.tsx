@@ -82,7 +82,6 @@ const InboundNumbers: React.FC = () => {
         .from('inbound_numbers')
         .select('*')
         .eq('user_id', user.id)
-        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
@@ -96,14 +95,106 @@ const InboundNumbers: React.FC = () => {
     }
   };
 
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   const handleDelete = async () => {
-    if (!deleteDialog.number) return;
+    if (!deleteDialog.number || !user) return;
+
+    setDeleteLoading(true);
+    setError(null);
+
+    const numberToDelete = deleteDialog.number;
 
     try {
+      // 1. Fetch full number data for webhook payload
+      const { data: fullNumberData, error: fetchError } = await supabase
+        .from('inbound_numbers')
+        .select('*')
+        .eq('id', numberToDelete.id)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching number data for webhook:', fetchError);
+      }
+
+      // 2. Call delete webhook if configured
+      const deleteWebhookUrl = process.env.REACT_APP_DELETE_NUMBER_WEBHOOK_URL;
+      if (deleteWebhookUrl && fullNumberData) {
+        try {
+          const deletePayload = {
+            id: fullNumberData.id,
+            user_id: user.id,
+            phone_number: fullNumberData.phone_number,
+            country_code: fullNumberData.country_code,
+            provider: fullNumberData.provider,
+            phone_label: fullNumberData.phone_label,
+            assigned_to_agent_id: fullNumberData.assigned_to_agent_id,
+            ...fullNumberData,
+          };
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+          const deleteResponse = await fetch(deleteWebhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(deletePayload),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!deleteResponse.ok) {
+            const errorText = await deleteResponse.text().catch(() => 'No error details available');
+            console.error(`Delete number webhook failed: ${deleteResponse.status} - ${errorText}`);
+            // Continue with deletion even if webhook fails
+          } else {
+            try {
+              const responseData = await deleteResponse.json();
+              console.log('Delete number webhook success:', responseData);
+            } catch {
+              console.log('Delete number webhook returned non-JSON response');
+            }
+          }
+        } catch (webhookError: any) {
+          if (webhookError.name === 'AbortError') {
+            console.error('Delete number webhook timed out');
+          } else {
+            console.error('Error calling delete number webhook:', webhookError);
+          }
+          // Continue with deletion even if webhook fails
+        }
+      }
+
+      // 3. If this number is assigned to an agent, deactivate that agent
+      if (numberToDelete.assigned_to_agent_id) {
+        const { error: agentUpdateError } = await supabase
+          .from('voice_agents')
+          .update({
+            status: 'inactive',
+            phone_number: null,
+            phone_label: null,
+            phone_provider: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', numberToDelete.assigned_to_agent_id)
+          .eq('user_id', user.id);
+
+        if (agentUpdateError) {
+          console.error('Error deactivating agent:', agentUpdateError);
+        } else {
+          console.log(`Agent ${numberToDelete.assigned_to_agent_id} deactivated due to number deletion`);
+        }
+      }
+
+      // 4. Permanently delete the number from the database
       const { error: deleteError } = await supabase
         .from('inbound_numbers')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', deleteDialog.number.id);
+        .delete()
+        .eq('id', numberToDelete.id);
 
       if (deleteError) throw deleteError;
 
@@ -112,6 +203,8 @@ const InboundNumbers: React.FC = () => {
     } catch (err: any) {
       console.error('Error deleting number:', err);
       setError(err.message || 'Failed to delete number');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -200,7 +293,7 @@ const InboundNumbers: React.FC = () => {
   const getStatusBadge = (status: string) => {
     const statusConfig: { [key: string]: { variant: 'default' | 'success' | 'warning' | 'destructive'; label: string; className?: string } } = {
       active: { variant: 'success', label: 'Active' },
-      activating: { variant: 'default', label: 'Activating...', className: 'bg-[#eff6ff] border border-[#3b82f6] text-[#1e40af] animate-pulse' },
+      activating: { variant: 'default', label: 'Activating...', className: 'bg-[#ecfdf5] border border-[#00c19c] text-[#008068] animate-pulse' },
       suspended: { variant: 'warning', label: 'Suspended' },
       error: { variant: 'destructive', label: 'Error' },
       pending: { variant: 'default', label: 'Pending' },
@@ -403,7 +496,7 @@ const InboundNumbers: React.FC = () => {
         )}
 
         {/* Delete Confirmation Dialog */}
-        <Dialog open={deleteDialog.open} onOpenChange={(open) => !open && setDeleteDialog({ open: false, number: null })}>
+        <Dialog open={deleteDialog.open} onOpenChange={(open) => !deleteLoading && !open && setDeleteDialog({ open: false, number: null })}>
           <DialogContent className="bg-card text-foreground border-border">
             <DialogHeader>
               <DialogTitle className="text-foreground">Delete Inbound Number</DialogTitle>
@@ -415,10 +508,19 @@ const InboundNumbers: React.FC = () => {
                 ? This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
+            {deleteDialog.number?.assigned_to_agent_id && (
+              <Alert variant="destructive" className="mt-2">
+                <AlertDescription>
+                  This number is currently assigned to an agent. Deleting it will <strong>deactivate the agent</strong>. 
+                  The agent cannot be reactivated until you edit it and assign a different number.
+                </AlertDescription>
+              </Alert>
+            )}
             <DialogFooter>
               <Button
                 variant="outline"
                 onClick={() => setDeleteDialog({ open: false, number: null })}
+                disabled={deleteLoading}
               >
                 Cancel
               </Button>
@@ -426,8 +528,9 @@ const InboundNumbers: React.FC = () => {
                 onClick={handleDelete}
                 variant="destructive"
                 className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                disabled={deleteLoading}
               >
-                Delete
+                {deleteLoading ? 'Deleting...' : 'Delete'}
               </Button>
             </DialogFooter>
           </DialogContent>

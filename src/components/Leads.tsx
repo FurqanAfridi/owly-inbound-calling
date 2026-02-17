@@ -136,7 +136,6 @@ const Leads: React.FC = () => {
         .from('inbound_numbers')
         .select('id, phone_number, phone_label')
         .eq('user_id', user.id)
-        .is('deleted_at', null)
         .order('created_at', { ascending: false });
       if (error) throw error;
       setInboundNumbers(data || []);

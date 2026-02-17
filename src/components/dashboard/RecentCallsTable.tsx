@@ -449,7 +449,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({ calls, onViewMore }
             </div>
             <Button
               onClick={() => setSelectedTranscript(null)}
-              className="h-9 bg-[#0b99ff] text-white rounded-[8px] text-[14px] font-medium hover:bg-[#0b99ff]/90"
+              className="h-9 bg-[#00c19c] text-white rounded-[8px] text-[14px] font-medium hover:bg-[#00c19c]/90"
               style={{ fontFamily: "'Manrope', sans-serif" }}
             >
               Close
@@ -563,7 +563,7 @@ const RecentCallsTable: React.FC<RecentCallsTableProps> = ({ calls, onViewMore }
           <DialogFooter>
             <Button
               onClick={() => setSelectedCall(null)}
-              className="h-9 bg-[#0b99ff] text-white rounded-[8px] text-[14px] font-medium hover:bg-[#0b99ff]/90"
+              className="h-9 bg-[#00c19c] text-white rounded-[8px] text-[14px] font-medium hover:bg-[#00c19c]/90"
               style={{ fontFamily: "'Manrope', sans-serif" }}
             >
               Close

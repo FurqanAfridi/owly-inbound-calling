@@ -5,9 +5,9 @@ const berryTheme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#3c83f6', // Primary
-      light: '#60A5FA',
-      dark: '#2563EB',
+      main: '#00c19c', // Primary
+      light: '#4dd8bc',
+      dark: '#009e80',
       contrastText: '#ffffff', // Primary Text
     },
     secondary: {
@@ -28,9 +28,9 @@ const berryTheme = createTheme({
       dark: '#D97706',
     },
     info: {
-      main: '#3B82F6',
-      light: '#60A5FA',
-      dark: '#2563EB',
+      main: '#00c19c',
+      light: '#4dd8bc',
+      dark: '#009e80',
     },
     success: {
       main: '#10B981',

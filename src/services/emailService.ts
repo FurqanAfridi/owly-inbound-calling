@@ -114,7 +114,7 @@ class EmailService {
           <title>${subject}</title>
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <div style="background: linear-gradient(135deg, #00c19c 0%, #009e80 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
             <h1 style="color: white; margin: 0;">DNAi</h1>
           </div>
           <div style="background: #ffffff; padding: 40px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
@@ -124,8 +124,8 @@ class EmailService {
                 ? 'Thank you for signing up! Please use the code below to verify your email address:'
                 : 'You requested to reset your password. Use the code below to continue:'}
             </p>
-            <div style="background: #f3f4f6; border: 2px dashed #3b82f6; border-radius: 8px; padding: 20px; text-align: center; margin: 30px 0;">
-              <div style="font-size: 36px; font-weight: bold; color: #3b82f6; letter-spacing: 8px; font-family: 'Courier New', monospace;">
+            <div style="background: #f3f4f6; border: 2px dashed #00c19c; border-radius: 8px; padding: 20px; text-align: center; margin: 30px 0;">
+              <div style="font-size: 36px; font-weight: bold; color: #00c19c; letter-spacing: 8px; font-family: 'Courier New', monospace;">
                 ${otp}
               </div>
             </div>
@@ -134,7 +134,7 @@ class EmailService {
             </p>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
               <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                Need help? Contact us at <a href="mailto:${this.supportEmail}" style="color: #3b82f6;">${this.supportEmail}</a>
+                Need help? Contact us at <a href="mailto:${this.supportEmail}" style="color: #00c19c;">${this.supportEmail}</a>
               </p>
             </div>
           </div>
@@ -178,7 +178,7 @@ Need help? Contact us at ${this.supportEmail}
           <title>${subject}</title>
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <div style="background: linear-gradient(135deg, #00c19c 0%, #009e80 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
             <h1 style="color: white; margin: 0;">DNAi</h1>
           </div>
           <div style="background: #ffffff; padding: 40px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
@@ -193,7 +193,7 @@ Need help? Contact us at ${this.supportEmail}
             </div>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
               <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                Need help? Contact us at <a href="mailto:${this.supportEmail}" style="color: #3b82f6;">${this.supportEmail}</a>
+                Need help? Contact us at <a href="mailto:${this.supportEmail}" style="color: #00c19c;">${this.supportEmail}</a>
               </p>
             </div>
           </div>
@@ -222,7 +222,7 @@ Need help? Contact us at ${this.supportEmail}
           <title>${subject}</title>
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <div style="background: linear-gradient(135deg, #00c19c 0%, #009e80 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
             <h1 style="color: white; margin: 0;">Welcome to DNAi!</h1>
           </div>
           <div style="background: #ffffff; padding: 40px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
@@ -235,13 +235,13 @@ Need help? Contact us at ${this.supportEmail}
             </p>
             <div style="margin: 30px 0;">
               <a href="${process.env.REACT_APP_APP_URL || 'https://your-domain.com'}/dashboard" 
-                 style="background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 500;">
+                 style="background: #00c19c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 500;">
                 Go to Dashboard
               </a>
             </div>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
               <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                Need help? Contact us at <a href="mailto:${this.supportEmail}" style="color: #3b82f6;">${this.supportEmail}</a>
+                Need help? Contact us at <a href="mailto:${this.supportEmail}" style="color: #00c19c;">${this.supportEmail}</a>
               </p>
             </div>
           </div>
@@ -270,7 +270,7 @@ Need help? Contact us at ${this.supportEmail}
           <title>${subject}</title>
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <div style="background: linear-gradient(135deg, #00c19c 0%, #009e80 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
             <h1 style="color: white; margin: 0;">DNAi</h1>
           </div>
           <div style="background: #ffffff; padding: 40px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
@@ -292,7 +292,7 @@ Need help? Contact us at ${this.supportEmail}
             </div>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
               <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                Need help? Contact us at <a href="mailto:${this.supportEmail}" style="color: #3b82f6;">${this.supportEmail}</a>
+                Need help? Contact us at <a href="mailto:${this.supportEmail}" style="color: #00c19c;">${this.supportEmail}</a>
               </p>
             </div>
           </div>
@@ -321,7 +321,7 @@ Need help? Contact us at ${this.supportEmail}
           <title>${subject}</title>
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <div style="background: linear-gradient(135deg, #00c19c 0%, #009e80 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
             <h1 style="color: white; margin: 0;">DNAi</h1>
           </div>
           <div style="background: #ffffff; padding: 40px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
@@ -342,7 +342,7 @@ Need help? Contact us at ${this.supportEmail}
             </div>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
               <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                Need help? Contact us at <a href="mailto:${this.supportEmail}" style="color: #3b82f6;">${this.supportEmail}</a>
+                Need help? Contact us at <a href="mailto:${this.supportEmail}" style="color: #00c19c;">${this.supportEmail}</a>
               </p>
             </div>
           </div>
@@ -371,7 +371,7 @@ Need help? Contact us at ${this.supportEmail}
           <title>${subject}</title>
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <div style="background: linear-gradient(135deg, #00c19c 0%, #009e80 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
             <h1 style="color: white; margin: 0;">DNAi Security Alert</h1>
           </div>
           <div style="background: #ffffff; padding: 40px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
@@ -386,7 +386,7 @@ Need help? Contact us at ${this.supportEmail}
             </div>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
               <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                Need help? Contact us at <a href="mailto:${this.supportEmail}" style="color: #3b82f6;">${this.supportEmail}</a>
+                Need help? Contact us at <a href="mailto:${this.supportEmail}" style="color: #00c19c;">${this.supportEmail}</a>
               </p>
             </div>
           </div>
@@ -415,7 +415,7 @@ Need help? Contact us at ${this.supportEmail}
           <title>${subject}</title>
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <div style="background: linear-gradient(135deg, #00c19c 0%, #009e80 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
             <h1 style="color: white; margin: 0;">DNAi</h1>
           </div>
           <div style="background: #ffffff; padding: 40px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
@@ -433,7 +433,7 @@ Need help? Contact us at ${this.supportEmail}
             </p>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
               <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                Need help? Contact us at <a href="mailto:${this.supportEmail}" style="color: #3b82f6;">${this.supportEmail}</a>
+                Need help? Contact us at <a href="mailto:${this.supportEmail}" style="color: #00c19c;">${this.supportEmail}</a>
               </p>
             </div>
           </div>

@@ -192,7 +192,7 @@ const ContactListsTable: React.FC<ContactListsTableProps> = ({
         <div className="flex h-[52px] items-center justify-between pt-[30px] pb-4">
           <Button
             onClick={onAdd}
-            className="h-10 bg-[#0b99ff] text-white rounded-[8px] text-[16px] font-semibold hover:bg-[#0b99ff]/90"
+            className="h-10 bg-[#00c19c] text-white rounded-[8px] text-[16px] font-semibold hover:bg-[#00c19c]/90"
             style={{ fontFamily: "'Manrope', sans-serif" }}
           >
             <CirclePlus className="w-5 h-5 mr-2" />
@@ -216,7 +216,7 @@ const ContactListsTable: React.FC<ContactListsTableProps> = ({
                 size="sm"
                 onClick={() => setCurrentPage(page)}
                 className={`h-9 w-9 text-[14px] font-medium ${
-                  page === currentPage ? 'bg-[#0b99ff] text-white' : ''
+                  page === currentPage ? 'bg-[#00c19c] text-white' : ''
                 }`}
               >
                 {page}
@@ -234,7 +234,7 @@ const ContactListsTable: React.FC<ContactListsTableProps> = ({
               size="sm"
               onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
-              className="h-9 bg-[#0b99ff] text-white px-4 text-[14px] font-medium"
+              className="h-9 bg-[#00c19c] text-white px-4 text-[14px] font-medium"
             >
               Next
               <ChevronRight className="w-4 h-4 ml-1" />

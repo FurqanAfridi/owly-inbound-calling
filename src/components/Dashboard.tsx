@@ -240,7 +240,6 @@ const Dashboard: React.FC = () => {
         .from('inbound_numbers')
         .select('id, phone_number, phone_label, assigned_to_agent_id')
         .eq('user_id', user.id)
-        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -731,7 +730,7 @@ const Dashboard: React.FC = () => {
           </div>
           <Button
             onClick={() => setAddInboundNumberDialog(true, null)}
-            className="h-10 bg-[#0b99ff] text-white rounded-[8px] text-[16px] font-semibold hover:bg-[#0b99ff]/90"
+            className="h-10 bg-[#00c19c] text-white rounded-[8px] text-[16px] font-semibold hover:bg-[#00c19c]/90"
             style={{ fontFamily: "'Manrope', sans-serif" }}
           >
             <CirclePlus className="w-5 h-5 mr-2" />

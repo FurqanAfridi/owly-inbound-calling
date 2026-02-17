@@ -63,7 +63,7 @@ button {
   height: 100%;
   top: 0;
   left: 0;
-  background: linear-gradient(135deg, rgba(48, 134, 255, 0.5) 0%, rgba(48, 134, 255, 1) 100%);
+  background: linear-gradient(135deg, rgba(0, 193, 156, 0.5) 0%, rgba(0, 193, 156, 1) 100%);
   z-index: 43;
   border-radius: inherit;
   /* Scale with parent */
@@ -430,7 +430,7 @@ button {
 }
 
 .signin-input-wrapper:focus-within {
-  border-color: #3086ff;
+  border-color: #00c19c;
 }
 
 .signin-input {
@@ -490,11 +490,11 @@ button {
 }
 
 .dark .signin-forgot-link {
-  color: #60A5FA !important;
+  color: #4dd8bc !important;
 }
 
 .dark .signin-terms-link {
-  color: #60A5FA !important;
+  color: #4dd8bc !important;
 }
 
 .dark .signin-signup-text {
@@ -502,7 +502,7 @@ button {
 }
 
 .dark .signin-signup-link-text {
-  color: #60A5FA !important;
+  color: #4dd8bc !important;
 }
 
 .dark .signin-divider-text {
@@ -667,7 +667,7 @@ button {
 }
 
 .signin-password-input:focus-within {
-  border-color: #3086ff;
+  border-color: #00c19c;
 }
 
 .signin-password-input .signin-input {
@@ -738,7 +738,7 @@ button {
   border: 1.4px solid #8c8c8c;
   border-radius: 0.25rem;
   cursor: pointer;
-  accent-color: #3086ff;
+  accent-color: #00c19c;
 }
 
 .signin-checkbox-label {
@@ -841,7 +841,7 @@ button {
   position: relative;
   width: 100%;
   padding: 8px 16px;
-  background: #3086ff;
+  background: #00c19c;
   border-radius: 12px;
   border: none;
   cursor: pointer;
@@ -862,7 +862,7 @@ button {
 }
 
 .signin-submit-button:hover:not(:disabled) {
-  background: #2563eb;
+  background: #009e80;
 }
 
 .signin-submit-button:disabled {
@@ -1032,7 +1032,7 @@ button {
 }
 
 .country-selector-button:hover {
-  border-color: #3086ff;
+  border-color: #00c19c;
 }
 
 .country-selector-flag {
@@ -1108,8 +1108,8 @@ button {
 }
 
 .country-selector-search-input:focus {
-  border-color: #3086ff;
-  box-shadow: 0 0 0 2px rgba(48, 134, 255, 0.1);
+  border-color: #00c19c;
+  box-shadow: 0 0 0 2px rgba(0, 193, 156, 0.1);
 }
 
 .country-selector-search-input::placeholder {
@@ -1144,12 +1144,12 @@ button {
 }
 
 .country-selector-item-selected {
-  background: #eff6ff;
-  color: #3086ff;
+  background: #ecfdf5;
+  color: #00c19c;
 }
 
 .country-selector-item-selected:hover {
-  background: #dbeafe;
+  background: #d1fae5;
 }
 
 .country-selector-item-flag {
@@ -1287,8 +1287,8 @@ button {
 }
 
 .signin-social-button:hover {
-  border-color: #3086ff;
-  background: #f0f7ff;
+  border-color: #00c19c;
+  background: #f0fdf9;
 }
 
 .signin-social-icon {
@@ -2006,7 +2006,7 @@ button {
   left: 20px;
   top: 20px;
   bottom: 20px;
-  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+  background: linear-gradient(135deg, #00c19c 0%, #009e80 100%);
   padding: 60px;
   display: flex;
   flex-direction: column;
@@ -2014,7 +2014,7 @@ button {
   overflow: hidden;
   width: 582px;
   border-radius: 24px;
-  box-shadow: 0 10px 40px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 10px 40px rgba(0, 158, 128, 0.15);
   z-index: 10;
 }
 
@@ -2113,8 +2113,8 @@ button {
   background: repeating-linear-gradient(45deg,
       transparent,
       transparent 20px,
-      rgba(59, 130, 246, 0.03) 20px,
-      rgba(59, 130, 246, 0.03) 40px);
+      rgba(0, 193, 156, 0.03) 20px,
+      rgba(0, 193, 156, 0.03) 40px);
   pointer-events: none;
 }
 
@@ -2188,7 +2188,7 @@ button {
 .form-group select:focus {
   outline: none;
   border-color: var(--primary-blue);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(0, 193, 156, 0.1);
 }
 
 .form-group textarea {
@@ -2264,7 +2264,7 @@ button {
 }
 
 .form-link:hover {
-  color: #2563EB;
+  color: #009e80;
 }
 
 .forgot-password {
@@ -2302,8 +2302,8 @@ button {
 }
 
 .submit-button:hover {
-  background: #2563EB;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  background: #009e80;
+  box-shadow: 0 4px 12px rgba(0, 193, 156, 0.3);
   transform: translateY(-1px);
 }
 
@@ -2402,7 +2402,7 @@ button {
 
 .social-button:hover {
   border-color: var(--primary-blue);
-  background: rgba(59, 130, 246, 0.05);
+  background: rgba(0, 193, 156, 0.05);
 }
 
 .social-button img {
@@ -2508,8 +2508,8 @@ button {
   background: repeating-linear-gradient(45deg,
       transparent,
       transparent 20px,
-      rgba(59, 130, 246, 0.03) 20px,
-      rgba(59, 130, 246, 0.03) 40px);
+      rgba(0, 193, 156, 0.03) 20px,
+      rgba(0, 193, 156, 0.03) 40px);
   pointer-events: none;
 }
 
@@ -2695,7 +2695,7 @@ button {
   left: 20px;
   top: 20px;
   bottom: 20px;
-  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  background: linear-gradient(135deg, #009e80 0%, #008068 100%);
   padding: 80px 60px;
   display: flex;
   align-items: center;
@@ -2703,7 +2703,7 @@ button {
   overflow: hidden;
   width: 582px;
   border-radius: 24px;
-  box-shadow: 0 10px 40px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 10px 40px rgba(0, 158, 128, 0.15);
   z-index: 10;
 }
 
@@ -2810,7 +2810,7 @@ button {
   width: 18px;
   height: 18px;
   cursor: pointer;
-  accent-color: #2563eb;
+  accent-color: #009e80;
 }
 
 .checkbox-group label {
@@ -2822,7 +2822,7 @@ button {
 .primary-button {
   width: 100%;
   padding: 16px;
-  background: #2563eb;
+  background: #009e80;
   color: white;
   border: none;
   border-radius: 10px;
@@ -2835,9 +2835,9 @@ button {
 }
 
 .primary-button:hover {
-  background: #1d4ed8;
+  background: #008b71;
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 6px 20px rgba(0, 158, 128, 0.35);
 }
 
 .primary-button:active {
@@ -2854,7 +2854,7 @@ button {
 .bottom-link button {
   background: none;
   border: none;
-  color: #2563eb;
+  color: #009e80;
   font-weight: 600;
   cursor: pointer;
   text-decoration: underline;
@@ -2865,7 +2865,7 @@ button {
 .link-button {
   background: none;
   border: none;
-  color: #2563eb;
+  color: #009e80;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -2928,8 +2928,8 @@ button {
   background: repeating-linear-gradient(45deg,
       transparent,
       transparent 30px,
-      rgba(37, 99, 235, 0.02) 30px,
-      rgba(37, 99, 235, 0.02) 60px);
+      rgba(0, 158, 128, 0.02) 30px,
+      rgba(0, 158, 128, 0.02) 60px);
   z-index: 0;
   pointer-events: none;
 }
@@ -3065,7 +3065,7 @@ button {
 }
 
 .country-code-button:hover {
-  border-color: #3b82f6;
+  border-color: #00c19c;
 }
 
 .country-flag {
@@ -3131,8 +3131,8 @@ button {
 }
 
 .country-item.selected {
-  background: #eff6ff;
-  color: #3b82f6;
+  background: #ecfdf5;
+  color: #00c19c;
 }
 
 .country-item .country-flag {
@@ -3230,7 +3230,7 @@ button {
 
 .logout-button {
   padding: 10px 20px;
-  background: #3b82f6;
+  background: #00c19c;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -3241,7 +3241,7 @@ button {
 }
 
 .logout-button:hover {
-  background: #2563eb;
+  background: #009e80;
   transform: translateY(-1px);
 }
 
@@ -3267,14 +3267,14 @@ button {
 }
 
 .time-range-selector button:hover {
-  border-color: #3b82f6;
-  color: #3b82f6;
+  border-color: #00c19c;
+  color: #00c19c;
 }
 
 .time-range-selector button.active {
-  background: #3b82f6;
+  background: #00c19c;
   color: #fff;
-  border-color: #3b82f6;
+  border-color: #00c19c;
 }
 
 .stats-grid {
@@ -3307,7 +3307,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #eff6ff;
+  background: #ecfdf5;
   border-radius: 12px;
 }
 
@@ -3451,7 +3451,7 @@ button {
 }
 
 .back-link-btn:hover {
-  color: #2563eb;
+  color: #009e80;
 }
 
 .agent-form-content {
@@ -3524,7 +3524,7 @@ button {
 
 .provider-btn:hover {
   border-color: var(--primary-blue);
-  background: #f0f7ff;
+  background: #f0fdf9;
   transform: translateY(-2px);
 }
 
@@ -3549,7 +3549,7 @@ button {
 }
 
 .provider-badge {
-  background: #4d94ff;
+  background: #00c19c;
   color: white;
   padding: 4px 12px;
   border-radius: 6px;
@@ -3560,8 +3560,8 @@ button {
 
 .change-provider-btn {
   background: transparent;
-  border: 1px solid #4d94ff;
-  color: #4d94ff;
+  border: 1px solid #00c19c;
+  color: #00c19c;
   padding: 6px 12px;
   border-radius: 6px;
   font-size: 12px;
@@ -3570,7 +3570,7 @@ button {
 }
 
 .change-provider-btn:hover {
-  background: #4d94ff;
+  background: #00c19c;
   color: white;
 }
 
@@ -3713,8 +3713,8 @@ button {
 .modal-body input:focus,
 .modal-body select:focus {
   outline: none;
-  border-color: #4d94ff;
-  box-shadow: 0 0 0 3px rgba(77, 148, 255, 0.1);
+  border-color: #00c19c;
+  box-shadow: 0 0 0 3px rgba(0, 193, 156, 0.1);
 }
 
 .modal-body input::placeholder {
@@ -3756,7 +3756,7 @@ button {
   width: 18px;
   height: 18px;
   cursor: pointer;
-  accent-color: #4d94ff;
+  accent-color: #00c19c;
 }
 
 .field-hint {
@@ -3813,9 +3813,9 @@ button {
 }
 
 .btn-import {
-  background: linear-gradient(135deg, #4d94ff 0%, #3a7dd9 100%);
+  background: linear-gradient(135deg, #00c19c 0%, #009e80 100%);
   color: white;
-  box-shadow: 0 2px 4px rgba(77, 148, 255, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 193, 156, 0.3);
   padding: 12px 24px;
   border-radius: 8px;
   font-size: 14px;
@@ -3826,8 +3826,8 @@ button {
 }
 
 .btn-import:hover {
-  background: linear-gradient(135deg, #3a7dd9 0%, #2a6dc9 100%);
-  box-shadow: 0 4px 8px rgba(77, 148, 255, 0.4);
+  background: linear-gradient(135deg, #009e80 0%, #008b71 100%);
+  box-shadow: 0 4px 8px rgba(0, 193, 156, 0.4);
   transform: translateY(-1px);
 }
 

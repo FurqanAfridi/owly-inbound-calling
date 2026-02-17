@@ -161,8 +161,8 @@ const SignUp: React.FC = () => {
     if (!formData.password) {
       errors.password = 'Password is required';
     } else {
-      const passwordValidation = validatePassword(formData.password);
-      if (!passwordValidation.isValid) {
+    const passwordValidation = validatePassword(formData.password);
+    if (!passwordValidation.isValid) {
         errors.password = passwordValidation.errors.join('. ');
       }
     }

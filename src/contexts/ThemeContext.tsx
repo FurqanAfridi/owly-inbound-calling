@@ -28,9 +28,9 @@ const createAppTheme = (mode: ThemeMode): Theme => {
     palette: {
       mode,
       primary: {
-        main: isLight ? '#3c83f6' : '#2564eb', // Primary
-        light: '#60A5FA',
-        dark: '#2563EB',
+        main: isLight ? '#00c19c' : '#009e80', // Primary
+        light: '#4dd8bc',
+        dark: '#009e80',
         contrastText: isLight ? '#ffffff' : '#f9fafb', // Primary Text
       },
       secondary: {
@@ -51,9 +51,9 @@ const createAppTheme = (mode: ThemeMode): Theme => {
         dark: '#D97706',
       },
       info: {
-        main: isLight ? '#3c83f6' : '#22d3ee', // Accent
-        light: '#60A5FA',
-        dark: isLight ? '#2563EB' : '#06b6d4',
+        main: isLight ? '#00c19c' : '#22d3ee', // Accent
+        light: '#4dd8bc',
+        dark: isLight ? '#009e80' : '#06b6d4',
         contrastText: '#f9fafb', // Accent Text
       },
       success: {

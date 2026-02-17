@@ -33,7 +33,7 @@ const StatCardWithChart: React.FC<StatCardWithChartProps> = ({
               style={{
                 height: `${height}px`,
                 background: index === 2 
-                  ? 'linear-gradient(to bottom, rgba(11,153,255,0.5) 46.708%, rgba(48,134,255,0.05) 100%)'
+                  ? 'linear-gradient(to bottom, rgba(0,193,156,0.5) 46.708%, rgba(0,193,156,0.05) 100%)'
                   : 'linear-gradient(to bottom, rgba(255,255,255,0.2) 20%, rgba(255,255,255,0) 100%)',
               }}
             />
