@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutTemplate,
@@ -27,8 +27,14 @@ interface SidebarItem {
   id: string;
   label: string;
   icon: React.ReactNode;
-  path: string;
+  path?: string;
   hasSubmenu?: boolean;
+  submenuItems?: Array<{
+    id: string;
+    label: string;
+    icon: React.ReactNode;
+    path: string;
+  }>;
 }
 
 interface SidebarSection {
@@ -63,9 +69,17 @@ const sidebarSections: SidebarSection[] = [
   {
     title: 'Account',
     items: [
-      { id: 'billing', label: 'Billing', icon: <CreditCard className="w-5 h-5" />, path: '/billing' },
-      { id: 'profile', label: 'Settings', icon: <User className="w-5 h-5" />, path: '/profile' },
-      { id: 'documentation', label: 'Documentation', icon: <FileText className="w-5 h-5" />, path: '/documentation' },
+      {
+        id: 'account',
+        label: 'Account',
+        icon: <User className="w-5 h-5" />,
+        hasSubmenu: true,
+        submenuItems: [
+          { id: 'billing', label: 'Billing', icon: <CreditCard className="w-4 h-4" />, path: '/billing' },
+          { id: 'profile', label: 'Settings', icon: <User className="w-4 h-4" />, path: '/profile' },
+          { id: 'documentation', label: 'Documentation', icon: <FileText className="w-4 h-4" />, path: '/documentation' },
+        ],
+      },
     ],
   },
 ];
@@ -81,21 +95,43 @@ const Sidebar = () => {
   const getActiveItem = () => {
     const currentPath = location.pathname;
     for (const section of sidebarSections) {
-      const item = section.items.find(item => {
-        if (item.path === currentPath) return true;
+      for (const item of section.items) {
+        // Check if current path matches item path
+        if (item.path === currentPath) return item.id;
+        
         // Handle edit-agent route
-        if (item.id === 'agents' && currentPath.startsWith('/edit-agent')) return true;
-        if (item.id === 'agents' && currentPath.startsWith('/create-agent')) return true;
-        return false;
-      });
-      if (item) return item.id;
+        if (item.id === 'agents' && currentPath.startsWith('/edit-agent')) return item.id;
+        if (item.id === 'agents' && currentPath.startsWith('/create-agent')) return item.id;
+        
+        // Check submenu items
+        if (item.hasSubmenu && item.submenuItems) {
+          const submenuMatch = item.submenuItems.find(subItem => subItem.path === currentPath);
+          if (submenuMatch) {
+            return submenuMatch.id;
+          }
+        }
+      }
     }
     return 'overview';
   };
 
   const activeItem = getActiveItem();
 
-  const handleItemClick = (path: string, hasSubmenu?: boolean, id?: string) => {
+  // Auto-expand Account section if a submenu item is active
+  useEffect(() => {
+    const currentPath = location.pathname;
+    const accountPaths = ['/billing', '/profile', '/documentation'];
+    
+    if (accountPaths.includes(currentPath)) {
+      setExpandedItems(prev => {
+        const newSet = new Set(prev);
+        newSet.add('account');
+        return newSet;
+      });
+    }
+  }, [location.pathname]);
+
+  const handleItemClick = (path: string | undefined, hasSubmenu?: boolean, id?: string) => {
     if (hasSubmenu && id) {
       setExpandedItems(prev => {
         const newSet = new Set(prev);
@@ -106,15 +142,19 @@ const Sidebar = () => {
         }
         return newSet;
       });
-    } else {
+    } else if (path) {
       navigate(path);
     }
+  };
+
+  const handleSubmenuItemClick = (path: string) => {
+    navigate(path);
   };
 
   const handleLogout = async () => {
     try {
       await signOut();
-      navigate('/login');
+      navigate('/');
     } catch (error) {
       console.error("Logout failed", error);
     }
@@ -164,7 +204,7 @@ const Sidebar = () => {
             {/* Section Menu Items */}
             <div className="space-y-1">
               {section.items.map((item) => {
-                const isActive = activeItem === item.id;
+                const isActive = activeItem === item.id || (item.hasSubmenu && item.submenuItems?.some(subItem => activeItem === subItem.id));
                 const isExpanded = expandedItems.has(item.id);
 
                 return (
@@ -210,10 +250,34 @@ const Sidebar = () => {
                       )}
                     </button>
 
-                    {/* Submenu (if needed in future) */}
-                    {item.hasSubmenu && isExpanded && !isCollapsed && (
-                      <div className="ml-9 mt-1 space-y-1 border-l-2 border-sidebar-border pl-2">
-                        {/* Submenu items would go here */}
+                    {/* Submenu Items */}
+                    {item.hasSubmenu && isExpanded && !isCollapsed && item.submenuItems && (
+                      <div className="ml-9 mt-1 space-y-1 border-l-2 border-sidebar-border/50 pl-3 py-1">
+                        {item.submenuItems.map((subItem) => {
+                          const isSubActive = activeItem === subItem.id;
+                          return (
+                            <button
+                              key={subItem.id}
+                              onClick={() => handleSubmenuItemClick(subItem.path)}
+                              className={cn(
+                                "flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg transition-all duration-200 group",
+                                isSubActive
+                                  ? "bg-sidebar-accent/80 text-sidebar-foreground font-medium"
+                                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent/30 hover:text-sidebar-foreground/80 text-sm"
+                              )}
+                            >
+                              <div className={cn(
+                                "w-[18px] h-[18px] flex items-center justify-center shrink-0",
+                                isSubActive ? "text-sidebar-primary" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground/70"
+                              )}>
+                                {subItem.icon}
+                              </div>
+                              <span className="text-[14px] truncate flex-1 text-left leading-[20px]">
+                                {subItem.label}
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

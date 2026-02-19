@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link, useParams } from 'react-router-dom';
-import { User, Building2, Globe, Mic, FileText, Phone, Settings, Plus, Sparkles, X, Play, Volume2, Coins, ArrowLeft, ListCollapse, AudioLines, Settings2, ChevronRight, Search, ChevronLeft, ArrowUpDown, MoreVertical, Calendar, ChevronLeft as ChevronLeftIcon } from 'lucide-react';
+import { useNavigate, Link, useParams, useLocation } from 'react-router-dom';
+import { User, Building2, Globe, Mic, FileText, Phone, Settings, Plus, Sparkles, X, Play, Volume2, Coins, ArrowLeft, ListCollapse, AudioLines, Settings2, ChevronRight, Search, ChevronLeft, ArrowUpDown, MoreVertical, Calendar, ChevronLeft as ChevronLeftIcon, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { hasEnoughCredits, deductAgentCreationCredits, CREDIT_RATES } from '../services/creditService';
@@ -35,6 +35,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Slider } from './ui/slider';
 import { allVoices, vapiVoices, deepgramVoices, VoiceConfig } from '../data/voices';
 import { timezones, getTimezonesByGroup } from '../data/timezones';
+import { generatePromptFromProfile } from '../services/aiPromptService';
+import { useAIPrompts } from '../hooks/useAIPrompts';
+import type { AgentPromptProfile } from '../types/aiPrompt';
+import { toast } from '@/hooks/use-toast';
 
 interface InboundNumber {
   id: string;
@@ -77,6 +81,7 @@ interface AgentConfig {
 
 const CreateVoiceAgent: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation() as { state?: { promptId?: string } };
   const { id: agentId } = useParams<{ id?: string }>();
   const { user } = useAuth();
   const isEditMode = !!agentId;
@@ -148,6 +153,32 @@ const CreateVoiceAgent: React.FC = () => {
   const [selectedPromptId, setSelectedPromptId] = useState<string>('');
   const [highlightEmptyFields, setHighlightEmptyFields] = useState(false);
 
+  // Generate Prompt Dialog State
+  const [showGeneratePromptDialog, setShowGeneratePromptDialog] = useState(false);
+  const [promptGenFormData, setPromptGenFormData] = useState<Partial<AgentPromptProfile>>({
+    companyName: '',
+    businessIndustry: '',
+    agentPurpose: '',
+    callType: 'Sales',
+    targetAudience: '',
+    callGoal: 'Book Appointment',
+    services: [],
+    tone: 'Friendly',
+    languages: ['en-US'],
+  });
+  const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
+  const [generatedPromptData, setGeneratedPromptData] = useState<{
+    finalPrompt: string;
+    welcomeMessages: string[];
+    formData: any;
+    agentProfile: any;
+  } | null>(null);
+  const [promptSaveName, setPromptSaveName] = useState('');
+  const [promptSaveCategory, setPromptSaveCategory] = useState('general');
+  const [isSavingPrompt, setIsSavingPrompt] = useState(false);
+  
+  const { createPrompt, refetch: refetchPrompts } = useAIPrompts();
+
   const [formData, setFormData] = useState({
     agentName: '',
     companyName: 'DNAI', // Default company name
@@ -194,8 +225,8 @@ const CreateVoiceAgent: React.FC = () => {
     // Check basic string fields
     const basicFieldsValid = requiredFields.every(field => field && field.trim() !== '');
 
-    // Check welcome messages count (label says min 5)
-    const welcomeMessagesValid = welcomeMessages.length >= 5;
+    // Check welcome messages count (min 1, max 5)
+    const welcomeMessagesValid = welcomeMessages.length >= 1 && welcomeMessages.length <= 5;
 
     return basicFieldsValid && welcomeMessagesValid;
   };
@@ -203,7 +234,7 @@ const CreateVoiceAgent: React.FC = () => {
   // Progress calculation
   const getProgress = () => {
     const detailsFields = [formData.agentName, formData.companyName, formData.websiteUrl, formData.goal, formData.backgroundContext];
-    const voiceFields = [welcomeMessages.length >= 5, formData.instructionVoice];
+    const voiceFields = [welcomeMessages.length >= 1 && welcomeMessages.length <= 5, formData.instructionVoice];
     const settingsFields = [formData.voice, formData.language, formData.agentType, formData.timezone, selectedNumberId];
 
     const allRequired = [...detailsFields, ...voiceFields, ...settingsFields];
@@ -221,7 +252,7 @@ const CreateVoiceAgent: React.FC = () => {
         return [formData.agentName, formData.companyName, formData.websiteUrl, formData.goal, formData.backgroundContext]
           .every(f => f && f.trim() !== '');
       case 'voice':
-        return welcomeMessages.length >= 5 && formData.instructionVoice.trim() !== '';
+        return welcomeMessages.length >= 1 && welcomeMessages.length <= 5 && formData.instructionVoice.trim() !== '';
       case 'settings':
         return [formData.voice, formData.language, formData.agentType, formData.timezone, selectedNumberId]
           .every(f => f && f.trim() !== '');
@@ -461,6 +492,31 @@ const CreateVoiceAgent: React.FC = () => {
         setTimeout(() => {
           loadAgentForEdit(agentId);
         }, 100);
+      } else if (!isEditMode && user) {
+        // Check if prompt ID is in location state (from AI Prompts page)
+        const promptId = location.state?.promptId;
+        if (promptId) {
+          // Wait for saved prompts to load, then load the prompt
+          setTimeout(async () => {
+            try {
+              const { data, error } = await supabase
+                .from('ai_prompts')
+                .select('*')
+                .eq('id', promptId)
+                .eq('user_id', user.id)
+                .single();
+              
+              if (!error && data) {
+                // Use the same logic as handleSelectPrompt
+                await handleSelectPrompt(promptId);
+                // Clear the state to prevent reloading on re-render
+                window.history.replaceState({}, document.title);
+              }
+            } catch (err) {
+              console.error('Error loading prompt:', err);
+            }
+          }, 200);
+        }
       }
     };
     initialize();
@@ -550,48 +606,325 @@ const CreateVoiceAgent: React.FC = () => {
     }
   };
 
-  const handleSelectPrompt = (promptId: string) => {
-    const prompt = savedPrompts.find(p => p.id === promptId);
+  // Initialize prompt generation form with current agent form data
+  const openGeneratePromptDialog = () => {
+    setPromptGenFormData({
+      companyName: formData.companyName || '',
+      businessIndustry: '',
+      agentPurpose: formData.goal || '',
+      callType: formData.agentType ? (formData.agentType.charAt(0).toUpperCase() + formData.agentType.slice(1)) as AgentPromptProfile['callType'] : 'Sales',
+      targetAudience: '',
+      callGoal: 'Book Appointment',
+      services: [],
+      tone: 'Friendly',
+      languages: [formData.language || 'en-US'],
+    });
+    setPromptSaveName(formData.companyName ? `${formData.companyName} - Prompt` : 'New Prompt');
+    setGeneratedPromptData(null);
+    setShowGeneratePromptDialog(true);
+  };
+
+  // Generate prompt from form data
+  const handleGeneratePromptInDialog = async () => {
+    if (!promptGenFormData.companyName || !promptGenFormData.agentPurpose || !promptGenFormData.callType) {
+      toast({
+        title: 'Missing Required Fields',
+        description: 'Please fill in Company Name, Agent Purpose, and Call Type',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsGeneratingPrompt(true);
+    try {
+      const result = await generatePromptFromProfile(promptGenFormData);
+      setGeneratedPromptData({
+        finalPrompt: result.finalPrompt || '',
+        welcomeMessages: result.welcomeMessages || [],
+        formData: result.formData || null,
+        agentProfile: result.agentProfile || null,
+      });
+      toast({
+        title: 'Success',
+        description: 'Prompt generated successfully',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to generate prompt',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGeneratingPrompt(false);
+    }
+  };
+
+  // Save generated prompt and auto-fill form
+  const handleSaveAndUsePrompt = async () => {
+    if (!user || !generatedPromptData || !promptSaveName.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please provide a prompt name',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSavingPrompt(true);
+    try {
+      const savedPrompt = await createPrompt({
+        name: promptSaveName.trim(),
+        category: promptSaveCategory,
+        system_prompt: generatedPromptData.finalPrompt,
+        begin_message: null,
+        agent_profile: generatedPromptData.agentProfile || promptGenFormData,
+        welcome_messages: generatedPromptData.welcomeMessages || [],
+        call_type: promptGenFormData.callType,
+        call_goal: promptGenFormData.callGoal,
+        tone: promptGenFormData.tone,
+        status: 'ready',
+        state_prompts: {} as any,
+        tools_config: {} as any,
+        is_active: true,
+        is_template: false,
+        form_data: generatedPromptData.formData || null,
+      });
+
+      if (savedPrompt) {
+        // Refresh prompts list
+        await refetchPrompts();
+        await fetchSavedPrompts();
+
+        // Auto-fill the agent creation form with the generated prompt
+        if (savedPrompt.form_data && Object.keys(savedPrompt.form_data).length > 0) {
+          const formDataFromPrompt = savedPrompt.form_data;
+          setFormData(prev => {
+            const newFormData: any = { ...prev };
+            if ('agentName' in formDataFromPrompt) newFormData.agentName = formDataFromPrompt.agentName || savedPrompt.name || '';
+            if ('companyName' in formDataFromPrompt) newFormData.companyName = formDataFromPrompt.companyName || '';
+            if ('websiteUrl' in formDataFromPrompt) newFormData.websiteUrl = formDataFromPrompt.websiteUrl || '';
+            if ('goal' in formDataFromPrompt) newFormData.goal = formDataFromPrompt.goal || '';
+            if ('backgroundContext' in formDataFromPrompt) newFormData.backgroundContext = savedPrompt.system_prompt || formDataFromPrompt.backgroundContext || '';
+            if ('instructionVoice' in formDataFromPrompt) newFormData.instructionVoice = formDataFromPrompt.instructionVoice || '';
+            if ('script' in formDataFromPrompt) newFormData.script = formDataFromPrompt.script || savedPrompt.system_prompt || '';
+            if ('language' in formDataFromPrompt) newFormData.language = formDataFromPrompt.language || 'en-US';
+            if ('timezone' in formDataFromPrompt) newFormData.timezone = formDataFromPrompt.timezone || '';
+            if ('agentType' in formDataFromPrompt) newFormData.agentType = formDataFromPrompt.agentType || '';
+            if ('tool' in formDataFromPrompt) newFormData.tool = formDataFromPrompt.tool || '';
+            if ('voice' in formDataFromPrompt) newFormData.voice = formDataFromPrompt.voice || 'helena';
+            if ('temperature' in formDataFromPrompt) newFormData.temperature = formDataFromPrompt.temperature !== undefined ? formDataFromPrompt.temperature : 0.7;
+            if ('confidence' in formDataFromPrompt) newFormData.confidence = formDataFromPrompt.confidence !== undefined ? formDataFromPrompt.confidence : 0.8;
+            if ('verbosity' in formDataFromPrompt) newFormData.verbosity = formDataFromPrompt.verbosity !== undefined ? formDataFromPrompt.verbosity : 0.7;
+            if (!newFormData.script && savedPrompt.system_prompt) newFormData.script = savedPrompt.system_prompt;
+            if (!newFormData.agentName && savedPrompt.name) newFormData.agentName = savedPrompt.name;
+            return newFormData;
+          });
+
+          if (savedPrompt.welcome_messages && savedPrompt.welcome_messages.length > 0) {
+            setWelcomeMessages(savedPrompt.welcome_messages);
+          }
+        } else {
+          // Fallback to agent_profile mapping
+          const profile = savedPrompt.agent_profile || {};
+          setFormData(prev => ({
+            ...prev,
+            agentName: savedPrompt.name || prev.agentName,
+            companyName: profile.companyName || prev.companyName,
+            websiteUrl: profile.companyWebsite || prev.websiteUrl,
+            goal: profile.callGoal || prev.goal,
+            backgroundContext: savedPrompt.system_prompt || prev.backgroundContext,
+            script: savedPrompt.system_prompt || prev.script,
+            instructionVoice: profile.tone ? `Use a ${profile.tone} tone.` : prev.instructionVoice,
+            agentType: profile.callType ? profile.callType.toLowerCase() : prev.agentType,
+            language: (profile.languages && profile.languages.length > 0) ? profile.languages[0] : prev.language,
+          }));
+          if (savedPrompt.welcome_messages && savedPrompt.welcome_messages.length > 0) {
+            setWelcomeMessages(savedPrompt.welcome_messages);
+          }
+        }
+
+        toast({
+          title: 'Success',
+          description: 'Prompt saved and form autofilled!',
+        });
+
+        // Close both dialogs
+        setShowGeneratePromptDialog(false);
+        setShowPromptDialog(false);
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to save prompt',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingPrompt(false);
+    }
+  };
+
+  const handleSelectPrompt = async (promptId: string) => {
+    // If prompt is not in savedPrompts, fetch it
+    let prompt = savedPrompts.find(p => p.id === promptId);
+    if (!prompt && user) {
+      try {
+        const { data, error } = await supabase
+          .from('ai_prompts')
+          .select('*')
+          .eq('id', promptId)
+          .eq('user_id', user.id)
+          .single();
+        
+        if (error || !data) {
+          setStatusMessage({ type: 'error', text: 'Prompt not found' });
+          return;
+        }
+        prompt = data;
+      } catch (err) {
+        console.error('Error fetching prompt:', err);
+        setStatusMessage({ type: 'error', text: 'Failed to load prompt' });
+        return;
+      }
+    }
+    
     if (!prompt) return;
 
     const profile = prompt.agent_profile || {};
+    const formDataFromPrompt = prompt.form_data || {};
 
-    // Map agent_profile to formData
-    setFormData(prev => ({
-      ...prev,
-      // Core Identity
-      agentName: prompt.name || prev.agentName,
-      companyName: profile.companyName || prev.companyName,
-      websiteUrl: profile.companyWebsite || prev.websiteUrl,
+    // If form_data exists, use it directly (new structured format)
+    // Otherwise, fall back to mapping from agent_profile (backward compatibility)
+    if (formDataFromPrompt && Object.keys(formDataFromPrompt).length > 0) {
+      // Use structured form_data for complete auto-fill
+      // Use ALL fields from formDataFromPrompt - prioritize formData values, fallback to prompt/system_prompt
+      setFormData(prev => {
+        const newFormData: any = { ...prev };
+        
+        // Fill all fields that exist in formDataFromPrompt
+        // Use the value from formData if it exists (even if empty string), otherwise use fallback
+        if ('agentName' in formDataFromPrompt) {
+          newFormData.agentName = formDataFromPrompt.agentName !== undefined && formDataFromPrompt.agentName !== null 
+            ? formDataFromPrompt.agentName 
+            : (prompt.name || prev.agentName);
+        }
+        if ('companyName' in formDataFromPrompt) {
+          newFormData.companyName = formDataFromPrompt.companyName !== undefined && formDataFromPrompt.companyName !== null 
+            ? formDataFromPrompt.companyName 
+            : prev.companyName;
+        }
+        if ('websiteUrl' in formDataFromPrompt) {
+          newFormData.websiteUrl = formDataFromPrompt.websiteUrl !== undefined && formDataFromPrompt.websiteUrl !== null 
+            ? formDataFromPrompt.websiteUrl 
+            : prev.websiteUrl;
+        }
+        if ('goal' in formDataFromPrompt) {
+          newFormData.goal = formDataFromPrompt.goal !== undefined && formDataFromPrompt.goal !== null 
+            ? formDataFromPrompt.goal 
+            : prev.goal;
+        }
+        // Always load the full system prompt into backgroundContext
+        if (prompt.system_prompt) {
+          newFormData.backgroundContext = prompt.system_prompt;
+        } else if ('backgroundContext' in formDataFromPrompt) {
+          newFormData.backgroundContext = formDataFromPrompt.backgroundContext !== undefined && formDataFromPrompt.backgroundContext !== null 
+            ? formDataFromPrompt.backgroundContext 
+            : prev.backgroundContext;
+        }
+        if ('instructionVoice' in formDataFromPrompt) {
+          newFormData.instructionVoice = formDataFromPrompt.instructionVoice !== undefined && formDataFromPrompt.instructionVoice !== null 
+            ? formDataFromPrompt.instructionVoice 
+            : prev.instructionVoice;
+        }
+        if ('script' in formDataFromPrompt) {
+          newFormData.script = formDataFromPrompt.script !== undefined && formDataFromPrompt.script !== null 
+            ? formDataFromPrompt.script 
+            : (prompt.system_prompt || prev.script);
+        }
+        if ('language' in formDataFromPrompt) {
+          newFormData.language = formDataFromPrompt.language !== undefined && formDataFromPrompt.language !== null 
+            ? formDataFromPrompt.language 
+            : prev.language;
+        }
+        if ('timezone' in formDataFromPrompt) {
+          newFormData.timezone = formDataFromPrompt.timezone !== undefined && formDataFromPrompt.timezone !== null 
+            ? formDataFromPrompt.timezone 
+            : prev.timezone;
+        }
+        if ('agentType' in formDataFromPrompt) {
+          newFormData.agentType = formDataFromPrompt.agentType !== undefined && formDataFromPrompt.agentType !== null 
+            ? formDataFromPrompt.agentType 
+            : prev.agentType;
+        }
+        if ('tool' in formDataFromPrompt) {
+          newFormData.tool = formDataFromPrompt.tool !== undefined && formDataFromPrompt.tool !== null 
+            ? formDataFromPrompt.tool 
+            : prev.tool;
+        }
+        if ('voice' in formDataFromPrompt) {
+          newFormData.voice = formDataFromPrompt.voice !== undefined && formDataFromPrompt.voice !== null 
+            ? formDataFromPrompt.voice 
+            : prev.voice;
+        }
+        if ('temperature' in formDataFromPrompt) {
+          newFormData.temperature = formDataFromPrompt.temperature !== undefined && formDataFromPrompt.temperature !== null 
+            ? formDataFromPrompt.temperature 
+            : prev.temperature;
+        }
+        if ('confidence' in formDataFromPrompt) {
+          newFormData.confidence = formDataFromPrompt.confidence !== undefined && formDataFromPrompt.confidence !== null 
+            ? formDataFromPrompt.confidence 
+            : prev.confidence;
+        }
+        if ('verbosity' in formDataFromPrompt) {
+          newFormData.verbosity = formDataFromPrompt.verbosity !== undefined && formDataFromPrompt.verbosity !== null 
+            ? formDataFromPrompt.verbosity 
+            : prev.verbosity;
+        }
+        
+        // Ensure script is always set from system_prompt if not in formData or is empty
+        if (!newFormData.script && prompt.system_prompt) {
+          newFormData.script = prompt.system_prompt;
+        }
+        
+        // Ensure agentName is set from prompt name if not in formData or is empty
+        if (!newFormData.agentName && prompt.name) {
+          newFormData.agentName = prompt.name;
+        }
+        
+        return newFormData;
+      });
+    } else {
+      // Fallback: Map agent_profile to formData (backward compatibility)
+      // Always load the full system prompt into backgroundContext
+      setFormData(prev => ({
+        ...prev,
+        // Core Identity
+        agentName: prompt.name || prev.agentName,
+        companyName: profile.companyName || prev.companyName,
+        websiteUrl: profile.companyWebsite || prev.websiteUrl,
 
-      // Goals & Context
-      goal: profile.callGoal || prev.goal,
-      backgroundContext: [
-        profile.businessDescription,
-        profile.agentPurpose,
-        profile.targetAudience ? `Target Audience: ${profile.targetAudience}` : '',
-        profile.services && profile.services.length > 0 ? `Services: ${profile.services.join(', ')}` : '',
-        profile.pricingInfo ? `Pricing: ${profile.pricingInfo}` : '',
-        profile.businessHours ? `Hours: ${profile.businessHours}` : '',
-      ].filter(Boolean).join('\n\n'),
+        // Goals & Context - load full system prompt into backgroundContext
+        goal: profile.callGoal || prev.goal,
+        backgroundContext: prompt.system_prompt || prev.backgroundContext,
 
-      // Script
-      script: prompt.system_prompt || prev.script,
+        // Script
+        script: prompt.system_prompt || prev.script,
 
-      // Voice & Tone
-      instructionVoice: profile.tone ? `Use a ${profile.tone} tone. ${prompt.system_prompt ? 'Follow the system prompt instructions.' : ''}` : prev.instructionVoice,
+        // Voice & Tone - more detailed
+        instructionVoice: profile.tone 
+          ? `Use a ${profile.tone} tone. ${profile.agentPurpose ? `Purpose: ${profile.agentPurpose}. ` : ''}${prompt.system_prompt ? 'Follow the system prompt instructions carefully.' : ''}` 
+          : prev.instructionVoice,
 
-      // Welcome Messages (from ai_prompts table's welcome_messages column if exists, otherwise generate one)
-      welcomeMessage: (prompt.welcome_messages && prompt.welcome_messages.length > 0) ? prompt.welcome_messages[0] : (prompt.begin_message || prev.welcomeMessage),
+        // Configuration
+        agentType: profile.callType ? profile.callType.toLowerCase() : prev.agentType,
+        language: (profile.languages && profile.languages.length > 0) ? profile.languages[0] : prev.language,
+        timezone: profile.companyAddress ? prev.timezone : prev.timezone, // Keep existing or infer from address if possible
 
-      // Configuration
-      agentType: profile.callType || prev.agentType,
-      language: (profile.languages && profile.languages.length > 0) ? profile.languages[0] : prev.language,
+        // Reset number selection to force user to choose valid number
+      }));
+    }
 
-      // Reset number selection to force user to choose valid number
-    }));
-
-    // Update welcome messages list
+    // Update welcome messages list - prioritize welcome_messages array
     if (prompt.welcome_messages && prompt.welcome_messages.length > 0) {
       setWelcomeMessages(prompt.welcome_messages);
     } else if (prompt.begin_message) {
@@ -602,7 +935,7 @@ const CreateVoiceAgent: React.FC = () => {
 
     setHighlightEmptyFields(true);
     setShowPromptDialog(false);
-    setStatusMessage({ type: 'success', text: 'Form autofilled from saved prompt! Empty fields are highlighted.' });
+    setStatusMessage({ type: 'success', text: 'Form autofilled from saved prompt! All available details have been filled.' });
     setSelectedPromptId('');
   };
 
@@ -842,7 +1175,7 @@ Return ONLY a valid JSON object with the following structure:
   "goal": "string (primary business objectives, can be multi-line)",
   "backgroundContext": "string (company history, mission, product description, can be multi-line)",
   "welcomeMessage": "string (ONE friendly greeting message - this will be used as the first welcome message)",
-  "welcomeMessages": ["array of 5-7 different greeting messages", "each should be unique and natural", "use {name} placeholder for personalization"],
+  "welcomeMessages": ["array of 1-5 different greeting messages", "each should be unique and natural", "use {name} placeholder for personalization"],
   "instructionVoice": "string (tone and style instructions for the agent, 2-3 sentences)",
   "script": "string (comprehensive agent's role and behavior description, include identity, mission, opening script, and conversation guidelines)",
   "language": "string (ISO language code like en-US, es-ES, fr-FR, de-DE, zh-CN)",
@@ -859,7 +1192,7 @@ Return ONLY a valid JSON object with the following structure:
 }
 
 IMPORTANT:
-- Generate 5-7 unique welcome messages in the "welcomeMessages" array
+- Generate 1-5 unique welcome messages in the "welcomeMessages" array
 - Each welcome message should be different, natural, and use {name} for personalization
 - Make the script comprehensive and detailed, including full opening script
 - Make the content professional, realistic, and tailored to the user's business description
@@ -980,9 +1313,15 @@ IMPORTANT:
 
   // Welcome messages handlers
   const handleAddWelcomeMessage = () => {
-    if (newWelcomeMessage.trim()) {
+    if (newWelcomeMessage.trim() && welcomeMessages.length < 5) {
       setWelcomeMessages([...welcomeMessages, newWelcomeMessage.trim()]);
       setNewWelcomeMessage('');
+    } else if (welcomeMessages.length >= 5) {
+      toast({
+        title: 'Maximum Reached',
+        description: 'You can only add up to 5 welcome messages.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -991,9 +1330,16 @@ IMPORTANT:
   };
 
   const handleWelcomeMessageKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') {
+    if ((e.key === 'Enter' || e.key === ',') && welcomeMessages.length < 5) {
       e.preventDefault();
       handleAddWelcomeMessage();
+    } else if (welcomeMessages.length >= 5 && (e.key === 'Enter' || e.key === ',')) {
+      e.preventDefault();
+      toast({
+        title: 'Maximum Reached',
+        description: 'You can only add up to 5 welcome messages.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -2706,7 +3052,7 @@ IMPORTANT:
                 <h3 className="text-[16px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                   Agent Creation Progress
                 </h3>
-                <p className="text-[14px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                <p className="text-[14px] dark:text-[#818898] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                   Complete all required fields to create your agent
                 </p>
               </div>
@@ -2714,7 +3060,7 @@ IMPORTANT:
                 <span className="text-[18px] font-bold text-[#00c19c]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                   {getProgress()}%
                 </span>
-                <span className="text-[14px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                <span className="text-[14px] dark:text-[#818898] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                   Completed
                 </span>
               </div>
@@ -2746,8 +3092,8 @@ IMPORTANT:
                       <div className={`shrink-0 size-8 rounded-full flex items-center justify-center border-2 transition-all ${isComplete
                         ? 'border-[#00c19c] bg-[#00c19c] text-white'
                         : isActive
-                          ? 'border-[#00c19c] text-[#00c19c] bg-white'
-                          : 'border-[#e4e4e8] text-[#737373] bg-white'
+                          ? 'border-[#00c19c] text-[#00c19c] dark:bg-[#1d212b] bg-white'
+                          : 'border-[#e4e4e8] dark:border-[#2f3541] text-[#737373] dark:text-[#818898] dark:bg-[#1d212b] bg-white'
                         }`}>
                         {isComplete ? (
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2758,11 +3104,11 @@ IMPORTANT:
                         )}
                       </div>
                       <div className="flex-1 flex flex-col items-start overflow-hidden">
-                        <span className={`text-[13px] font-semibold whitespace-nowrap ${isActive ? 'text-[#00c19c]' : isComplete ? 'text-[#27272b]' : 'text-[#737373]'
+                        <span className={`text-[13px] font-semibold whitespace-nowrap ${isActive ? 'text-[#00c19c]' : isComplete ? 'dark:text-[#f9fafb] text-[#27272b]' : 'dark:text-[#818898] text-[#737373]'
                           }`}>
                           {section.label}
                         </span>
-                        <span className="text-[11px] text-[#737373] whitespace-nowrap">
+                        <span className="text-[11px] dark:text-[#818898] text-[#737373] whitespace-nowrap">
                           {isComplete ? 'Completed' : isActive ? 'In Progress' : 'Pending'}
                         </span>
                       </div>
@@ -2780,7 +3126,7 @@ IMPORTANT:
                 onClick={() => setActiveSection('details')}
                 className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'details'
                   ? 'dark:bg-[rgba(0,193,156,0.15)] dark:text-[#f9fafb] bg-[rgba(0,193,156,0.1)] font-semibold text-[#27272b]'
-                  : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
+                  : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium dark:text-[#f9fafb] text-[#27272b] hover:bg-gray-50'
                   }`}
                 style={{ fontFamily: "'Manrope', sans-serif" }}
               >
@@ -2791,7 +3137,7 @@ IMPORTANT:
                 onClick={() => setActiveSection('voice')}
                 className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'voice'
                   ? 'dark:bg-[rgba(0,193,156,0.15)] dark:text-[#f9fafb] bg-[rgba(0,193,156,0.1)] font-semibold text-[#27272b]'
-                  : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
+                  : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium dark:text-[#f9fafb] text-[#27272b] hover:bg-gray-50'
                   }`}
                 style={{ fontFamily: "'Manrope', sans-serif" }}
               >
@@ -2802,7 +3148,7 @@ IMPORTANT:
                 onClick={() => setActiveSection('settings')}
                 className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'settings'
                   ? 'dark:bg-[rgba(0,193,156,0.15)] dark:text-[#f9fafb] bg-[rgba(0,193,156,0.1)] font-semibold text-[#27272b]'
-                  : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
+                  : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium dark:text-[#f9fafb] text-[#27272b] hover:bg-gray-50'
                   }`}
                 style={{ fontFamily: "'Manrope', sans-serif" }}
               >
@@ -2813,7 +3159,7 @@ IMPORTANT:
                 onClick={() => setActiveSection('schedules')}
                 className={`h-[36px] rounded-[6px] flex items-center gap-2 px-3 ${activeSection === 'schedules'
                   ? 'dark:bg-[rgba(0,193,156,0.15)] dark:text-[#f9fafb] bg-[rgba(0,193,156,0.1)] font-semibold text-[#27272b]'
-                  : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium text-[#27272b] hover:bg-gray-50'
+                  : 'dark:text-[#f9fafb] dark:hover:bg-[#2f3541] font-medium dark:text-[#f9fafb] text-[#27272b] hover:bg-gray-50'
                   }`}
                 style={{ fontFamily: "'Manrope', sans-serif" }}
               >
@@ -2847,7 +3193,7 @@ IMPORTANT:
                             name="agentName"
                             value={formData.agentName}
                             onChange={handleInputChange}
-                            className={`border rounded-[6px] px-3 py-2 ${highlightEmptyFields && !formData.agentName ? "border-red-500 ring-1 ring-red-500" : "border-[#00c19c]"}`}
+                            className={`border rounded-[6px] px-3 py-2 dark:bg-[#1d212b] dark:border-[#2f3541] ${highlightEmptyFields && !formData.agentName ? "border-red-500 ring-1 ring-red-500" : "border-[#00c19c]"}`}
                             style={{ fontFamily: "'Manrope', sans-serif" }}
                           />
                         </div>
@@ -2867,7 +3213,7 @@ IMPORTANT:
                             name="companyName"
                             value={formData.companyName}
                             onChange={handleInputChange}
-                            className={`border rounded-[6px] px-3 py-2 ${highlightEmptyFields && !formData.companyName ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
+                            className={`border rounded-[6px] px-3 py-2 dark:bg-[#1d212b] dark:border-[#2f3541] ${highlightEmptyFields && !formData.companyName ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
                             style={{ fontFamily: "'Manrope', sans-serif" }}
                           />
                         </div>
@@ -2901,7 +3247,7 @@ IMPORTANT:
                             name="goal"
                             value={formData.goal}
                             onChange={handleInputChange}
-                            className={`border rounded-[6px] px-3 py-2 min-h-[80px] ${highlightEmptyFields && !formData.goal ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
+                            className={`border rounded-[6px] px-3 py-2 min-h-[80px] dark:bg-[#1d212b] dark:border-[#2f3541] ${highlightEmptyFields && !formData.goal ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
                             style={{ fontFamily: "'Manrope', sans-serif" }}
                           />
                         </div>
@@ -2954,13 +3300,13 @@ IMPORTANT:
 
                         <div className="flex flex-col gap-2">
                           <Label className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                            Welcome Messages *: <span className="text-[#737373] font-normal">(Minimum 5 messages)</span>
+                            Welcome Messages *: <span className="dark:text-[#818898] text-[#737373] font-normal">(1-5 messages required)</span>
                           </Label>
-                          <div className={`border rounded-[6px] p-2 min-h-[100px] flex flex-wrap gap-2 ${highlightEmptyFields && welcomeMessages.length === 0 ? "border-red-500 ring-1 ring-red-500" : "border-[#00c19c]"}`}>
+                          <div className={`border rounded-[6px] p-2 min-h-[100px] flex flex-wrap gap-2 dark:bg-[#1d212b] dark:border-[#2f3541] ${highlightEmptyFields && (welcomeMessages.length < 1 || welcomeMessages.length > 5) ? "border-red-500 ring-1 ring-red-500" : "border-[#00c19c]"}`}>
                             {welcomeMessages.map((msg, index) => (
                               <div
                                 key={index}
-                                className="border border-[#00c19c] rounded-[9px] px-2.5 py-1.5 flex items-center gap-2.5 bg-white"
+                                className="border border-[#00c19c] rounded-[9px] px-2.5 py-1.5 flex items-center gap-2.5 dark:bg-[#1d212b] bg-white"
                               >
                                 <span className="text-[14px] text-[#00c19c]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                                   {msg}
@@ -2980,21 +3326,21 @@ IMPORTANT:
                               onChange={(e) => setNewWelcomeMessage(e.target.value)}
                               onKeyDown={handleWelcomeMessageKeyDown}
                               placeholder="Type message and press Enter or comma"
-                              className="flex-1 border border-[#00c19c] rounded-[6px] px-3 py-2"
+                              className="flex-1 border border-[#00c19c] dark:bg-[#1d212b] dark:border-[#2f3541] rounded-[6px] px-3 py-2"
                               style={{ fontFamily: "'Manrope', sans-serif" }}
                             />
                             <Button
                               type="button"
                               onClick={handleAddWelcomeMessage}
-                              disabled={!newWelcomeMessage.trim()}
-                              className="bg-[#00c19c] hover:bg-[#00c19c]/90 text-white px-2.5 py-1.5 rounded-[9px] text-[14px] font-semibold h-auto"
+                              disabled={!newWelcomeMessage.trim() || welcomeMessages.length >= 5}
+                              className="bg-[#00c19c] hover:bg-[#00c19c]/90 text-white px-2.5 py-1.5 rounded-[9px] text-[14px] font-semibold h-auto disabled:opacity-50 disabled:cursor-not-allowed"
                               style={{ fontFamily: "'Manrope', sans-serif" }}
                             >
-                              + Add Welcome Message
+                              + Add Welcome Message {welcomeMessages.length >= 5 && '(Max 5)'}
                             </Button>
                           </div>
-                          <p className="text-[12px] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                            Press Enter or comma to add each message.
+                          <p className="text-[12px] dark:text-[#818898] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                            Press Enter or comma to add each message. {welcomeMessages.length > 0 && `(${welcomeMessages.length}/5)`}
                           </p>
                         </div>
 
@@ -3007,7 +3353,7 @@ IMPORTANT:
                             name="instructionVoice"
                             value={formData.instructionVoice}
                             onChange={handleInputChange}
-                            className={`border rounded-[6px] px-3 py-2 min-h-[120px] ${highlightEmptyFields && !formData.instructionVoice ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
+                              className={`border rounded-[6px] px-3 py-2 min-h-[120px] dark:bg-[#1d212b] dark:border-[#2f3541] ${highlightEmptyFields && !formData.instructionVoice ? "border-red-500 ring-1 ring-red-500" : "border-[#d4d4da]"}`}
                             style={{ fontFamily: "'Manrope', sans-serif" }}
                           />
                         </div>
@@ -3065,11 +3411,11 @@ IMPORTANT:
                             onValueChange={(value) => setVoiceTab(value as 'deepgram' | 'vapi')}
                             className="w-full"
                           >
-                            <TabsList className="grid w-full grid-cols-2 bg-[#f4f4f6]">
-                              <TabsTrigger value="deepgram" className="text-[#27272b] data-[state=active]:bg-white">
+                            <TabsList className="grid w-full grid-cols-2 dark:bg-[#2f3541] bg-[#f4f4f6]">
+                              <TabsTrigger value="deepgram" className="dark:text-[#f9fafb] text-[#27272b] dark:data-[state=active]:bg-[#1d212b] data-[state=active]:bg-white">
                                 Premium Voices
                               </TabsTrigger>
-                              <TabsTrigger value="vapi" className="text-[#27272b] data-[state=active]:bg-white">
+                              <TabsTrigger value="vapi" className="dark:text-[#f9fafb] text-[#27272b] dark:data-[state=active]:bg-[#1d212b] data-[state=active]:bg-white">
                                 Classic Voices
                               </TabsTrigger>
                             </TabsList>
@@ -3081,14 +3427,14 @@ IMPORTANT:
                                     type="button"
                                     onClick={() => handleSelectChange('voice', voice.value)}
                                     className={`p-3 rounded-[6px] border-2 transition-all text-left ${formData.voice === voice.value
-                                      ? 'border-[#00c19c] bg-[rgba(0,193,156,0.1)]'
-                                      : 'border-[#d4d4da] bg-white hover:border-[#00c19c]/50'
+                                      ? 'border-[#00c19c] dark:bg-[rgba(0,193,156,0.15)] bg-[rgba(0,193,156,0.1)]'
+                                      : 'border-[#d4d4da] dark:border-[#2f3541] dark:bg-[#1d212b] bg-white hover:border-[#00c19c]/50'
                                       }`}
                                   >
                                     <div className="flex items-start justify-between gap-2">
                                       <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-1">
-                                          <p className="font-semibold text-[14px] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                          <p className="font-semibold text-[14px] dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                                             {voice.label}
                                           </p>
                                           <Badge variant="outline" className="text-[12px]">
@@ -3096,12 +3442,12 @@ IMPORTANT:
                                           </Badge>
                                         </div>
                                         {voice.description && (
-                                          <p className="text-[12px] text-[#737373] mb-1" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                          <p className="text-[12px] dark:text-[#818898] text-[#737373] mb-1" style={{ fontFamily: "'Manrope', sans-serif" }}>
                                             {voice.description}
                                           </p>
                                         )}
                                         {voice.useCase && (
-                                          <p className="text-[12px] text-[#737373] italic" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                          <p className="text-[12px] dark:text-[#818898] text-[#737373] italic" style={{ fontFamily: "'Manrope', sans-serif" }}>
                                             Use: {voice.useCase}
                                           </p>
                                         )}
@@ -3135,14 +3481,14 @@ IMPORTANT:
                                     type="button"
                                     onClick={() => handleSelectChange('voice', voice.value)}
                                     className={`p-3 rounded-[6px] border-2 transition-all text-left ${formData.voice === voice.value
-                                      ? 'border-[#00c19c] bg-[rgba(0,193,156,0.1)]'
-                                      : 'border-[#d4d4da] bg-white hover:border-[#00c19c]/50'
+                                      ? 'border-[#00c19c] dark:bg-[rgba(0,193,156,0.15)] bg-[rgba(0,193,156,0.1)]'
+                                      : 'border-[#d4d4da] dark:border-[#2f3541] dark:bg-[#1d212b] bg-white hover:border-[#00c19c]/50'
                                       }`}
                                   >
                                     <div className="flex items-center justify-between gap-2">
                                       <div className="flex-1">
                                         <div className="flex items-center gap-2">
-                                          <p className="font-semibold text-[14px] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                                          <p className="font-semibold text-[14px] dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                                             {voice.label}
                                           </p>
                                           <Badge variant="outline" className="text-[12px]">
@@ -3163,7 +3509,7 @@ IMPORTANT:
                             Language*:
                           </Label>
                           <Select value={formData.language} onValueChange={(value) => handleSelectChange('language', value)}>
-                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                            <SelectTrigger className="border dark:border-[#2f3541] border-[#d4d4da] dark:bg-[#1d212b] rounded-[6px] px-3 py-2">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -3181,7 +3527,7 @@ IMPORTANT:
                             Agent Type*:
                           </Label>
                           <Select value={formData.agentType} onValueChange={(value) => handleSelectChange('agentType', value)}>
-                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                            <SelectTrigger className="border dark:border-[#2f3541] border-[#d4d4da] dark:bg-[#1d212b] rounded-[6px] px-3 py-2">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -3198,7 +3544,7 @@ IMPORTANT:
                             Timezone*:
                           </Label>
                           <Select value={formData.timezone} onValueChange={(value) => handleSelectChange('timezone', value)}>
-                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                            <SelectTrigger className="border dark:border-[#2f3541] border-[#d4d4da] dark:bg-[#1d212b] rounded-[6px] px-3 py-2">
                               <SelectValue placeholder="Select timezone" />
                             </SelectTrigger>
                             <SelectContent className="max-h-[300px]">
@@ -3232,7 +3578,7 @@ IMPORTANT:
 
                         <Separator />
 
-                        <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        <h3 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           Fallback Configuration
                         </h3>
 
@@ -3260,10 +3606,10 @@ IMPORTANT:
                               value={formData.fallbackNumber}
                               onChange={handleInputChange}
                               placeholder="+1234567890"
-                              className="border border-[#d4d4da] rounded-[6px] px-3 py-2"
+                              className="border dark:border-[#2f3541] border-[#d4d4da] dark:bg-[#1d212b] rounded-[6px] px-3 py-2"
                               style={{ fontFamily: "'Manrope', sans-serif" }}
                             />
-                            <p className="text-[12px] text-[#737373]">
+                            <p className="text-[12px] dark:text-[#818898] text-[#737373]">
                               Number to call if the agent fails or after retries are exhausted
                             </p>
                           </div>
@@ -3271,7 +3617,7 @@ IMPORTANT:
 
                         <Separator />
 
-                        <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        <h3 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           Knowledge Base
                         </h3>
 
@@ -3283,7 +3629,7 @@ IMPORTANT:
                             value={formData.knowledgeBaseId || 'none'}
                             onValueChange={(value) => handleSelectChange('knowledgeBaseId', value === 'none' ? '' : value)}
                           >
-                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                            <SelectTrigger className="border dark:border-[#2f3541] border-[#d4d4da] dark:bg-[#1d212b] rounded-[6px] px-3 py-2">
                               <SelectValue placeholder="Select a knowledge base" />
                             </SelectTrigger>
                             <SelectContent>
@@ -3295,19 +3641,19 @@ IMPORTANT:
                               ))}
                             </SelectContent>
                           </Select>
-                          <p className="text-[12px] text-[#737373]">
+                          <p className="text-[12px] dark:text-[#818898] text-[#737373]">
                             Select a knowledge base to provide FAQs and documents to this agent
                           </p>
                         </div>
 
                         <Separator />
 
-                        <h3 className="text-[14px] font-bold text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        <h3 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           Phone Number
                         </h3>
 
                         {loadingNumbers ? (
-                          <p className="text-[14px] text-[#737373]">Loading inbound numbers...</p>
+                          <p className="text-[14px] dark:text-[#818898] text-[#737373]">Loading inbound numbers...</p>
                         ) : inboundNumbers.length === 0 ? (
                           <div className="flex flex-col gap-2">
                             <Alert variant="default">
@@ -3328,7 +3674,7 @@ IMPORTANT:
                               Select Inbound Number*:
                             </Label>
                             <Select value={selectedNumberId} onValueChange={handleNumberSelection}>
-                              <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
+                              <SelectTrigger className="border dark:border-[#2f3541] border-[#d4d4da] dark:bg-[#1d212b] rounded-[6px] px-3 py-2">
                                 <SelectValue placeholder="Select a phone number" />
                               </SelectTrigger>
                               <SelectContent>
@@ -3365,18 +3711,18 @@ IMPORTANT:
                               const selected = getSelectedNumber();
                               if (!selected) return null;
                               return (
-                                <div className="p-3 rounded-[6px] bg-[#f4f4f6] border border-[#e4e4e8] space-y-2">
+                                <div className="p-3 rounded-[6px] dark:bg-[#2f3541] bg-[#f4f4f6] dark:border-[#2f3541] border border-[#e4e4e8] space-y-2">
                                   <div className="flex gap-2">
                                     <Badge variant="default">{selected.provider}</Badge>
                                     {selected.provider === 'twilio' && selected.sms_enabled && (
                                       <Badge variant="outline">SMS Enabled</Badge>
                                     )}
                                   </div>
-                                  <p className="text-[14px] text-[#27272b]">
+                                  <p className="text-[14px] dark:text-[#f9fafb] text-[#27272b]">
                                     <strong>Number:</strong> {formatPhoneDisplay(selected.phone_number, selected.country_code)}
                                   </p>
                                   {selected.phone_label && (
-                                    <p className="text-[14px] text-[#737373]">
+                                    <p className="text-[14px] dark:text-[#818898] text-[#737373]">
                                       <strong>Label:</strong> {selected.phone_label}
                                     </p>
                                   )}
@@ -3428,7 +3774,7 @@ IMPORTANT:
                         <h2 className="text-[14px] font-bold dark:text-[#f9fafb] text-[#27272b]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           Schedule Selection
                         </h2>
-                        <p className="text-[14px] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                        <p className="text-[14px] dark:text-[#818898] text-[#737373]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                           Select one or more schedules to assign to this agent. All schedule data will be included in the webhook payload.
                         </p>
 
@@ -3436,16 +3782,16 @@ IMPORTANT:
                           <Label htmlFor="schedules" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
                             Available Schedules:
                           </Label>
-                          <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto border border-[#d4d4da] rounded-[6px] p-4">
+                          <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto dark:bg-[#1d212b] dark:border-[#2f3541] border border-[#d4d4da] rounded-[6px] p-4">
                             {loadingSchedules ? (
                               <div className="flex items-center justify-center py-8">
                                 <div className="w-6 h-6 border-2 border-[#00c19c] border-t-transparent rounded-full animate-spin" />
-                                <p className="text-[14px] text-[#8c8c8c] ml-3">Loading schedules...</p>
+                                <p className="text-[14px] dark:text-[#818898] text-[#8c8c8c] ml-3">Loading schedules...</p>
                               </div>
                             ) : availableSchedules.length === 0 ? (
                               <div className="flex flex-col items-center justify-center py-8 gap-3">
-                                <Calendar className="w-12 h-12 text-[#8c8c8c]" />
-                                <p className="text-[14px] text-[#8c8c8c] text-center">
+                                <Calendar className="w-12 h-12 dark:text-[#818898] text-[#8c8c8c]" />
+                                <p className="text-[14px] dark:text-[#818898] text-[#8c8c8c] text-center">
                                   No schedules available. Create schedules in the Schedules page.
                                 </p>
                                 <Button
@@ -3462,8 +3808,8 @@ IMPORTANT:
                                 <div
                                   key={schedule.id}
                                   className={`flex items-center gap-3 p-3 rounded-[6px] border-2 transition-all ${selectedScheduleIds.includes(schedule.id)
-                                    ? 'border-[#00c19c] bg-[rgba(0,193,156,0.05)]'
-                                    : 'border-[#e4e4e8] bg-white hover:border-[#d4d4da]'
+                                    ? 'border-[#00c19c] dark:bg-[rgba(0,193,156,0.15)] bg-[rgba(0,193,156,0.05)]'
+                                    : 'border-[#e4e4e8] dark:border-[#2f3541] dark:bg-[#1d212b] bg-white hover:border-[#d4d4da]'
                                     }`}
                                 >
                                   <input
@@ -3477,12 +3823,12 @@ IMPORTANT:
                                         setSelectedScheduleIds(selectedScheduleIds.filter(id => id !== schedule.id));
                                       }
                                     }}
-                                    className="w-5 h-5 rounded border-[#d4d4da] cursor-pointer"
+                                    className="w-5 h-5 rounded dark:border-[#2f3541] border-[#d4d4da] cursor-pointer"
                                   />
                                   <div className="flex-1">
                                     <label
                                       htmlFor={`schedule-${schedule.id}`}
-                                      className="text-[14px] font-medium text-[#27272b] cursor-pointer flex items-center gap-2"
+                                      className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b] cursor-pointer flex items-center gap-2"
                                     >
                                       {schedule.schedule_name}
                                       {schedule.is_active ? (
@@ -3491,7 +3837,7 @@ IMPORTANT:
                                         <Badge variant="outline" className="text-xs">Inactive</Badge>
                                       )}
                                     </label>
-                                    <p className="text-[12px] text-[#737373] mt-1">
+                                    <p className="text-[12px] dark:text-[#818898] text-[#737373] mt-1">
                                       Timezone: {schedule.timezone}
                                     </p>
                                   </div>
@@ -3500,8 +3846,8 @@ IMPORTANT:
                             )}
                           </div>
                           {selectedScheduleIds.length > 0 && (
-                            <div className="mt-2 p-3 bg-[#f4f4f6] rounded-[6px] border border-[#e4e4e8]">
-                              <p className="text-[12px] font-medium text-[#27272b] mb-2">
+                            <div className="mt-2 p-3 dark:bg-[#2f3541] bg-[#f4f4f6] rounded-[6px] dark:border-[#2f3541] border border-[#e4e4e8]">
+                              <p className="text-[12px] font-medium dark:text-[#f9fafb] text-[#27272b] mb-2">
                                 Selected Schedules ({selectedScheduleIds.length}):
                               </p>
                               <div className="flex flex-wrap gap-2">
@@ -3998,10 +4344,10 @@ IMPORTANT:
                 return (
                   <div
                     key={log.id}
-                    className={`flex flex-[1_0_0] items-center min-h-0 min-w-0 relative w-full ${index % 2 === 0 ? 'bg-white' : 'bg-[#f8f8f8]'
+                    className={`flex flex-[1_0_0] items-center min-h-0 min-w-0 relative w-full ${index % 2 === 0 ? 'dark:bg-[#1d212b] bg-white' : 'dark:bg-[#2f3541] bg-[#f8f8f8]'
                       }`}
                   >
-                    <p className="text-[14px] font-medium text-black text-center leading-normal" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    <p className="text-[14px] font-medium dark:text-[#f9fafb] text-black text-center leading-normal" style={{ fontFamily: "'Manrope', sans-serif" }}>
                       {formattedTime}
                     </p>
                   </div>
@@ -4011,8 +4357,8 @@ IMPORTANT:
 
             {/* Contacts Column */}
             <div className="flex flex-[1_0_0] flex-col h-full items-start min-h-0 min-w-0 relative">
-              <div className="bg-[#f8f8f8] flex flex-[1_0_0] gap-1 items-center min-h-0 min-w-0 overflow-hidden relative w-full">
-                <p className="text-[14px] font-bold text-black text-center" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              <div className="dark:bg-[#2f3541] bg-[#f8f8f8] flex flex-[1_0_0] gap-1 items-center min-h-0 min-w-0 overflow-hidden relative w-full">
+                <p className="text-[14px] font-bold dark:text-[#f9fafb] text-black text-center" style={{ fontFamily: "'Manrope', sans-serif" }}>
                   Contacts
                 </p>
                 <ArrowUpDown className="w-4 h-4" />
@@ -4043,8 +4389,8 @@ IMPORTANT:
                   className={`flex flex-[1_0_0] items-center min-h-0 min-w-0 relative w-full ${index % 2 === 0 ? 'bg-white' : 'bg-[#f8f8f8]'
                     }`}
                 >
-                  <div className="border border-[#737373] border-solid flex items-center justify-center overflow-hidden px-2 py-[3px] rounded-[6px] shrink-0">
-                    <p className="text-[12px] font-medium text-[#737373] text-center whitespace-nowrap leading-[16px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                  <div className="border dark:border-[#818898] border-[#737373] border-solid flex items-center justify-center overflow-hidden px-2 py-[3px] rounded-[6px] shrink-0">
+                    <p className="text-[12px] font-medium dark:text-[#818898] text-[#737373] text-center whitespace-nowrap leading-[16px]" style={{ fontFamily: "'Manrope', sans-serif" }}>
                       outboundPhoneCall
                     </p>
                   </div>
@@ -4105,7 +4451,7 @@ IMPORTANT:
                 return (
                   <div
                     key={log.id}
-                    className={`flex flex-[1_0_0] items-center min-h-0 min-w-0 relative w-full ${index % 2 === 0 ? 'bg-white' : 'bg-[#f8f8f8]'
+                    className={`flex flex-[1_0_0] items-center min-h-0 min-w-0 relative w-full ${index % 2 === 0 ? 'dark:bg-[#1d212b] bg-white' : 'dark:bg-[#2f3541] bg-[#f8f8f8]'
                       }`}
                   >
                     <div
@@ -4325,7 +4671,7 @@ IMPORTANT:
                   <h3 className="text-[16px] font-bold dark:text-[#f9fafb] text-[#27272b] mb-3" style={{ fontFamily: "'Manrope', sans-serif" }}>
                     Transcript
                   </h3>
-                  <div className="bg-[#f8f8f8] rounded-lg p-4 max-h-[400px] overflow-y-auto">
+                  <div className="dark:bg-[#2f3541] bg-[#f8f8f8] rounded-lg p-4 max-h-[400px] overflow-y-auto">
                     <div className="space-y-3 text-[14px] whitespace-pre-wrap" style={{ fontFamily: "'Manrope', sans-serif" }}>
                       {selectedLog.transcript.split('\n').map((line: string, idx: number) => {
                         if (line.includes('Agent:') || line.includes('Customer:')) {
@@ -4335,13 +4681,13 @@ IMPORTANT:
                           const timestamp = line.match(/\[(\d{2}:\d{2}:\d{2})\]/)?.[1] || '';
                           return (
                             <div key={idx} className="mb-2">
-                              <span className="font-bold text-[#27272b]">{speaker}:</span>
-                              {timestamp && <span className="text-[#737373] ml-2">[{timestamp}]</span>}
-                              <p className="text-[#27272b] mt-1">{text.trim()}</p>
+                              <span className="font-bold dark:text-[#f9fafb] text-[#27272b]">{speaker}:</span>
+                              {timestamp && <span className="dark:text-[#818898] text-[#737373] ml-2">[{timestamp}]</span>}
+                              <p className="dark:text-[#f9fafb] text-[#27272b] mt-1">{text.trim()}</p>
                             </div>
                           );
                         }
-                        return <p key={idx} className="text-[#27272b]">{line}</p>;
+                        return <p key={idx} className="dark:text-[#f9fafb] text-[#27272b]">{line}</p>;
                       })}
                     </div>
                   </div>
@@ -4535,18 +4881,28 @@ IMPORTANT:
           <DialogHeader>
             <DialogTitle>Select a Saved Prompt</DialogTitle>
             <DialogDescription>
-              Choose a prompt to autofill your agent configuration.
+              Choose a prompt to autofill your agent configuration, or generate a new one.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3 py-4">
+            {/* Generate Prompt Button */}
+            <Button
+              onClick={openGeneratePromptDialog}
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground mb-2"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Generate New Prompt
+            </Button>
+
+            <Separator />
+
             {loadingPrompts ? (
               <div className="flex justify-center p-4"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>
             ) : savedPrompts.length === 0 ? (
-              <div className="text-center p-8 text-gray-500 border-2 border-dashed rounded-lg">
+              <div className="text-center p-8 dark:text-[#818898] text-gray-500 border-2 dark:border-[#2f3541] border-dashed rounded-lg">
                 <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <p>No saved prompts found.</p>
-                <p className="text-sm mt-1">Generate and save a prompt in the AI Prompts page first.</p>
-                <Link to="/agents?tab=ai-prompt" className="text-primary hover:underline mt-2 inline-block">Go to AI Prompts</Link>
+                <p className="text-sm mt-1">Click "Generate New Prompt" above to create one.</p>
               </div>
             ) : (
               savedPrompts.map((prompt) => (
@@ -4570,6 +4926,273 @@ IMPORTANT:
               ))
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generate Prompt Dialog */}
+      <Dialog open={showGeneratePromptDialog} onOpenChange={setShowGeneratePromptDialog}>
+        <DialogContent className="max-w-[700px] max-h-[90vh] overflow-y-auto bg-card text-foreground border-border">
+          <DialogHeader>
+            <DialogTitle>Generate New Prompt</DialogTitle>
+            <DialogDescription>
+              Fill in the essential information to generate a prompt. The generated prompt will be saved and used to autofill your agent form.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Essential Fields */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="gen-company-name">Company Name <span className="text-destructive">*</span></Label>
+                <Input
+                  id="gen-company-name"
+                  value={promptGenFormData.companyName || ''}
+                  onChange={(e) => setPromptGenFormData(prev => ({ ...prev, companyName: e.target.value }))}
+                  placeholder="e.g., NSOL BPO"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="gen-business-industry">Business Industry</Label>
+                <Input
+                  id="gen-business-industry"
+                  value={promptGenFormData.businessIndustry || ''}
+                  onChange={(e) => setPromptGenFormData(prev => ({ ...prev, businessIndustry: e.target.value }))}
+                  placeholder="e.g., BPO, Healthcare, Real Estate"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="gen-call-type">Call Type <span className="text-destructive">*</span></Label>
+                  <Select
+                    value={promptGenFormData.callType}
+                    onValueChange={(value: AgentPromptProfile['callType']) => setPromptGenFormData(prev => ({ ...prev, callType: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Sales">Sales</SelectItem>
+                      <SelectItem value="Support">Support</SelectItem>
+                      <SelectItem value="Booking">Booking</SelectItem>
+                      <SelectItem value="Billing">Billing</SelectItem>
+                      <SelectItem value="Complaint">Complaint</SelectItem>
+                      <SelectItem value="Mixed">Mixed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="gen-call-goal">Call Goal</Label>
+                  <Select
+                    value={promptGenFormData.callGoal}
+                    onValueChange={(value: AgentPromptProfile['callGoal']) => setPromptGenFormData(prev => ({ ...prev, callGoal: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Book Appointment">Book Appointment</SelectItem>
+                      <SelectItem value="Close Sale">Close Sale</SelectItem>
+                      <SelectItem value="Qualify Lead">Qualify Lead</SelectItem>
+                      <SelectItem value="Collect Information">Collect Information</SelectItem>
+                      <SelectItem value="Support Resolution">Support Resolution</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="gen-agent-purpose">Agent Purpose <span className="text-destructive">*</span></Label>
+                <Textarea
+                  id="gen-agent-purpose"
+                  value={promptGenFormData.agentPurpose || ''}
+                  onChange={(e) => setPromptGenFormData(prev => ({ ...prev, agentPurpose: e.target.value }))}
+                  placeholder="e.g., Handle inbound customer support calls and book appointments"
+                  className="min-h-[80px]"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="gen-target-audience">Target Audience</Label>
+                <Input
+                  id="gen-target-audience"
+                  value={promptGenFormData.targetAudience || ''}
+                  onChange={(e) => setPromptGenFormData(prev => ({ ...prev, targetAudience: e.target.value }))}
+                  placeholder="e.g., Small business owners looking for IT services"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="gen-tone">Tone</Label>
+                <Select
+                  value={promptGenFormData.tone}
+                  onValueChange={(value: AgentPromptProfile['tone']) => setPromptGenFormData(prev => ({ ...prev, tone: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Friendly">Friendly</SelectItem>
+                    <SelectItem value="Professional">Professional</SelectItem>
+                    <SelectItem value="Empathetic">Empathetic</SelectItem>
+                    <SelectItem value="Energetic">Energetic</SelectItem>
+                    <SelectItem value="Strict">Strict</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Services Input */}
+              <div className="space-y-2">
+                <Label>Services (Optional)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Add a service"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const input = e.currentTarget;
+                        if (input.value.trim()) {
+                          setPromptGenFormData(prev => ({
+                            ...prev,
+                            services: [...(prev.services || []), input.value.trim()],
+                          }));
+                          input.value = '';
+                        }
+                      }
+                    }}
+                  />
+                </div>
+                {promptGenFormData.services && promptGenFormData.services.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {promptGenFormData.services.map((s, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-primary/10 px-3 py-1 rounded-full">
+                        <span className="text-sm">{s}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 w-5 p-0"
+                          onClick={() => {
+                            setPromptGenFormData(prev => ({
+                              ...prev,
+                              services: (prev.services || []).filter((_, idx) => idx !== i),
+                            }));
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Generated Prompt Preview */}
+            {generatedPromptData && (
+              <>
+                <Separator />
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Prompt Name <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={promptSaveName}
+                      onChange={(e) => setPromptSaveName(e.target.value)}
+                      placeholder="e.g., Sales Agent Prompt"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Category</Label>
+                    <Select value={promptSaveCategory} onValueChange={setPromptSaveCategory}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="general">General</SelectItem>
+                        <SelectItem value="sales">Sales</SelectItem>
+                        <SelectItem value="support">Support</SelectItem>
+                        <SelectItem value="appointment">Appointment</SelectItem>
+                        <SelectItem value="follow-up">Follow-up</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Generated Prompt Preview</Label>
+                    <div className="p-3 bg-muted rounded-lg border border-border max-h-[200px] overflow-y-auto">
+                      <pre className="text-xs whitespace-pre-wrap font-mono">{generatedPromptData.finalPrompt.substring(0, 500)}...</pre>
+                    </div>
+                  </div>
+
+                  {generatedPromptData.welcomeMessages.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Generated Welcome Messages ({generatedPromptData.welcomeMessages.length})</Label>
+                      <div className="space-y-1 max-h-[150px] overflow-y-auto">
+                        {generatedPromptData.welcomeMessages.map((msg, i) => (
+                          <div key={i} className="text-xs bg-muted p-2 rounded border border-border">
+                            {i + 1}. {msg}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowGeneratePromptDialog(false);
+                setGeneratedPromptData(null);
+              }}
+              disabled={isGeneratingPrompt || isSavingPrompt}
+            >
+              Cancel
+            </Button>
+            {!generatedPromptData ? (
+              <Button
+                onClick={handleGeneratePromptInDialog}
+                disabled={isGeneratingPrompt || !promptGenFormData.companyName || !promptGenFormData.agentPurpose || !promptGenFormData.callType}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                {isGeneratingPrompt ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate Prompt
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSaveAndUsePrompt}
+                disabled={isSavingPrompt || !promptSaveName.trim()}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                {isSavingPrompt ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Save & Use Prompt
+                  </>
+                )}
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

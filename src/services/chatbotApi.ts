@@ -1,4 +1,36 @@
+import { platformKnowledge } from "@/data/platform-knowledge";
+
 const OPENAI_API_KEY = process.env.REACT_APP_OPENAI_API || process.env.REACT_APP_OPENAI_API_KEY;
+
+// Get system prompt from environment variable or use default
+// Always includes platform knowledge base for accurate answers
+const getSystemPrompt = (): string => {
+    const envPrompt = process.env.REACT_APP_CHATBOT_SYSTEM_PROMPT;
+    
+    // Base prompt - either from env or default
+    let basePrompt: string;
+    if (envPrompt) {
+        basePrompt = envPrompt.replace(/\\n/g, '\n');
+    } else {
+        // Default system prompt
+        basePrompt = `You are a helpful AI assistant for DNAI, an AI-powered voice automation platform. 
+You help users learn about features like voice agents, inbound numbers, knowledge bases, call schedules, and leads.
+Be professional, concise, and helpful. If you don't know the answer, suggest contacting support.`;
+    }
+    
+    // Always append platform knowledge base for accurate answers
+    return `${basePrompt}
+
+Use the following platform knowledge base to answer user questions accurately:
+
+${platformKnowledge}
+
+When answering questions:
+- Reference specific features and workflows from the knowledge base
+- Provide step-by-step instructions when applicable
+- Be concise but thorough
+- If the answer isn't in the knowledge base, suggest contacting support`;
+};
 
 export interface ChatMessage {
     role: "user" | "assistant" | "system";
@@ -23,9 +55,7 @@ export const chatbotApi = {
         }
 
         try {
-            const systemPrompt = `You are a helpful AI assistant for DNAI, an AI-powered voice automation platform. 
-      You help users learn about features like voice agents, inbound numbers, knowledge bases, call schedules, and leads.
-      Be professional, concise, and helpful. If you don't know the answer, suggest contacting support.`;
+            const systemPrompt = getSystemPrompt();
 
             const messages: ChatMessage[] = [
                 { role: "system", content: systemPrompt },

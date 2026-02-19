@@ -813,6 +813,207 @@ async function upsertLeadFromAnalysis(call, analysis) {
   }
 }
 
+/**
+ * POST /api/send-agent-email
+ * Send email on behalf of an agent using their assigned email account
+ * 
+ * Request body:
+ * {
+ *   "agent_id": "uuid-of-agent",
+ *   "to_email": "recipient@example.com",
+ *   "subject": "Email Subject",
+ *   "body": "Plain text email body",
+ *   "html_body": "<h1>HTML email body</h1>", // optional
+ *   "design_style": "modern", // optional
+ *   "accent_color": "#4F46E5", // optional
+ *   "company_name": "Company Name" // optional, will use agent's company_name if not provided
+ * }
+ */
+app.post('/api/send-agent-email', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(500).json({
+        success: false,
+        error: 'Supabase is not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in environment variables.',
+      });
+    }
+
+    const { agent_id, to_email, subject, body, html_body, design_style, accent_color, company_name } = req.body;
+
+    // Validate required fields
+    if (!agent_id || !to_email || !subject || (!body && !html_body)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields. Please provide: agent_id, to_email, subject, and either body or html_body'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(to_email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid recipient email format'
+      });
+    }
+
+    // Fetch agent and their assigned email account
+    const { data: agent, error: agentError } = await supabase
+      .from('voice_agents')
+      .select('id, name, company_name, user_id')
+      .eq('id', agent_id)
+      .single();
+
+    if (agentError || !agent) {
+      return res.status(404).json({
+        success: false,
+        error: 'Agent not found'
+      });
+    }
+
+    // Find email account assigned to this agent
+    const { data: emailAccount, error: emailError } = await supabase
+      .from('user_emails')
+      .select('id, email, smtp_password, assigned_agent_id')
+      .eq('user_id', agent.user_id)
+      .eq('assigned_agent_id', agent_id)
+      .is('deleted_at', null)
+      .limit(1)
+      .single();
+
+    if (emailError || !emailAccount || !emailAccount.smtp_password) {
+      return res.status(404).json({
+        success: false,
+        error: 'No email account assigned to this agent. Please assign an email account to the agent first.'
+      });
+    }
+
+    // Use agent's company name if not provided
+    const finalCompanyName = company_name || agent.company_name || '';
+
+    // Determine SMTP settings based on email domain
+    const emailDomain = emailAccount.email.split('@')[1].toLowerCase();
+    let smtpConfig = {
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: emailAccount.email,
+        pass: emailAccount.smtp_password
+      }
+    };
+
+    // Configure SMTP for different email providers
+    if (emailDomain.includes('gmail.com')) {
+      smtpConfig = {
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: emailAccount.email,
+          pass: emailAccount.smtp_password
+        }
+      };
+    } else if (emailDomain.includes('outlook.com') || emailDomain.includes('hotmail.com') || emailDomain.includes('live.com')) {
+      smtpConfig = {
+        host: 'smtp-mail.outlook.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: emailAccount.email,
+          pass: emailAccount.smtp_password
+        }
+      };
+    } else if (emailDomain.includes('yahoo.com')) {
+      smtpConfig = {
+        host: 'smtp.mail.yahoo.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: emailAccount.email,
+          pass: emailAccount.smtp_password
+        }
+      };
+    } else {
+      smtpConfig = {
+        host: `smtp.${emailDomain}`,
+        port: 587,
+        secure: false,
+        auth: {
+          user: emailAccount.email,
+          pass: emailAccount.smtp_password
+        }
+      };
+    }
+
+    // Create transporter
+    const transporter = nodemailer.createTransport(smtpConfig);
+
+    // Verify connection
+    await transporter.verify();
+
+    // Prepare email options - prefer html_body if available, otherwise use body
+    const html = html_body || (body ? body.replace(/\n/g, '<br>') : '');
+    const text = body || (html_body ? html_body.replace(/<[^>]*>/g, '') : '');
+
+    const mailOptions = {
+      from: emailAccount.email,
+      to: to_email,
+      subject: subject,
+      text: text,
+      html: html
+    };
+
+    // Send email
+    const info = await transporter.sendMail(mailOptions);
+
+    // Log email in email_logs table
+    try {
+      await supabase
+        .from('email_logs')
+        .insert({
+          user_id: agent.user_id,
+          from_email: emailAccount.email,
+          to_email: to_email,
+          subject: subject,
+          body: body || text,
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+        });
+    } catch (logError) {
+      console.error('Error logging email:', logError);
+      // Don't fail the request if logging fails
+    }
+
+    res.json({
+      success: true,
+      message: 'Email sent successfully',
+      messageId: info.messageId,
+      from_email: emailAccount.email,
+      agent_name: agent.name,
+      company_name: finalCompanyName
+    });
+
+  } catch (error) {
+    console.error('Error sending agent email:', error);
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to send email';
+    if (error.code === 'EAUTH') {
+      errorMessage = 'Authentication failed. Please check the email account credentials.';
+    } else if (error.code === 'ECONNECTION') {
+      errorMessage = 'Connection failed. Please check your internet connection and SMTP settings.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
+    res.status(500).json({
+      success: false,
+      error: errorMessage
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Backend server is running' });
@@ -822,6 +1023,7 @@ app.get('/api/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
   console.log(`Email endpoint: http://localhost:${PORT}/email`);
+  console.log(`Agent email endpoint: http://localhost:${PORT}/api/send-agent-email`);
   console.log(`System email endpoint: http://localhost:${PORT}/api/send-system-email`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
 });

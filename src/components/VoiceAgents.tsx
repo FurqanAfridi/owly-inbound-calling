@@ -56,7 +56,7 @@ const VoiceAgents: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     loadAgents();
     loadInboundNumbers();
 
@@ -73,7 +73,7 @@ const VoiceAgents: React.FC = () => {
       if (pollInterval) clearInterval(pollInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, agents.some(a => a.status === 'activating')]);
+  }, [user?.id, agents.some(a => a.status === 'activating')]);
 
   const loadAgents = async () => {
     if (!user) return;

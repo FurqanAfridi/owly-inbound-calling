@@ -38,11 +38,13 @@ import {
   AccessTime as TimeIcon,
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
+  Mail as MailIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import StyledCard from './ui/StyledCard';
 import { useTheme } from '@mui/material';
+import SendEmailDialog from './SendEmailDialog';
 
 interface LeadRecord {
   id: string;
@@ -77,6 +79,8 @@ const Leads: React.FC = () => {
   const [showTranscript, setShowTranscript] = useState(false);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [emailLead, setEmailLead] = useState<LeadRecord | null>(null);
   
   // Filters
   const [timeFilter, setTimeFilter] = useState<'24h' | '7days' | '30days' | 'all'>('30days');
@@ -85,15 +89,16 @@ const Leads: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
   const [inboundNumbers, setInboundNumbers] = useState<Array<{ id: string; phone_number: string; phone_label: string | null }>>([]);
+  const [agentEmails, setAgentEmails] = useState<Map<string, boolean>>(new Map()); // Map of agent_id -> has email account
 
   useEffect(() => {
-    if (user) {
-      loadAgents();
-      loadInboundNumbers();
-      fetchLeads();
-    }
+    if (!user?.id) return;
+    loadAgents();
+    loadInboundNumbers();
+    loadAgentEmails();
+    fetchLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (user) {
@@ -142,6 +147,41 @@ const Leads: React.FC = () => {
     } catch (err: any) {
       console.error('Error loading inbound numbers:', err);
     }
+  };
+
+  const loadAgentEmails = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('user_emails')
+        .select('assigned_agent_id')
+        .eq('user_id', user.id)
+        .not('assigned_agent_id', 'is', null)
+        .is('deleted_at', null);
+      if (error) throw error;
+      
+      // Create a map of agent_id -> has email account
+      const emailMap = new Map<string, boolean>();
+      data?.forEach((email: { assigned_agent_id: string | null }) => {
+        if (email.assigned_agent_id) {
+          emailMap.set(email.assigned_agent_id, true);
+        }
+      });
+      setAgentEmails(emailMap);
+    } catch (err: any) {
+      console.error('Error loading agent emails:', err);
+    }
+  };
+
+  // Helper function to check if email can be sent for a lead
+  const canSendEmail = (lead: LeadRecord): boolean => {
+    // Check if caller has email in metadata
+    const hasCallerEmail = !!(lead.metadata?.email || lead.metadata?.contact_email);
+    
+    // Check if agent has an email account assigned
+    const hasAgentEmail = lead.agent_id ? agentEmails.has(lead.agent_id) : false;
+    
+    return hasCallerEmail && hasAgentEmail;
   };
 
   const fetchLeads = async () => {
@@ -532,6 +572,20 @@ const Leads: React.FC = () => {
                       </TableCell>
                       <TableCell align="right">
                         <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          {canSendEmail(lead) && (
+                            <Tooltip title="Send Email">
+                              <IconButton
+                                size="small"
+                                onClick={() => {
+                                  setEmailLead(lead);
+                                  setShowEmailDialog(true);
+                                }}
+                                sx={{ color: '#00c19c' }}
+                              >
+                                <MailIcon />
+                              </IconButton>
+                            </Tooltip>
+                          )}
                           {lead.recording_url && (
                             <Tooltip title="Download Recording">
                               <IconButton
@@ -630,6 +684,21 @@ const Leads: React.FC = () => {
             <Button onClick={() => setShowTranscript(false)}>Close</Button>
           </DialogActions>
         </Dialog>
+
+        {/* Send Email Dialog */}
+        <SendEmailDialog
+          open={showEmailDialog}
+          onClose={() => {
+            setShowEmailDialog(false);
+            setEmailLead(null);
+          }}
+          agentId={emailLead?.agent_id || null}
+          recipientEmail={emailLead?.metadata?.email || emailLead?.metadata?.contact_email || ''}
+          recipientName={emailLead?.metadata?.name || emailLead?.metadata?.caller_name || ''}
+          recipientPhone={emailLead?.caller_number || ''}
+          callDate={emailLead?.call_start_time || ''}
+          callTranscript={emailLead?.transcript || ''}
+        />
       </Box>
     </>
   );

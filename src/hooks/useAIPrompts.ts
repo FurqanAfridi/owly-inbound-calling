@@ -23,6 +23,7 @@ export interface AIPrompt {
   usage_count?: number;
   created_at: string;
   updated_at?: string;
+  form_data?: Record<string, any> | null; // Structured form data for auto-filling agent creation form
 }
 
 export const useAIPrompts = () => {

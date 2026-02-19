@@ -46,12 +46,14 @@ import {
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   CallMade as ForwardIcon,
+  Mail as MailIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import StyledCard from './ui/StyledCard';
 import MetricCard from './ui/MetricCard';
 import { useTheme } from '@mui/material';
+import SendEmailDialog from './SendEmailDialog';
 
 interface CallHistoryRecord {
   id: string;
@@ -79,6 +81,7 @@ interface CallHistoryRecord {
   call_cost: number | null;
   call_quality_score: number | null;
   notes: string | null;
+  metadata: any;
   created_at: string;
   updated_at: string;
 }
@@ -108,6 +111,8 @@ const CallHistory: React.FC = () => {
   const [showRecording, setShowRecording] = useState(false);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [emailCall, setEmailCall] = useState<CallHistoryRecord | null>(null);
   
   // Filters
   const [timeFilter, setTimeFilter] = useState<'24h' | '7days' | '30days'>('7days');
@@ -118,15 +123,16 @@ const CallHistory: React.FC = () => {
   const [currentTab, setCurrentTab] = useState(0);
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
   const [inboundNumbers, setInboundNumbers] = useState<Array<{ id: string; phone_number: string; phone_label: string | null }>>([]);
+  const [agentEmails, setAgentEmails] = useState<Map<string, boolean>>(new Map()); // Map of agent_id -> has email account
 
   useEffect(() => {
-    if (user) {
-      loadAgents();
-      loadInboundNumbers();
-      fetchCallHistory();
-    }
+    if (!user?.id) return;
+    loadAgents();
+    loadInboundNumbers();
+    loadAgentEmails();
+    fetchCallHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (user) {
@@ -174,6 +180,41 @@ const CallHistory: React.FC = () => {
     } catch (err: any) {
       console.error('Error loading inbound numbers:', err);
     }
+  };
+
+  const loadAgentEmails = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('user_emails')
+        .select('assigned_agent_id')
+        .eq('user_id', user.id)
+        .not('assigned_agent_id', 'is', null)
+        .is('deleted_at', null);
+      if (error) throw error;
+      
+      // Create a map of agent_id -> has email account
+      const emailMap = new Map<string, boolean>();
+      data?.forEach((email: { assigned_agent_id: string | null }) => {
+        if (email.assigned_agent_id) {
+          emailMap.set(email.assigned_agent_id, true);
+        }
+      });
+      setAgentEmails(emailMap);
+    } catch (err: any) {
+      console.error('Error loading agent emails:', err);
+    }
+  };
+
+  // Helper function to check if email can be sent for a call
+  const canSendEmail = (call: CallHistoryRecord): boolean => {
+    // Check if caller has email in metadata
+    const hasCallerEmail = !!(call.metadata?.email || call.metadata?.contact_email);
+    
+    // Check if agent has an email account assigned
+    const hasAgentEmail = call.agent_id ? agentEmails.has(call.agent_id) : false;
+    
+    return hasCallerEmail && hasAgentEmail;
   };
 
   const fetchCallHistory = async () => {
@@ -574,6 +615,20 @@ const CallHistory: React.FC = () => {
                     </TableCell>
                     <TableCell align="right">
                       <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        {canSendEmail(call) && (
+                          <Tooltip title="Send Email">
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                setEmailCall(call);
+                                setShowEmailDialog(true);
+                              }}
+                              sx={{ color: '#00c19c' }}
+                            >
+                              <MailIcon />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                         {call.recording_url && (
                           <Tooltip title="Download Recording">
                             <IconButton
@@ -603,6 +658,21 @@ const CallHistory: React.FC = () => {
             </TableContainer>
           </StyledCard>
         )}
+
+        {/* Send Email Dialog */}
+        <SendEmailDialog
+          open={showEmailDialog}
+          onClose={() => {
+            setShowEmailDialog(false);
+            setEmailCall(null);
+          }}
+          agentId={emailCall?.agent_id || null}
+          recipientEmail={emailCall?.metadata?.email || emailCall?.metadata?.contact_email || ''}
+          recipientName={emailCall?.metadata?.name || emailCall?.metadata?.caller_name || ''}
+          recipientPhone={emailCall?.caller_number || ''}
+          callDate={emailCall?.call_start_time || ''}
+          callTranscript={emailCall?.transcript || ''}
+        />
 
         {/* Transcript Dialog */}
         <Dialog

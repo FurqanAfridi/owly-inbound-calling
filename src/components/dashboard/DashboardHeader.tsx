@@ -1,4 +1,4 @@
-import { Search, Bell, Settings, Sun, Moon, Menu, LogOut, User } from 'lucide-react';
+import { Search, Bell, Settings, Sun, Moon, Menu, LogOut, User, Coins, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeMode } from '@/contexts/ThemeContext';
@@ -45,6 +45,8 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [credits, setCredits] = useState<number | null>(null);
+  const [packageName, setPackageName] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const userInitial = user?.email?.charAt(0).toUpperCase() || 'U';
 
@@ -74,12 +76,57 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
     };
 
     loadAvatar();
-  }, [user]);
+  }, [user?.id]);
+
+  // Load credits and package
+  useEffect(() => {
+    const loadCreditsAndPackage = async () => {
+      if (!user?.id) return;
+
+      try {
+        // Fetch credits
+        const { data: creditsData, error: creditsError } = await supabase
+          .from('user_credits')
+          .select('balance')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!creditsError && creditsData) {
+          setCredits(creditsData.balance);
+        } else if (creditsError && creditsError.code === 'PGRST116') {
+          // No credits record, initialize with 0
+          setCredits(0);
+        }
+
+        // Fetch subscription with package name
+        const { data: subscriptionData } = await supabase
+          .from('user_subscriptions')
+          .select('package:packages(package_name)')
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (subscriptionData?.package?.package_name) {
+          setPackageName(subscriptionData.package.package_name);
+        } else {
+          setPackageName(null);
+        }
+      } catch (error) {
+        console.error('Error loading credits and package:', error);
+      }
+    };
+
+    loadCreditsAndPackage();
+
+    // Refresh credits and package every 30 seconds
+    const interval = setInterval(loadCreditsAndPackage, 30000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
 
   // Load notifications
   useEffect(() => {
     const loadNotifications = async () => {
-      if (!user) return;
+      if (!user?.id) return;
 
       try {
         const { data, error } = await supabase
@@ -108,7 +155,7 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
     // Refresh notifications every 30 seconds
     const interval = setInterval(loadNotifications, 30000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user?.id]);
 
   // Mark notifications as read when dialog opens
   useEffect(() => {
@@ -216,8 +263,28 @@ const DashboardHeader = ({ title }: DashboardHeaderProps) => {
             </form>
           </div>
 
-          {/* Right Section: Notifications, Theme Toggle, Settings, Divider, Avatar */}
+          {/* Right Section: Credits, Package, Notifications, Theme Toggle, Settings, Divider, Avatar */}
           <div className="flex items-center gap-5">
+            {/* Credits Display */}
+            {credits !== null && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-[6px] dark:bg-[#2f3541] bg-[#e4e4e8]">
+                <Coins className="w-4 h-4 dark:text-[#00c19c] text-[#00c19c]" />
+                <span className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                  {credits.toFixed(2)}
+                </span>
+              </div>
+            )}
+
+            {/* Package Name Display */}
+            {packageName && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-[6px] dark:bg-[#2f3541] bg-[#e4e4e8]">
+                <Package className="w-4 h-4 dark:text-[#00c19c] text-[#00c19c]" />
+                <span className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
+                  {packageName}
+                </span>
+              </div>
+            )}
+
             <div className="flex items-center gap-5">
               {/* Notifications Button */}
               <button 

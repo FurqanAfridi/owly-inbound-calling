@@ -73,14 +73,19 @@ const KnowledgeBases: React.FC = () => {
   const [showFAQDialog, setShowFAQDialog] = useState(false);
   const [editingFAQ, setEditingFAQ] = useState<FAQ | null>(null);
   const [faqForm, setFaqForm] = useState({ question: '', answer: '', category: '', priority: 0 });
-  const [kbForm, setKbForm] = useState({ name: '', description: '' });
+  const [kbForm, setKbForm] = useState({ name: '' });
   const [uploading, setUploading] = useState(false);
+  
+  // Create dialog inline FAQ/document state
+  const [createFaqs, setCreateFaqs] = useState<Array<{ question: string; answer: string }>>([]);
+  const [createDocFiles, setCreateDocFiles] = useState<File[]>([]);
+  const [createFaqForm, setCreateFaqForm] = useState({ question: '', answer: '' });
 
   useEffect(() => {
-    if (user) {
-      loadKnowledgeBases();
-    }
-  }, [user]);
+    if (!user?.id) return;
+    loadKnowledgeBases();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const loadKnowledgeBases = async () => {
     if (!user) return;
@@ -157,12 +162,13 @@ const KnowledgeBases: React.FC = () => {
     if (!user) return;
 
     try {
+      // 1. Create the knowledge base
       const { data, error } = await supabase
         .from('knowledge_bases')
         .insert({
           user_id: user.id,
           name: kbForm.name,
-          description: kbForm.description || null,
+          description: null,
           status: 'active',
         })
         .select()
@@ -170,8 +176,71 @@ const KnowledgeBases: React.FC = () => {
 
       if (error) throw error;
 
+      const kbId = data.id;
+
+      // 2. Save inline FAQs
+      if (createFaqs.length > 0) {
+        const faqInserts = createFaqs.map((faq, index) => ({
+          knowledge_base_id: kbId,
+          question: faq.question,
+          answer: faq.answer,
+          category: null,
+          priority: 0,
+          display_order: index,
+        }));
+
+        const { error: faqError } = await supabase
+          .from('knowledge_base_faqs')
+          .insert(faqInserts);
+
+        if (faqError) {
+          console.error('Error saving FAQs:', faqError);
+        }
+      }
+
+      // 3. Upload documents
+      for (const file of createDocFiles) {
+        try {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${crypto.randomUUID()}.${fileExt}`;
+          const filePath = `${kbId}/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('agent-documents')
+            .upload(filePath, file, {
+              cacheControl: '3600',
+              upsert: false,
+            });
+
+          if (uploadError) {
+            console.error('Error uploading file:', file.name, uploadError);
+            continue;
+          }
+
+          const { data: urlData } = supabase.storage
+            .from('agent-documents')
+            .getPublicUrl(filePath);
+
+          await supabase
+            .from('knowledge_base_documents')
+            .insert({
+              knowledge_base_id: kbId,
+              name: file.name,
+              file_type: file.type || 'application/octet-stream',
+              file_url: urlData.publicUrl,
+              file_size: file.size,
+              storage_path: filePath,
+            });
+        } catch (fileErr) {
+          console.error('Error processing file:', file.name, fileErr);
+        }
+      }
+
       setShowCreateDialog(false);
-      setKbForm({ name: '', description: '' });
+      setKbForm({ name: '' });
+      setCreateFaqs([]);
+      setCreateDocFiles([]);
+      setCreateFaqForm({ question: '', answer: '' });
       loadKnowledgeBases();
     } catch (err: any) {
       console.error('Error creating knowledge base:', err);
@@ -517,17 +586,26 @@ const KnowledgeBases: React.FC = () => {
       </div>
 
       {/* Create Knowledge Base Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="bg-card text-foreground border-border">
+      <Dialog open={showCreateDialog} onOpenChange={(open) => {
+        setShowCreateDialog(open);
+        if (!open) {
+          setKbForm({ name: '' });
+          setCreateFaqs([]);
+          setCreateDocFiles([]);
+          setCreateFaqForm({ question: '', answer: '' });
+        }
+      }}>
+        <DialogContent className="bg-card text-foreground border-border max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-foreground">Create Knowledge Base</DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              Create a new knowledge base to store FAQs and documents
+              Add a name, upload documents, and add FAQs for your agent
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-6 py-4">
+            {/* Name */}
             <div className="space-y-2">
-              <Label htmlFor="kb-name" className="text-foreground">Name *</Label>
+              <Label htmlFor="kb-name" className="text-foreground font-semibold">Name *</Label>
               <Input
                 id="kb-name"
                 value={kbForm.name}
@@ -536,23 +614,136 @@ const KnowledgeBases: React.FC = () => {
                 className="bg-background text-foreground border-border"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="kb-description" className="text-foreground">Description</Label>
-              <Textarea
-                id="kb-description"
-                value={kbForm.description}
-                onChange={(e) => setKbForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Describe what this knowledge base is for..."
-                rows={3}
-                className="bg-background text-foreground border-border"
-              />
+
+            {/* Documents Section */}
+            <div className="space-y-3">
+              <Label className="text-foreground font-semibold flex items-center gap-2">
+                <Upload className="w-4 h-4" />
+                Documents
+              </Label>
+              <div className="border-2 border-dashed border-border rounded-lg p-4">
+                <input
+                  type="file"
+                  id="create-doc-upload"
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.txt,.csv,.json"
+                  multiple
+                  onChange={(e) => {
+                    const files = e.target.files;
+                    if (files) {
+                      setCreateDocFiles(prev => [...prev, ...Array.from(files)]);
+                    }
+                    e.target.value = '';
+                  }}
+                />
+                <label
+                  htmlFor="create-doc-upload"
+                  className="flex flex-col items-center gap-2 cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Upload className="w-8 h-8" />
+                  <span className="text-sm font-medium">Click to upload documents</span>
+                  <span className="text-xs">PDF, DOC, DOCX, TXT, CSV, JSON</span>
+                </label>
+              </div>
+              {createDocFiles.length > 0 && (
+                <div className="space-y-2">
+                  {createDocFiles.map((file, idx) => (
+                    <div key={idx} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm truncate">{file.name}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          ({(file.size / 1024).toFixed(1)} KB)
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0"
+                        onClick={() => setCreateDocFiles(prev => prev.filter((_, i) => i !== idx))}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* FAQs Section */}
+            <div className="space-y-3">
+              <Label className="text-foreground font-semibold flex items-center gap-2">
+                <BookOpen className="w-4 h-4" />
+                FAQs
+              </Label>
+
+              {/* Existing FAQs */}
+              {createFaqs.length > 0 && (
+                <div className="space-y-2">
+                  {createFaqs.map((faq, idx) => (
+                    <div key={idx} className="bg-muted/50 rounded-lg px-4 py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground">{faq.question}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{faq.answer}</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 shrink-0"
+                          onClick={() => setCreateFaqs(prev => prev.filter((_, i) => i !== idx))}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add FAQ form */}
+              <div className="border border-border rounded-lg p-3 space-y-3">
+                <Input
+                  value={createFaqForm.question}
+                  onChange={(e) => setCreateFaqForm(prev => ({ ...prev, question: e.target.value }))}
+                  placeholder="Question — e.g., What are your business hours?"
+                  className="bg-background text-foreground border-border text-sm"
+                />
+                <Textarea
+                  value={createFaqForm.answer}
+                  onChange={(e) => setCreateFaqForm(prev => ({ ...prev, answer: e.target.value }))}
+                  placeholder="Answer — e.g., We are open Monday to Friday, 9 AM to 5 PM."
+                  rows={2}
+                  className="bg-background text-foreground border-border text-sm"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!createFaqForm.question.trim() || !createFaqForm.answer.trim()}
+                  onClick={() => {
+                    if (createFaqForm.question.trim() && createFaqForm.answer.trim()) {
+                      setCreateFaqs(prev => [...prev, { question: createFaqForm.question.trim(), answer: createFaqForm.answer.trim() }]);
+                      setCreateFaqForm({ question: '', answer: '' });
+                    }
+                  }}
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Add FAQ
+                </Button>
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateKB}>Create</Button>
+            <Button
+              onClick={handleCreateKB}
+              disabled={!kbForm.name.trim()}
+              className="bg-[#00c19c] hover:bg-[#00c19c]/90 text-white"
+            >
+              Create Knowledge Base
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

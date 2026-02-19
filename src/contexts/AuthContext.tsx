@@ -22,18 +22,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      setSession(initialSession);
+      setUser(initialSession?.user ?? null);
       setLoading(false);
     });
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, newSession: Session | null) => {
+      // Only update state on actual auth changes (sign in, sign out, user update)
+      // Skip TOKEN_REFRESHED events to prevent unnecessary re-renders on tab switch
+      if (event === 'TOKEN_REFRESHED') {
+        // Just update session token silently without triggering re-renders
+        setSession(prev => {
+          // Only update if user ID is the same — avoids re-render cascades
+          if (prev?.user?.id === newSession?.user?.id) {
+            return newSession;
+          }
+          return prev;
+        });
+        return;
+      }
+
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
       setLoading(false);
     });
 

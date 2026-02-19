@@ -9,6 +9,7 @@ export interface EmailAddress {
   smtp_password?: string | null;
   is_primary: boolean;
   is_verified?: boolean;
+  assigned_agent_id?: string | null;
   created_at?: string;
 }
 

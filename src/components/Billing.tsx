@@ -161,11 +161,10 @@ const Billing: React.FC = () => {
   } | null>(null);
 
   useEffect(() => {
-    if (user) {
-      fetchBillingData();
-    }
+    if (!user?.id) return;
+    fetchBillingData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id]);
 
   // Handle payment success/cancel callback from Stripe and PayPal
   useEffect(() => {

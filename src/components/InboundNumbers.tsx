@@ -56,9 +56,10 @@ const InboundNumbers: React.FC = () => {
   const [testingNumber, setTestingNumber] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!user?.id) return;
     fetchNumbers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id]);
 
   // Listen for refresh event from MainLayout when dialog closes successfully
   useEffect(() => {

@@ -58,10 +58,10 @@ const Profile: React.FC = () => {
   const [phoneVerificationError, setPhoneVerificationError] = useState<string>('');
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     loadProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id]);
 
   const loadProfile = async () => {
     if (!user) return;

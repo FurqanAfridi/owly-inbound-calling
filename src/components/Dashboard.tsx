@@ -130,13 +130,13 @@ const Dashboard: React.FC = () => {
   const [selectedNumberId, setSelectedNumberId] = useState<string>('all');
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
     loadUserProfile();
     loadVoiceAgents();
     loadInboundNumbers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) {

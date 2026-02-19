@@ -99,9 +99,10 @@ const CallSchedules: React.FC = () => {
   });
 
   useEffect(() => {
+    if (!user?.id) return;
     fetchSchedules();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id]);
 
   const fetchSchedules = async () => {
     if (!user) return;

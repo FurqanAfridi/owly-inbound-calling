@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Sparkles, FileText, Loader2, Copy, Save, Building2, List, Edit2, Trash2, ChevronDown, ChevronUp, Upload, X, AlertCircle, Settings2, Eye, EyeOff } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Sparkles, FileText, Loader2, Copy, Save, Building2, List, Edit2, Trash2, ChevronDown, ChevronUp, Upload, X, Settings2, Eye, EyeOff, GraduationCap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,8 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useAIPrompts } from "@/hooks/useAIPrompts";
 import { supabase } from "@/lib/supabase";
-import { uploadFile } from "@/lib/fileUpload";
-import { extractDocumentProfile, generatePromptFromProfile, formatRawPrompt } from "@/services/aiPromptService";
+import { generatePromptFromProfile, formatRawPrompt } from "@/services/aiPromptService";
 import type { AgentPromptProfile } from "@/types/aiPrompt";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -29,6 +29,7 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:3001"
 export default function AIPrompt() {
   const { user } = useAuth();
   const { profile } = useProfile();
+  const navigate = useNavigate();
   const { prompts, loading: promptsLoading, createPrompt, updatePrompt, deletePrompt, getUserPrompts } = useAIPrompts();
 
   // Form state
@@ -46,17 +47,20 @@ export default function AIPrompt() {
   // Document upload
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [isExtracting, setIsExtracting] = useState(false);
-  const [extractionResult, setExtractionResult] = useState<{ extractedProfile: Partial<AgentPromptProfile>; missingFields: string[] } | null>(null);
+  const [documentText, setDocumentText] = useState<string>("");
 
   // Prompt generation
   const [generatedPrompt, setGeneratedPrompt] = useState("");
   const [generatedWelcomeMessages, setGeneratedWelcomeMessages] = useState<string[]>([]);
+  const [generatedFormData, setGeneratedFormData] = useState<any>(null);
+  const [generatedAgentProfile, setGeneratedAgentProfile] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Format Prompt
   const [promptToFormat, setPromptToFormat] = useState("");
   const [formattedPrompt, setFormattedPrompt] = useState("");
+  const [formattedFormData, setFormattedFormData] = useState<any>(null);
+  const [formattedWelcomeMessages, setFormattedWelcomeMessages] = useState<string[]>([]);
   const [isFormatting, setIsFormatting] = useState(false);
 
   // Save Dialog
@@ -64,6 +68,8 @@ export default function AIPrompt() {
   const [savePromptName, setSavePromptName] = useState("");
   const [savePromptCategory, setSavePromptCategory] = useState("general");
   const [savePromptContent, setSavePromptContent] = useState("");
+  const [saveFormData, setSaveFormData] = useState<any>(null);
+  const [saveWelcomeMessages, setSaveWelcomeMessages] = useState<string[]>([]);
   const [savingPrompt, setSavingPrompt] = useState(false);
   const [activeTab, setActiveTab] = useState("generate");
 
@@ -94,31 +100,41 @@ export default function AIPrompt() {
     }
   }, [profile]);
 
-  // --- File Upload ---
+  // --- File Upload — extract text only, don't fill form ---
   const handleFileUpload = async (file: File) => {
     if (!user) return;
-    setUploadedFile(file); setIsUploading(true); setIsExtracting(true);
+    setUploadedFile(file);
+    setIsUploading(true);
     try {
-      const fd = new FormData(); fd.append("file", file);
-      const extractResponse = await fetch(`${BACKEND_URL}/api/extract-document`, { method: "POST", body: fd });
-      if (!extractResponse.ok) throw new Error("Failed to extract text from document");
+      // Extract text from document via backend
+      const fd = new FormData();
+      fd.append("file", file);
+      const extractResponse = await fetch(`${BACKEND_URL}/api/extract-document`, {
+        method: "POST",
+        body: fd,
+      });
+      if (!extractResponse.ok) {
+        const errorData = await extractResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to extract text from document (${extractResponse.status})`);
+      }
       const { extractedText } = await extractResponse.json();
-      const uploadResult = await uploadFile(file, "company-documents", "", user.id);
-      if (uploadResult.error) throw new Error(uploadResult.error);
-      const extraction = await extractDocumentProfile(extractedText);
-      setExtractionResult(extraction);
-      setFormData(prev => ({
-        ...prev, ...extraction.extractedProfile,
-        services: [...(prev.services || []), ...(extraction.extractedProfile.services || [])].filter((v, i, a) => a.indexOf(v) === i),
-        faqs: [...(prev.faqs || []), ...(extraction.extractedProfile.faqs || [])].filter((v, i, a) => a.indexOf(v) === i),
-        objections: [...(prev.objections || []), ...(extraction.extractedProfile.objections || [])].filter((v, i, a) => a.indexOf(v) === i),
-        policies: [...(prev.policies || []), ...(extraction.extractedProfile.policies || [])].filter((v, i, a) => a.indexOf(v) === i),
-      }));
-      toast({ title: "Document Processed", description: `Extracted data. ${extraction.missingFields.length} fields may need manual input.` });
+
+      if (!extractedText || extractedText.trim().length === 0) {
+        throw new Error("No text could be extracted from the document. Please try a different file.");
+      }
+
+      // Store the extracted text — it will be used when generating the prompt
+      setDocumentText(extractedText);
+
+      toast({ title: "Document Uploaded", description: "Document text extracted successfully. It will be used when generating the prompt." });
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to process document", variant: "destructive" });
+      console.error("Document upload error:", error);
+      toast({ title: "Upload Error", description: error.message || "Failed to process document. Please ensure the backend server is running.", variant: "destructive" });
       setUploadedFile(null);
-    } finally { setIsUploading(false); setIsExtracting(false); }
+      setDocumentText("");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // --- Generate Prompt (calls OpenAI) ---
@@ -129,10 +145,13 @@ export default function AIPrompt() {
     }
     setIsGenerating(true);
     try {
-      const result = await generatePromptFromProfile(formData);
+      // Pass document text along with form data for prompt generation
+      const result = await generatePromptFromProfile(formData, documentText || undefined);
       setGeneratedPrompt(result.finalPrompt || "");
       setGeneratedWelcomeMessages(result.welcomeMessages || []);
-      toast({ title: "Success", description: "Prompt generated successfully via OpenAI" });
+      setGeneratedFormData(result.formData || null);
+      setGeneratedAgentProfile(result.agentProfile || null);
+      toast({ title: "Success", description: "Prompt generated successfully with form data" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Failed to generate prompt", variant: "destructive" });
     } finally { setIsGenerating(false); }
@@ -142,12 +161,28 @@ export default function AIPrompt() {
   const handleFormatPrompt = async () => {
     if (!promptToFormat.trim()) { toast({ title: "Validation Error", description: "Please enter a prompt to format", variant: "destructive" }); return; }
     setIsFormatting(true);
+    setFormattedPrompt(""); // Clear previous result
+    setFormattedFormData(null);
+    setFormattedWelcomeMessages([]);
     try {
-      const formatted = await formatRawPrompt(promptToFormat);
-      setFormattedPrompt(formatted);
-      toast({ title: "Success", description: "Prompt formatted successfully" });
+      const result = await formatRawPrompt(promptToFormat);
+      console.log("Format result:", result);
+      
+      if (result.formattedPrompt && result.formattedPrompt.trim()) {
+        setFormattedPrompt(result.formattedPrompt);
+        setFormattedFormData(result.formData || null);
+        setFormattedWelcomeMessages(result.welcomeMessages || []);
+        toast({ title: "Success", description: "Prompt formatted successfully" + (result.formData ? " with form data extraction" : "") });
+      } else {
+        // If no formatted prompt, show error
+        toast({ title: "Error", description: "Formatter returned empty result. Please try again.", variant: "destructive" });
+        setFormattedPrompt(promptToFormat); // Show original as fallback
+      }
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      console.error("Format error:", error);
+      toast({ title: "Error", description: error.message || "Failed to format prompt. Please check your OpenAI API key and try again.", variant: "destructive" });
+      // Show original prompt as fallback
+      setFormattedPrompt(promptToFormat);
     } finally { setIsFormatting(false); }
   };
 
@@ -169,9 +204,21 @@ export default function AIPrompt() {
   const copyToClipboard = (text: string, type: string) => { navigator.clipboard.writeText(text); toast({ title: "Copied", description: `${type} copied to clipboard` }); };
 
   // --- Save ---
-  const openSaveDialog = (content: string) => {
+  const openSaveDialog = (content: string, useFormattedData: boolean = false) => {
     setSavePromptContent(content);
     setSavePromptName(formData.companyName ? `${formData.companyName} - Prompt` : "New Prompt");
+    
+    // Set form data and welcome messages for saving
+    if (useFormattedData) {
+      // Saving formatted prompt - use formatted data
+      setSaveFormData(formattedFormData);
+      setSaveWelcomeMessages(formattedWelcomeMessages);
+    } else {
+      // Saving generated prompt - use generated data
+      setSaveFormData(generatedFormData);
+      setSaveWelcomeMessages(generatedWelcomeMessages);
+    }
+    
     setSaveDialogOpen(true);
   };
 
@@ -179,23 +226,35 @@ export default function AIPrompt() {
     if (!user || !savePromptContent.trim() || !savePromptName.trim()) { toast({ title: "Validation Error", description: "Please provide a name and prompt content", variant: "destructive" }); return; }
     setSavingPrompt(true);
     try {
+      // Use generated agent profile if available, otherwise fall back to formData
+      const agentProfileToSave = generatedAgentProfile || formData;
+      
       const result = await createPrompt({
         name: savePromptName.trim(),
         category: savePromptCategory,
         system_prompt: savePromptContent,
         begin_message: null,
-        agent_profile: formData as any,
-        welcome_messages: generatedWelcomeMessages as any,
-        call_type: formData.callType,
-        call_goal: formData.callGoal,
-        tone: formData.tone,
+        agent_profile: agentProfileToSave as any,
+        welcome_messages: saveWelcomeMessages.length > 0 ? saveWelcomeMessages : (generatedWelcomeMessages.length > 0 ? generatedWelcomeMessages : []),
+        call_type: agentProfileToSave.callType || formData.callType,
+        call_goal: agentProfileToSave.callGoal || formData.callGoal,
+        tone: agentProfileToSave.tone || formData.tone,
         status: "ready",
         state_prompts: {} as any,
         tools_config: {} as any,
         is_active: true,
         is_template: false,
+        // Store formData for easy import - use saveFormData if available
+        form_data: saveFormData || generatedFormData || null,
       });
-      if (result) { setSaveDialogOpen(false); setSavePromptName(""); setSavePromptContent(""); toast({ title: "Success", description: "Prompt saved! You can now use it in Agent Creation." }); }
+      if (result) { 
+        setSaveDialogOpen(false); 
+        setSavePromptName(""); 
+        setSavePromptContent(""); 
+        setSaveFormData(null);
+        setSaveWelcomeMessages([]);
+        toast({ title: "Success", description: "Prompt saved! You can now use it in Agent Creation." }); 
+      }
     } catch (error: any) { toast({ title: "Error", description: error?.message || "Failed to save prompt", variant: "destructive" }); }
     finally { setSavingPrompt(false); }
   };
@@ -216,7 +275,11 @@ export default function AIPrompt() {
     catch (error: any) { toast({ title: "Error", description: error?.message, variant: "destructive" }); }
   };
 
-  const loadPromptToEditor = (prompt: any) => { setGeneratedPrompt(prompt.system_prompt); setActiveTab("generate"); toast({ title: "Loaded", description: "Prompt loaded into editor" }); };
+  const loadPromptToAgent = (prompt: any) => {
+    // Navigate to create-agent page with prompt ID in state
+    navigate('/create-agent', { state: { promptId: prompt.id } });
+    toast({ title: "Loading", description: "Redirecting to agent creation..." });
+  };
   const togglePromptExpansion = (id: string) => { setExpandedPrompts(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; }); };
 
   const userPrompts = getUserPrompts();
@@ -255,18 +318,32 @@ export default function AIPrompt() {
               {/* Document Upload */}
               <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
                 <div className="flex items-center gap-2"><Upload className="h-4 w-4 text-blue-600" /><Label className="text-base font-semibold">Upload Company Document (Optional)</Label></div>
-                <p className="text-sm text-muted-foreground">Upload a PDF, DOCX, or TXT file. The system will auto-extract and fill the form.</p>
+                <p className="text-sm text-muted-foreground">Upload a PDF, DOCX, or TXT file. The document content will be used when generating your prompt.</p>
                 <div className="flex items-center gap-4">
-                  <input type="file" accept=".pdf,.docx,.doc,.txt" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }} className="hidden" id="document-upload" disabled={isUploading || isExtracting} />
-                  <label htmlFor="document-upload">
-                    <Button type="button" variant="outline" disabled={isUploading || isExtracting} className="cursor-pointer">
-                      {isUploading || isExtracting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />{isExtracting ? "Extracting..." : "Uploading..."}</>) : (<><Upload className="mr-2 h-4 w-4" />Upload Document</>)}
-                    </Button>
-                  </label>
-                  {uploadedFile && (<div className="flex items-center gap-2 text-sm"><FileText className="h-4 w-4 text-green-600" /><span>{uploadedFile.name}</span><Button variant="ghost" size="sm" onClick={() => setUploadedFile(null)}><X className="h-4 w-4" /></Button></div>)}
+                  <input type="file" accept=".pdf,.docx,.doc,.txt" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ''; }} className="hidden" id="document-upload" disabled={isUploading} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isUploading}
+                    className="cursor-pointer"
+                    onClick={() => document.getElementById('document-upload')?.click()}
+                  >
+                    {isUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</>) : (<><Upload className="mr-2 h-4 w-4" />Upload Document</>)}
+                  </Button>
+                  {uploadedFile && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <FileText className="h-4 w-4 text-green-600" />
+                      <span>{uploadedFile.name}</span>
+                      <Button variant="ghost" size="sm" onClick={() => { setUploadedFile(null); setDocumentText(""); }}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                {extractionResult && extractionResult.missingFields.length > 0 && (
-                  <Alert><AlertCircle className="h-4 w-4" /><AlertDescription><strong>Missing Fields:</strong> {extractionResult.missingFields.join(", ")}. Please fill these manually.</AlertDescription></Alert>
+                {documentText && (
+                  <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                    ✓ Document ready — content will be included when you generate the prompt.
+                  </p>
                 )}
               </div>
 
@@ -454,7 +531,51 @@ export default function AIPrompt() {
               <Button onClick={handleFormatPrompt} disabled={isFormatting || !promptToFormat.trim()} className="w-full" size="lg">
                 {isFormatting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Formatting...</>) : (<><FileText className="mr-2 h-4 w-4" />Format Prompt</>)}
               </Button>
-              {formattedPrompt && (<><Separator /><div className="space-y-2"><div className="flex items-center justify-between gap-2"><Label>Formatted Prompt</Label><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => openSaveDialog(formattedPrompt)}><Save className="mr-2 h-4 w-4" />Save</Button><Button variant="outline" size="sm" onClick={() => copyToClipboard(formattedPrompt, "Formatted prompt")}><Copy className="mr-2 h-4 w-4" />Copy</Button></div></div><Textarea value={formattedPrompt} onChange={(e) => setFormattedPrompt(e.target.value)} className="min-h-[400px] font-mono text-sm" /></div></>)}
+              {formattedPrompt && formattedPrompt.trim() && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label>Formatted Prompt</Label>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => openSaveDialog(formattedPrompt, true)}>
+                          <Save className="mr-2 h-4 w-4" />Save
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => copyToClipboard(formattedPrompt, "Formatted prompt")}>
+                          <Copy className="mr-2 h-4 w-4" />Copy
+                        </Button>
+                      </div>
+                    </div>
+                    <Textarea 
+                      value={formattedPrompt} 
+                      onChange={(e) => setFormattedPrompt(e.target.value)} 
+                      className="min-h-[400px] font-mono text-sm" 
+                      placeholder="Formatted prompt will appear here..."
+                    />
+                  </div>
+                  {formattedWelcomeMessages.length > 0 && (
+                    <div className="space-y-2 p-4 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
+                      <Label className="text-base font-semibold text-green-800 dark:text-green-300">Extracted Welcome Messages</Label>
+                      <div className="space-y-2">
+                        {formattedWelcomeMessages.map((msg, i) => (
+                          <div key={i} className="flex items-center gap-2 text-sm bg-card p-2 rounded border border-border">
+                            <span className="text-green-700 dark:text-green-400 font-medium">{i + 1}.</span>
+                            <span>{msg}</span>
+                            <Button variant="ghost" size="sm" onClick={() => copyToClipboard(msg, "Welcome message")}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+              {!isFormatting && !formattedPrompt && promptToFormat.trim() && (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  Click "Format Prompt" to see the formatted result
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -492,7 +613,7 @@ export default function AIPrompt() {
                               {!isExpanded && promptPreview && (<div className="mt-2"><p className="text-sm text-muted-foreground line-clamp-2 font-mono">{promptPreview}...</p></div>)}
                             </div>
                             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                              <Button variant="outline" size="sm" onClick={() => loadPromptToEditor(prompt)} title="Load into editor"><FileText className="h-4 w-4" /></Button>
+                              <Button variant="outline" size="sm" onClick={() => loadPromptToAgent(prompt)} title="Load to Agent"><GraduationCap className="h-4 w-4" /></Button>
                               <Button variant="outline" size="sm" onClick={() => openEditDialog(prompt)} title="Edit"><Edit2 className="h-4 w-4" /></Button>
                               <Button variant="outline" size="sm" onClick={() => handleDeletePrompt(prompt.id)} title="Delete"><Trash2 className="h-4 w-4 text-destructive" /></Button>
                             </div>

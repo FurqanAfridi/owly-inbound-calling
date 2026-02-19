@@ -28,6 +28,7 @@ interface EmailAddress {
   smtp_password?: string | null;
   is_primary: boolean;
   is_verified?: boolean;
+  assigned_agent_id?: string | null;
   created_at?: string;
 }
 
@@ -37,6 +38,8 @@ export default function Email() {
   const [emailName, setEmailName] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
   const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>("");
+  const [agents, setAgents] = useState<Array<{ id: string; name: string; company_name?: string | null }>>([]);
   const [emails, setEmails] = useState<EmailAddress[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -95,6 +98,31 @@ export default function Email() {
     emailType: "follow-up" as "follow-up" | "thank-you" | "appointment" | "custom",
     tone: "professional" as "professional" | "friendly" | "casual" | "formal",
   });
+
+  // Fetch agents for assignment
+  useEffect(() => {
+    const fetchAgents = async () => {
+      if (!user) return;
+      try {
+        const { data, error } = await supabase
+          .from("voice_agents")
+          .select("id, name, company_name")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .is("deleted_at", null)
+          .order("name", { ascending: true });
+        
+        if (error) throw error;
+        setAgents(data || []);
+      } catch (error: any) {
+        console.error("Error fetching agents:", error);
+      }
+    };
+    
+    if (user?.id) {
+      fetchAgents();
+    }
+  }, [user?.id]);
 
   // Fetch existing emails from database
   useEffect(() => {
@@ -158,20 +186,49 @@ export default function Email() {
       }
     };
 
+    if (!user?.id) return;
     fetchEmails();
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
-  // Initialize compose form with first SMTP email
+  // Initialize compose form with first SMTP email and auto-fill company name from agent
   useEffect(() => {
     if (userEmails.length > 0 && !composeForm.fromEmail) {
       // Only use emails with SMTP password configured
       const smtpEmail = userEmails.find((e) => e.smtp_password && !e.is_primary) || userEmails.find((e) => e.smtp_password);
-      setComposeForm((prev) => ({
-        ...prev,
-        fromEmail: smtpEmail?.email || "",
-      }));
+      if (smtpEmail) {
+        // Auto-fill company name from assigned agent if available
+        let companyName = "";
+        if (smtpEmail.assigned_agent_id) {
+          const assignedAgent = agents.find(a => a.id === smtpEmail.assigned_agent_id);
+          if (assignedAgent?.company_name) {
+            companyName = assignedAgent.company_name || "";
+          }
+        }
+        setComposeForm((prev) => ({
+          ...prev,
+          fromEmail: smtpEmail.email || "",
+          senderCompanyName: companyName,
+        }));
+      }
     }
-  }, [userEmails, composeForm.fromEmail]);
+  }, [userEmails, composeForm.fromEmail, agents]);
+  
+  // Update company name when fromEmail changes
+  useEffect(() => {
+    if (composeForm.fromEmail && userEmails.length > 0) {
+      const selectedEmail = userEmails.find((e) => e.email === composeForm.fromEmail);
+      if (selectedEmail?.assigned_agent_id && !composeForm.senderCompanyName) {
+        const assignedAgent = agents.find(a => a.id === selectedEmail.assigned_agent_id);
+        if (assignedAgent?.company_name) {
+          setComposeForm((prev) => ({
+            ...prev,
+            senderCompanyName: assignedAgent.company_name || "",
+          }));
+        }
+      }
+    }
+  }, [composeForm.fromEmail, userEmails, agents, composeForm.senderCompanyName]);
 
   const handleAddEmail = async () => {
     if (!user) return;
@@ -225,6 +282,7 @@ export default function Email() {
           smtp_password: smtpPassword.trim(),
           is_primary: false,
           is_verified: false,
+          assigned_agent_id: selectedAgentId || null,
         })
         .select()
         .single();
@@ -251,6 +309,7 @@ export default function Email() {
         setEmailName("");
         setSmtpPassword("");
         setShowSmtpPassword(false);
+        setSelectedAgentId("");
         toast({
           title: "Email Added",
           description: "Email address has been added successfully",
@@ -600,6 +659,31 @@ export default function Email() {
                   </p>
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="assigned_agent">
+                    Assign Agent (Optional)
+                  </Label>
+                  <Select
+                    value={selectedAgentId || "none"}
+                    onValueChange={(value) => setSelectedAgentId(value === "none" ? "" : value)}
+                  >
+                    <SelectTrigger id="assigned_agent">
+                      <SelectValue placeholder="Select an agent to send emails from this address" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Agent</SelectItem>
+                      {agents.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          {agent.name} {agent.company_name ? `(${agent.company_name})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Emails sent from this address will use the selected agent's information
+                  </p>
+                </div>
+
                 <Button
                   onClick={handleAddEmail}
                   disabled={!email.trim() || !smtpPassword.trim() || saving}
@@ -668,6 +752,11 @@ export default function Email() {
                                 <div className="text-sm text-muted-foreground">
                                   {emailItem.email}
                                 </div>
+                                {emailItem.assigned_agent_id && (
+                                  <div className="text-xs text-muted-foreground">
+                                    Agent: {agents.find(a => a.id === emailItem.assigned_agent_id)?.name || 'Unknown'}
+                                  </div>
+                                )}
                               </div>
                               <div className="flex items-center gap-2">
                                 <Button
@@ -769,14 +858,22 @@ export default function Email() {
                           <Label className="text-xs text-muted-foreground">Preview</Label>
                           <div
                             className="mt-2 border rounded-lg overflow-hidden bg-card"
-                            style={{ height: 160 }}
+                            style={{ height: 300 }}
                           >
                             <iframe
-                              srcDoc={convertToHtmlEmail(template.subject, template.body, { previewMode: true })}
+                              srcDoc={convertToHtmlEmail(
+                                template.subject,
+                                template.body,
+                                {
+                                  previewMode: false,
+                                  style: (template.design_style || "modern") as EmailDesignStyle,
+                                  accentColor: template.accent_color || "#4F46E5",
+                                  companyName: template.company_name || "",
+                                }
+                              )}
                               title={`Preview: ${template.name}`}
                               className="w-full h-full border-0"
                               sandbox="allow-same-origin"
-                              style={{ pointerEvents: "none", transform: "scale(0.5)", transformOrigin: "top left", width: "200%", height: "200%" }}
                             />
                           </div>
                         </div>
@@ -1177,6 +1274,16 @@ export default function Email() {
 
                         // Get the SMTP password for the selected from email
                         const selectedEmail = userEmails.find((e) => e.email === composeForm.fromEmail);
+                        
+                        // Get agent's company name if email has assigned agent
+                        let companyName = composeForm.senderCompanyName;
+                        if (selectedEmail?.assigned_agent_id && !companyName) {
+                          const assignedAgent = agents.find(a => a.id === selectedEmail.assigned_agent_id);
+                          if (assignedAgent?.company_name) {
+                            companyName = assignedAgent.company_name;
+                          }
+                        }
+                        
                         const result = await sendEmail({
                           fromEmail: composeForm.fromEmail,
                           toEmail: composeForm.toEmail,
@@ -1186,7 +1293,7 @@ export default function Email() {
                           smtpPassword: selectedEmail?.smtp_password || undefined,
                           designStyle: composeForm.designStyle,
                           accentColor: composeForm.accentColor,
-                          companyName: composeForm.senderCompanyName,
+                          companyName: companyName,
                         });
 
                         if (result.success) {
@@ -1383,11 +1490,16 @@ export default function Email() {
                       srcDoc={convertToHtmlEmail(
                         previewTemplate.subject,
                         previewTemplate.body,
-                        { previewMode: true }
+                        {
+                          previewMode: false,
+                          style: (previewTemplate.design_style || "modern") as EmailDesignStyle,
+                          accentColor: previewTemplate.accent_color || "#4F46E5",
+                          companyName: previewTemplate.company_name || "",
+                        }
                       )}
                       title={`Full Preview: ${previewTemplate.name}`}
                       className="w-full border-0"
-                      style={{ height: "60vh" }}
+                      style={{ height: "70vh", minHeight: "500px" }}
                       sandbox="allow-same-origin"
                     />
                   </div>
