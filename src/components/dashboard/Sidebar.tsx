@@ -14,7 +14,8 @@ import {
   Sparkles,
   ChevronDown,
   ChevronRight,
-  LogOut
+  LogOut,
+  FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import logoImage from '../../assest/LOGO LIGHT MODE.png';
@@ -46,11 +47,10 @@ const sidebarSections: SidebarSection[] = [
     title: 'Operations',
     items: [
       { id: 'inbound-numbers', label: 'Phone Numbers', icon: <PhoneIncoming className="w-5 h-5" />, path: '/inbound-numbers' },
-      { id: 'calendar', label: 'Calendar', icon: <CalendarFold className="w-5 h-5" />, path: '/call-schedules' },
+      { id: 'knowledge-bases', label: 'Knowledge Base', icon: <BookOpen className="w-5 h-5" />, path: '/knowledge-bases' },
       { id: 'agents', label: 'Agents', icon: <GraduationCap className="w-5 h-5" />, path: '/agents' },
-      { id: 'ai-prompt', label: 'AI Prompt', icon: <Sparkles className="w-5 h-5" />, path: '/ai-prompt' },
-      { id: 'knowledge-bases', label: 'Knowledge Bases', icon: <BookOpen className="w-5 h-5" />, path: '/knowledge-bases' },
-      { id: 'email', label: 'Emails', icon: <Mail className="w-5 h-5" />, path: '/email' },
+      { id: 'calendar', label: 'Schedule', icon: <CalendarFold className="w-5 h-5" />, path: '/call-schedules' },
+      { id: 'email', label: 'Email Integration', icon: <Mail className="w-5 h-5" />, path: '/email' },
     ],
   },
   {
@@ -65,6 +65,7 @@ const sidebarSections: SidebarSection[] = [
     items: [
       { id: 'billing', label: 'Billing', icon: <CreditCard className="w-5 h-5" />, path: '/billing' },
       { id: 'profile', label: 'Settings', icon: <User className="w-5 h-5" />, path: '/profile' },
+      { id: 'documentation', label: 'Documentation', icon: <FileText className="w-5 h-5" />, path: '/documentation' },
     ],
   },
 ];

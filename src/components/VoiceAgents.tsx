@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Phone, MoreVertical, Eye, Pencil, Trash2, GraduationCap, Power, PowerOff } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, Phone, MoreVertical, Eye, Pencil, Trash2, GraduationCap, Power, PowerOff, MessageCircle, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { NotificationHelpers } from '../services/notificationService';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
@@ -13,6 +14,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import AgentConversation from './AgentConversation';
+import AIPrompt from './AIPrompt';
 
 interface VoiceAgent {
   id: string;
@@ -24,6 +27,7 @@ interface VoiceAgent {
   status: string;
   agent_type: string | null;
   tool: string | null;
+  conversation_agent_link: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -36,12 +40,20 @@ interface InboundNumber {
 
 const VoiceAgents: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const [agents, setAgents] = useState<VoiceAgent[]>([]);
   const [inboundNumbers, setInboundNumbers] = useState<InboundNumber[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [conversationAgent, setConversationAgent] = useState<{ id: string; name: string; link: string | null } | null>(null);
+
+  // Tab state: 'agents' or 'ai-prompt'
+  const activeTab = searchParams.get('tab') || 'agents';
+  const setActiveTab = (tab: string) => {
+    setSearchParams({ tab });
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -72,7 +84,7 @@ const VoiceAgents: React.FC = () => {
     try {
       const { data, error: fetchError } = await supabase
         .from('voice_agents')
-        .select('id, name, company_name, phone_number, phone_provider, phone_label, status, agent_type, tool, created_at, updated_at')
+        .select('id, name, company_name, phone_number, phone_provider, phone_label, status, agent_type, tool, conversation_agent_link, created_at, updated_at')
         .eq('user_id', user.id)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
@@ -205,6 +217,20 @@ const VoiceAgents: React.FC = () => {
     setOpenMenuId(null);
   };
 
+  const handleTestAgent = (agent: VoiceAgent) => {
+    if (!agent.conversation_agent_link) {
+      alert(`Conversation link is not available for "${agent.name}". Please ensure the agent has been properly configured.`);
+      setOpenMenuId(null);
+      return;
+    }
+    setConversationAgent({
+      id: agent.id,
+      name: agent.name,
+      link: agent.conversation_agent_link,
+    });
+    setOpenMenuId(null);
+  };
+
   const handleToggleStatus = async (agent: VoiceAgent) => {
     const newStatus = agent.status === 'active' ? 'inactive' : 'active';
     const webhookUrl = newStatus === 'active' 
@@ -289,6 +315,20 @@ const VoiceAgents: React.FC = () => {
         throw updateError;
       }
 
+      // Send notification when agent is activated
+      if (newStatus === 'active' && user) {
+        try {
+          await NotificationHelpers.agentActivated(
+            user.id,
+            agent.name,
+            agent.id
+          );
+        } catch (notifError) {
+          console.error('Error sending notification:', notifError);
+          // Don't fail the activation if notification fails
+        }
+      }
+
       // Reload agents
       loadAgents();
       setOpenMenuId(null);
@@ -322,18 +362,53 @@ const VoiceAgents: React.FC = () => {
             Manage calling agents, update their details, and control availability.
           </p>
         </div>
-        <div className="flex gap-[12px] items-center justify-end">
-          <Button
-            onClick={() => navigate('/create-agent')}
-            className="bg-[#00c19c] hover:bg-[#00c19c]/90 text-white text-[14px] font-medium h-[36px] px-4 rounded-[8px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-            style={{ fontFamily: "'Manrope', sans-serif" }}
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Add Agent
-          </Button>
-        </div>
+        {activeTab === 'agents' && (
+          <div className="flex gap-[12px] items-center justify-end">
+            <Button
+              onClick={() => navigate('/create-agent')}
+              className="bg-[#00c19c] hover:bg-[#00c19c]/90 text-white text-[14px] font-medium h-[36px] px-4 rounded-[8px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+              style={{ fontFamily: "'Manrope', sans-serif" }}
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              Add Agent
+            </Button>
+          </div>
+        )}
       </div>
 
+      {/* Tab Navigation */}
+      <div className="flex gap-1 p-1 dark:bg-[#1d212b] bg-[#f0f0f0] rounded-[10px] w-fit">
+        <button
+          onClick={() => setActiveTab('agents')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-[8px] text-[14px] font-medium transition-all duration-200 ${
+            activeTab === 'agents'
+              ? 'bg-[#00c19c] text-white shadow-sm'
+              : 'dark:text-[#818898] text-[#737373] hover:dark:text-white hover:text-[#27272b]'
+          }`}
+          style={{ fontFamily: "'Manrope', sans-serif" }}
+        >
+          <GraduationCap className="w-4 h-4" />
+          Agents
+        </button>
+        <button
+          onClick={() => setActiveTab('ai-prompt')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-[8px] text-[14px] font-medium transition-all duration-200 ${
+            activeTab === 'ai-prompt'
+              ? 'bg-[#00c19c] text-white shadow-sm'
+              : 'dark:text-[#818898] text-[#737373] hover:dark:text-white hover:text-[#27272b]'
+          }`}
+          style={{ fontFamily: "'Manrope', sans-serif" }}
+        >
+          <Sparkles className="w-4 h-4" />
+          AI Prompt
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'ai-prompt' ? (
+        <AIPrompt />
+      ) : (
+      <>
       {error && (
         <Alert variant="destructive" onClose={() => setError(null)}>
           <AlertDescription>{error}</AlertDescription>
@@ -413,7 +488,17 @@ const VoiceAgents: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center justify-end">
+                  <div className="flex items-center gap-2 justify-end">
+                    {agent.conversation_agent_link && agent.status !== 'draft' && (
+                      <Button
+                        onClick={() => handleTestAgent(agent)}
+                        className="bg-[#00c19c] hover:bg-[#00c19c]/90 text-white text-[13px] font-medium h-8 px-3 rounded-[6px] gap-1.5"
+                        style={{ fontFamily: "'Manrope', sans-serif" }}
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        Talk
+                      </Button>
+                    )}
                     <DropdownMenu 
                       open={openMenuId === agent.id} 
                       onOpenChange={(open) => setOpenMenuId(open ? agent.id : null)}
@@ -423,7 +508,15 @@ const VoiceAgents: React.FC = () => {
                           <MoreVertical className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-[140px] p-1">
+                      <DropdownMenuContent align="end" className="w-[180px] p-1">
+                        <DropdownMenuItem 
+                          onClick={() => handleTestAgent(agent)} 
+                          className="gap-2 text-[14px] px-2 py-1.5 text-[#00c19c]"
+                          disabled={!agent.conversation_agent_link || agent.status === 'draft'}
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          Talk
+                        </DropdownMenuItem>
                         <DropdownMenuItem 
                           onClick={() => handleView(agent.id)} 
                           className="gap-2 text-[14px] px-2 py-1.5"
@@ -479,6 +572,18 @@ const VoiceAgents: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Agent Conversation Dialog */}
+      {conversationAgent && (
+        <AgentConversation
+          open={!!conversationAgent}
+          onClose={() => setConversationAgent(null)}
+          agentName={conversationAgent.name}
+          conversationLink={conversationAgent.link}
+        />
+      )}
+      </>
+      )}
     </div>
   );
 };

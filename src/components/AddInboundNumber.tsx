@@ -25,6 +25,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import CountryCodeSelector from './CountryCodeSelector';
+import { NotificationHelpers } from '../services/notificationService';
 
 interface InboundNumber {
   id: string;
@@ -161,7 +162,6 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
     const fields: { label: string; filled: boolean }[] = [
       { label: 'Provider', filled: !!provider },
       { label: 'Phone Number', filled: formData.phoneNumber.length === 10 },
-      { label: 'Call Forwarding Number', filled: formData.callForwardingNumber.length === 10 },
     ];
 
     if (provider === 'twilio') {
@@ -184,7 +184,7 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
 
   // Per-step validation
   const isStep1Valid = !!provider;
-  const isStep2Valid = formData.phoneNumber.length === 10 && formData.callForwardingNumber.length === 10;
+  const isStep2Valid = formData.phoneNumber.length === 10;
   const isCurrentStepValid = currentStep === 1 ? isStep1Valid : currentStep === 2 ? isStep2Valid : isFormValid;
 
   const stepLabels = ['Provider', 'Phone Details', 'Configuration'];
@@ -213,6 +213,12 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (loading) {
+      return;
+    }
+    
     if (!user) return;
 
     setLoading(true);
@@ -221,12 +227,6 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
     // Validate required fields
     if (!formData.phoneNumber) {
       setError('Phone number is required');
-      setLoading(false);
-      return;
-    }
-
-    if (!formData.callForwardingNumber) {
-      setError('Call forwarding number is required');
       setLoading(false);
       return;
     }
@@ -256,7 +256,9 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
 
       // Combine country code with phone number
       const fullPhoneNumber = formData.countryCode + formData.phoneNumber.replace(/\D/g, '');
-      const fullCallForwardingNumber = formData.countryCode + formData.callForwardingNumber.replace(/\D/g, '');
+      const fullCallForwardingNumber = formData.callForwardingNumber 
+        ? formData.countryCode + formData.callForwardingNumber.replace(/\D/g, '') 
+        : null;
 
       // Prepare payload for webhook
       const webhookPayload: any = {
@@ -265,7 +267,7 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
         phone_number: fullPhoneNumber, // Phone number with country code
         country_code: formData.countryCode,
         label: formData.phoneLabel,
-        call_forwarding_number: fullCallForwardingNumber, // Call forwarding number with country code
+        call_forwarding_number: fullCallForwardingNumber || null, // Call forwarding number with country code (optional)
         call_transfer_reason: formData.callTransferReason, // Reason for call transfer
         user_id: user.id,
       };
@@ -353,7 +355,7 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
         phone_number: fullPhoneNumber, // Store full number with country code
         country_code: formData.countryCode,
         phone_label: formData.phoneLabel || null,
-        call_forwarding_number: fullCallForwardingNumber, // Store full call forwarding number with country code
+        call_forwarding_number: fullCallForwardingNumber || null, // Store full call forwarding number with country code (optional)
         provider,
         status: formData.status,
         health_status: 'unknown',
@@ -416,7 +418,7 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
           return;
         }
 
-        // For new numbers, set status to 'activating' with 1-minute delayed activation
+        // For new numbers, set status to 'activating' - backend will change to 'active' when ready
         if (!editingNumber) {
           dbRecord.status = 'activating';
         }
@@ -425,7 +427,54 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
         const { data: insertedData, error: insertError } = await supabase.from('inbound_numbers').insert(dbRecord).select().single();
 
         if (insertError) {
-          // Check if it's a unique constraint violation
+          // Check if it's a unique constraint violation for phone_number
+          if (insertError.code === '23505' || insertError.message?.includes('inbound_numbers_phone_number_key') || insertError.message?.includes('duplicate key value violates unique constraint')) {
+            // Try to fetch the existing record (could be from any user)
+            const { data: existingData2, error: fetchError } = await supabase
+              .from('inbound_numbers')
+              .select('*, assigned_to_agent_id')
+              .eq('phone_number', fullPhoneNumber)
+              .maybeSingle();
+
+            if (!fetchError && existingData2) {
+              // Check if it's assigned to an agent
+              if (existingData2.assigned_to_agent_id) {
+                // Fetch the agent name
+                const { data: agentData, error: agentError } = await supabase
+                  .from('voice_agents')
+                  .select('name')
+                  .eq('id', existingData2.assigned_to_agent_id)
+                  .maybeSingle();
+
+                const agentName = agentData?.name || 'another agent';
+                setError(`This phone number is already in use by "${agentName}". Please use a different number or contact support if you believe this is an error.`);
+                setLoading(false);
+                return;
+              }
+
+              // If it's the same user, show the duplicate dialog
+              if (existingData2.user_id === user.id) {
+                setExistingRecord(existingData2);
+                setPendingDbRecord(dbRecord);
+                setPendingWebhookPayload(webhookPayload);
+                setDuplicateDialogOpen(true);
+                setLoading(false);
+                return;
+              } else {
+                // Different user owns this number
+                setError('This phone number is already in use by another account. Please use a different number.');
+                setLoading(false);
+                return;
+              }
+            } else {
+              // Couldn't fetch the existing record, show generic message
+              setError('This phone number is already in use. Please use a different number.');
+              setLoading(false);
+              return;
+            }
+          }
+          
+          // Check if it's a user-specific unique constraint violation
           if (insertError.message?.includes('inbound_numbers_user_phone_unique')) {
             // Try to fetch the existing record
             const { data: existingData2, error: fetchError } = await supabase
@@ -447,26 +496,61 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
           throw insertError;
         }
 
-        // Schedule activation after 60 seconds for new numbers
-        if (!editingNumber && insertedData) {
-          setTimeout(async () => {
-            try {
-              await supabase
-                .from('inbound_numbers')
-                .update({ status: 'active', updated_at: new Date().toISOString() })
-                .eq('id', insertedData.id)
-                .eq('status', 'activating');
-            } catch (err) {
-              console.error('Error auto-activating number:', err);
-            }
-          }, 60000);
+        // Send notification for number import
+        if (!editingNumber && insertedData && user) {
+          try {
+            await NotificationHelpers.numberImported(
+              user.id,
+              insertedData.phone_number,
+              insertedData.phone_label || undefined
+            );
+          } catch (notifError) {
+            console.error('Error sending notification:', notifError);
+            // Don't fail the import if notification fails
+          }
         }
+
+        // Status will be changed to 'active' by n8n backend when ready
+        // No need for client-side timer
       }
 
       onSuccess();
     } catch (err: any) {
       console.error('Error saving inbound number:', err);
-      setError(err.message || 'Failed to save inbound number');
+      
+      // Check if it's a unique constraint violation for phone_number
+      if (err.code === '23505' || err.message?.includes('inbound_numbers_phone_number_key') || err.message?.includes('duplicate key value violates unique constraint')) {
+        // Try to fetch the existing record and agent info
+        try {
+          const { data: existingData, error: fetchError } = await supabase
+            .from('inbound_numbers')
+            .select('*, assigned_to_agent_id')
+            .eq('phone_number', formData.countryCode + formData.phoneNumber.replace(/\D/g, ''))
+            .maybeSingle();
+
+          if (!fetchError && existingData) {
+            if (existingData.assigned_to_agent_id) {
+              // Fetch the agent name
+              const { data: agentData } = await supabase
+                .from('voice_agents')
+                .select('name')
+                .eq('id', existingData.assigned_to_agent_id)
+                .maybeSingle();
+
+              const agentName = agentData?.name || 'another agent';
+              setError(`This phone number is already in use by "${agentName}". Please use a different number or contact support if you believe this is an error.`);
+            } else {
+              setError('This phone number is already in use. Please use a different number.');
+            }
+          } else {
+            setError('This phone number is already in use. Please use a different number.');
+          }
+        } catch (fetchErr) {
+          setError('This phone number is already in use. Please use a different number.');
+        }
+      } else {
+        setError(err.message || 'Failed to save inbound number');
+      }
     } finally {
       setLoading(false);
     }
@@ -721,17 +805,19 @@ const AddInboundNumber: React.FC<AddInboundNumberProps> = ({
                   </Box>
                   <Box>
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>
-                      Call Forwarding Number: <span style={{ color: '#ef4444' }}>*</span>
+                      Call Forwarding Number (Optional):
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 2 }}>
                       <CountryCodeSelector value={formData.countryCode} onChange={(code) => setFormData((prev) => ({ ...prev, countryCode: code }))} />
-                      <Box sx={{ flex: 1, border: '1px solid', borderColor: formData.callForwardingNumber.length === 10 ? '#00c19c' : 'divider', borderRadius: 1, p: 1.5, bgcolor: 'action.hover', minHeight: 48, display: 'flex', alignItems: 'center', transition: 'border-color 0.3s' }}>
-                        <TextField name="callForwardingNumber" value={formData.callForwardingNumber} onChange={handleChange} fullWidth required placeholder="Number to forward calls to" variant="standard" InputProps={{ disableUnderline: true }} inputProps={{ maxLength: 10, inputMode: 'numeric', pattern: '[0-9]*' }} sx={{ '& .MuiInputBase-root': { fontSize: '1rem', fontFamily: "'Manrope', sans-serif", fontWeight: 500 } }} />
+                      <Box sx={{ flex: 1, border: '1px solid', borderColor: formData.callForwardingNumber.length === 10 || formData.callForwardingNumber.length === 0 ? '#00c19c' : 'divider', borderRadius: 1, p: 1.5, bgcolor: 'action.hover', minHeight: 48, display: 'flex', alignItems: 'center', transition: 'border-color 0.3s' }}>
+                        <TextField name="callForwardingNumber" value={formData.callForwardingNumber} onChange={handleChange} fullWidth placeholder="Number to forward calls to (optional)" variant="standard" InputProps={{ disableUnderline: true }} inputProps={{ maxLength: 10, inputMode: 'numeric', pattern: '[0-9]*' }} sx={{ '& .MuiInputBase-root': { fontSize: '1rem', fontFamily: "'Manrope', sans-serif", fontWeight: 500 } }} />
                       </Box>
                     </Box>
-                    <Typography variant="caption" sx={{ fontSize: '0.75rem', color: formData.callForwardingNumber.length === 10 ? '#00c19c' : 'text.secondary', mt: 0.5, fontFamily: "'Manrope', sans-serif" }}>
-                      {formData.callForwardingNumber.length}/10 digits {formData.callForwardingNumber.length === 10 && '✓'}
-                    </Typography>
+                    {formData.callForwardingNumber.length > 0 && (
+                      <Typography variant="caption" sx={{ fontSize: '0.75rem', color: formData.callForwardingNumber.length === 10 ? '#00c19c' : 'text.secondary', mt: 0.5, fontFamily: "'Manrope', sans-serif" }}>
+                        {formData.callForwardingNumber.length}/10 digits {formData.callForwardingNumber.length === 10 && '✓'}
+                      </Typography>
+                    )}
                   </Box>
                   <Box>
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 500, mb: 1, color: 'text.secondary', fontFamily: "'Manrope', sans-serif" }}>Call Transfer Reason (Optional):</Typography>

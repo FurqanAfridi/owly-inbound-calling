@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import { User, Building2, Globe, Mic, FileText, Phone, Settings, Plus, Sparkles, X, Play, Volume2, Coins, ArrowLeft, ListCollapse, AudioLines, Settings2, ChevronRight, Search, ChevronLeft, ArrowUpDown, MoreVertical, Calendar, ChevronLeft as ChevronLeftIcon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { hasEnoughCredits, deductAgentCreationCredits, CREDIT_RATES } from '../services/creditService';
+import { NotificationHelpers } from '../services/notificationService';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -80,6 +81,7 @@ const CreateVoiceAgent: React.FC = () => {
   const { user } = useAuth();
   const isEditMode = !!agentId;
   const [loading, setLoading] = useState(false);
+  const isSubmittingRef = useRef(false); // Ref to track submission state (synchronous)
   const [loadingAgent, setLoadingAgent] = useState(isEditMode);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [inboundNumbers, setInboundNumbers] = useState<InboundNumber[]>([]);
@@ -186,7 +188,6 @@ const CreateVoiceAgent: React.FC = () => {
       formData.language,
       formData.agentType,
       formData.timezone,
-      formData.tool,
       selectedNumberId
     ];
 
@@ -203,7 +204,7 @@ const CreateVoiceAgent: React.FC = () => {
   const getProgress = () => {
     const detailsFields = [formData.agentName, formData.companyName, formData.websiteUrl, formData.goal, formData.backgroundContext];
     const voiceFields = [welcomeMessages.length >= 5, formData.instructionVoice];
-    const settingsFields = [formData.voice, formData.language, formData.agentType, formData.timezone, formData.tool, selectedNumberId];
+    const settingsFields = [formData.voice, formData.language, formData.agentType, formData.timezone, selectedNumberId];
 
     const allRequired = [...detailsFields, ...voiceFields, ...settingsFields];
     const filledCount = allRequired.filter(field => {
@@ -222,7 +223,7 @@ const CreateVoiceAgent: React.FC = () => {
       case 'voice':
         return welcomeMessages.length >= 5 && formData.instructionVoice.trim() !== '';
       case 'settings':
-        return [formData.voice, formData.language, formData.agentType, formData.timezone, formData.tool, selectedNumberId]
+        return [formData.voice, formData.language, formData.agentType, formData.timezone, selectedNumberId]
           .every(f => f && f.trim() !== '');
       case 'schedules':
         return true;
@@ -847,7 +848,7 @@ Return ONLY a valid JSON object with the following structure:
   "language": "string (ISO language code like en-US, es-ES, fr-FR, de-DE, zh-CN)",
   "timezone": "string (IANA timezone like America/New_York, America/Los_Angeles, UTC)",
   "agentType": "string (one of: sales, support, booking, general)",
-  "tool": "string (one of: calendar, crm, email, sms)",
+  "tool": "string (one of: schedule, crm, email, sms)",
   "voice": "string (voice name, default to helena)",
   "temperature": number (0.0 to 1.0, default 0.7),
   "confidence": number (0.0 to 1.0, default 0.8),
@@ -1690,11 +1691,18 @@ IMPORTANT:
   };
 
   const saveDraft = async (nextSection?: 'details' | 'voice' | 'settings' | 'schedules') => {
+    // Prevent double submission - check both ref and state
+    if (isSubmittingRef.current || loading) {
+      return;
+    }
+
     if (!user) {
       setStatusMessage({ type: 'error', text: 'You must be logged in to save a draft' });
       return;
     }
 
+    // Set submission flag immediately
+    isSubmittingRef.current = true;
     setLoading(true);
     setStatusMessage(null);
 
@@ -1785,26 +1793,42 @@ IMPORTANT:
       setStatusMessage({ type: 'error', text: err.message || 'Failed to save draft' });
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false; // Reset submission flag
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission - check both ref (synchronous) and state
+    if (isSubmittingRef.current || loading) {
+      return;
+    }
+    
+    // Set submission flag immediately (synchronous)
+    isSubmittingRef.current = true;
+    setLoading(true);
     setStatusMessage(null);
 
     if (!selectedNumberId) {
       setStatusMessage({ type: 'error', text: 'Please select an inbound number before creating the agent' });
+      setLoading(false);
+      isSubmittingRef.current = false;
       return;
     }
 
     const selectedNumber = getSelectedNumber();
     if (!selectedNumber) {
       setStatusMessage({ type: 'error', text: 'Selected number not found. Please refresh and try again.' });
+      setLoading(false);
+      isSubmittingRef.current = false;
       return;
     }
 
     if (!user) {
       setStatusMessage({ type: 'error', text: 'You must be logged in to create an agent' });
+      setLoading(false);
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -1817,11 +1841,11 @@ IMPORTANT:
           type: 'error',
           text: creditCheck.message || 'Insufficient credits. Creating an agent requires 5 credits.'
         });
+        setLoading(false);
+        isSubmittingRef.current = false;
         return;
       }
     }
-
-    setLoading(true);
 
     try {
       // Check if selected number is already assigned to another agent
@@ -1829,6 +1853,7 @@ IMPORTANT:
       if (!selectedNumber) {
         setStatusMessage({ type: 'error', text: 'Selected number not found. Please refresh and try again.' });
         setLoading(false);
+        isSubmittingRef.current = false;
         return;
       }
 
@@ -2303,7 +2328,52 @@ IMPORTANT:
 
           throw new Error(creditDeduction.error || 'Failed to deduct credits. Agent creation cancelled.');
         }
+
+        // Send notification for agent creation and credit deduction
+        if (creditDeduction.success && user) {
+          try {
+            await NotificationHelpers.agentCreated(
+              user.id,
+              formData.agentName,
+              data.id,
+              creditDeduction.creditsDeducted || CREDIT_RATES.AGENT_CREATION
+            );
+          } catch (notifError) {
+            console.error('Error sending notification:', notifError);
+            // Don't fail the creation if notification fails
+          }
+        }
       } else {
+        // Check for duplicate agent (same name and phone number) created recently
+        const { data: existingAgent, error: checkError } = await supabase
+          .from('voice_agents')
+          .select('id, name, phone_number, created_at')
+          .eq('user_id', user.id)
+          .eq('name', formData.agentName)
+          .eq('phone_number', selectedNumber!.phone_number)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // If duplicate found and created within last 5 seconds, prevent creation
+        if (existingAgent && !checkError) {
+          const createdTime = new Date(existingAgent.created_at).getTime();
+          const now = Date.now();
+          const timeDiff = (now - createdTime) / 1000; // seconds
+
+          if (timeDiff < 5) {
+            // Duplicate detected - likely from double-click
+            setLoading(false);
+            isSubmittingRef.current = false;
+            setStatusMessage({
+              type: 'error',
+              text: 'Agent creation already in progress. Please wait a moment and refresh the page.'
+            });
+            return;
+          }
+        }
+
         // Insert brand new agent
         const { data: insertData, error: insertError } = await supabase
           .from('voice_agents')
@@ -2312,6 +2382,16 @@ IMPORTANT:
           .single();
 
         if (insertError) {
+          // Check if it's a duplicate key error
+          if (insertError.code === '23505' || insertError.message?.includes('duplicate key')) {
+            setLoading(false);
+            isSubmittingRef.current = false;
+            setStatusMessage({
+              type: 'error',
+              text: 'An agent with this configuration already exists. Please refresh the page.'
+            });
+            return;
+          }
           throw insertError;
         }
         data = insertData;
@@ -2350,6 +2430,21 @@ IMPORTANT:
             .eq('id', selectedNumberId);
 
           throw new Error(creditDeduction.error || 'Failed to deduct credits. Agent creation cancelled.');
+        }
+
+        // Send notification for agent creation and credit deduction
+        if (creditDeduction.success && user) {
+          try {
+            await NotificationHelpers.agentCreated(
+              user.id,
+              formData.agentName,
+              data.id,
+              creditDeduction.creditsDeducted || CREDIT_RATES.AGENT_CREATION
+            );
+          } catch (notifError) {
+            console.error('Error sending notification:', notifError);
+            // Don't fail the creation if notification fails
+          }
         }
       }
 
@@ -2459,22 +2554,11 @@ IMPORTANT:
       } else {
         setStatusMessage({
           type: 'success',
-          text: 'Agent created successfully! 5 credits deducted. Your agent will be activated in 1 minute.'
+          text: 'Agent created successfully! 5 credits deducted. Your agent is being activated and will be ready shortly.'
         });
 
-        // Schedule activation after 60 seconds
-        const agentIdToActivate = data.id;
-        setTimeout(async () => {
-          try {
-            await supabase
-              .from('voice_agents')
-              .update({ status: 'active', updated_at: new Date().toISOString() })
-              .eq('id', agentIdToActivate)
-              .eq('status', 'activating');
-          } catch (err) {
-            console.error('Error auto-activating agent:', err);
-          }
-        }, 60000);
+        // Status will be changed to 'active' by n8n backend when ready
+        // No need for client-side timer
       }
 
       setTimeout(() => {
@@ -2485,6 +2569,7 @@ IMPORTANT:
       setStatusMessage({ type: 'error', text: error.message || `Failed to ${isEditMode ? 'update' : 'create'} agent. Please try again.` });
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false; // Reset submission flag
     }
   };
 
@@ -2927,27 +3012,6 @@ IMPORTANT:
                           />
                         </div>
 
-                        <div className="flex flex-col gap-2">
-                          <Label htmlFor="script" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                            Description (Optional):
-                          </Label>
-                          <div className="border border-[#e5e5e5] rounded-[10px] shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_0px_rgba(0,0,0,0.1)]">
-                            <Textarea
-                              id="script"
-                              name="script"
-                              value={formData.script}
-                              onChange={handleInputChange}
-                              className="border-0 rounded-[10px] px-5 py-4 min-h-[300px] resize-none focus:ring-0 focus-visible:ring-0"
-                              style={{ fontFamily: "'Manrope', sans-serif" }}
-                              placeholder="Enter a comprehensive description of your agent's identity, mission, and conversation guidelines..."
-                            />
-                            <div className="border-t border-[#e5e5e5] px-5 py-3 flex items-center justify-between">
-                              <span className="text-[12px] text-[#6a7282]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                                {formData.script.length} characters | {formData.script.split(/\s+/).filter(Boolean).length} words
-                              </span>
-                            </div>
-                          </div>
-                        </div>
                       </div>
 
                       <div className="flex items-center justify-between">
@@ -3165,22 +3229,6 @@ IMPORTANT:
                           </Select>
                         </div>
 
-                        <div className="flex flex-col gap-2">
-                          <Label htmlFor="tool" className="text-[14px] font-medium dark:text-[#f9fafb] text-[#27272b]">
-                            Tool*:
-                          </Label>
-                          <Select value={formData.tool} onValueChange={(value) => handleSelectChange('tool', value)}>
-                            <SelectTrigger className="border border-[#d4d4da] rounded-[6px] px-3 py-2">
-                              <SelectValue placeholder="Select tool" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="calendar">Calendar Integration</SelectItem>
-                              <SelectItem value="crm">CRM Integration</SelectItem>
-                              <SelectItem value="email">Email Integration</SelectItem>
-                              <SelectItem value="sms">SMS Integration</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
 
                         <Separator />
 
@@ -3492,15 +3540,16 @@ IMPORTANT:
                             {loading ? 'Saving...' : 'Save as Draft'}
                           </Button>
                           <Button
+                            type="button"
                             onClick={handleSubmit}
-                            disabled={loading || (!isEditMode && !isFormValid())}
-                            className={`px-6 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] transition-all ${!isEditMode && !isFormValid()
+                            disabled={isSubmittingRef.current || loading || (!isEditMode && !isFormValid())}
+                            className={`px-6 py-2 rounded-[6px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] transition-all ${!isEditMode && !isFormValid() || isSubmittingRef.current || loading
                               ? 'bg-[#e4e4e8] text-[#737373] cursor-not-allowed border-0'
                               : 'bg-[#00c19c] hover:bg-[#00c19c]/90 text-white'
                               }`}
                             style={{ fontFamily: "'Manrope', sans-serif" }}
                           >
-                            {loading ? ((isEditMode && !isDraft) ? 'Updating...' : 'Creating...') : ((isEditMode && !isDraft) ? 'Update Agent' : 'Create Agent')}
+                            {loading || isSubmittingRef.current ? ((isEditMode && !isDraft) ? 'Updating...' : 'Creating...') : ((isEditMode && !isDraft) ? 'Update Agent' : 'Create Agent')}
                           </Button>
                         </div>
                       </div>
@@ -3792,7 +3841,7 @@ IMPORTANT:
                                   }`}
                                 style={{ fontFamily: "'Manrope', sans-serif" }}
                               >
-                                {isComplete ? 'Complete' : isFailed ? 'Failed' : 'Pending'}
+                                {isComplete ? 'Complete' : isFailed ? 'Failed' : status === 'initiated' ? 'In Progress' : 'Scheduled'}
                               </Badge>
                             </td>
                             <td className="h-[53px] px-2 py-2 w-16">
@@ -4497,7 +4546,7 @@ IMPORTANT:
                 <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <p>No saved prompts found.</p>
                 <p className="text-sm mt-1">Generate and save a prompt in the AI Prompts page first.</p>
-                <Link to="/ai-prompt" className="text-primary hover:underline mt-2 inline-block">Go to AI Prompts</Link>
+                <Link to="/agents?tab=ai-prompt" className="text-primary hover:underline mt-2 inline-block">Go to AI Prompts</Link>
               </div>
             ) : (
               savedPrompts.map((prompt) => (

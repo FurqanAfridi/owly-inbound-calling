@@ -64,7 +64,7 @@ interface CallHistoryRecord {
   caller_country_code: string | null;
   called_number: string;
   called_country_code: string | null;
-  call_status: 'answered' | 'missed' | 'forwarded' | 'busy' | 'failed' | 'no-answer' | 'canceled';
+  call_status: 'answered' | 'completed' | 'missed' | 'forwarded' | 'busy' | 'failed' | 'no-answer' | 'canceled';
   call_direction: 'inbound' | 'outbound';
   call_duration: number;
   call_start_time: string;
@@ -124,7 +124,6 @@ const CallHistory: React.FC = () => {
       loadAgents();
       loadInboundNumbers();
       fetchCallHistory();
-      fetchAnalytics();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -132,7 +131,6 @@ const CallHistory: React.FC = () => {
   useEffect(() => {
     if (user) {
       fetchCallHistory();
-      fetchAnalytics();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, timeFilter, statusFilter, agentFilter, numberFilter]);
@@ -193,11 +191,18 @@ const CallHistory: React.FC = () => {
         .eq('user_id', user.id)
         .gte('call_start_time', startDate)
         .is('deleted_at', null)
+        .not('caller_number', 'is', null)
+        .neq('caller_number', '')
         .order('call_start_time', { ascending: false })
         .limit(100);
 
       if (statusFilter !== 'all') {
-        query = query.eq('call_status', statusFilter);
+        if (statusFilter === 'answered') {
+          // Include both 'answered' and 'completed' statuses
+          query = query.in('call_status', ['answered', 'completed']);
+        } else {
+          query = query.eq('call_status', statusFilter);
+        }
       }
 
       if (agentFilter !== 'all') {
@@ -215,7 +220,11 @@ const CallHistory: React.FC = () => {
 
       if (fetchError) throw fetchError;
 
-      setCalls(data || []);
+      const fetchedCalls = data || [];
+      setCalls(fetchedCalls);
+      
+      // Calculate analytics from the same filtered data shown to the user
+      setAnalytics(calculateAnalytics(fetchedCalls));
     } catch (err: any) {
       console.error('Error fetching call history:', err);
       setError(err.message || 'Failed to load call history');
@@ -224,68 +233,32 @@ const CallHistory: React.FC = () => {
     }
   };
 
-  const fetchAnalytics = async () => {
-    if (!user) return;
+  // Calculate analytics from the filtered calls data (same data shown to the user)
+  const calculateAnalytics = (filteredCalls: CallHistoryRecord[]): AnalyticsData => {
+    const totalCalls = filteredCalls.length;
+    const answeredCalls = filteredCalls.filter(c => c.call_status === 'answered' || c.call_status === 'completed').length;
+    const missedCalls = filteredCalls.filter(c => c.call_status === 'missed' || c.call_status === 'no-answer' || c.call_status === 'busy' || c.call_status === 'canceled').length;
+    const forwardedCalls = filteredCalls.filter(c => c.call_status === 'forwarded' || (c.call_forwarded_to && c.call_forwarded_to !== '')).length;
+    const failedCalls = filteredCalls.filter(c => c.call_status === 'failed').length;
 
-    try {
-      const startDate = getDateRange();
-      const endDate = new Date();
+    const callsWithDuration = filteredCalls.filter(c => c.call_duration > 0);
+    const totalDuration = callsWithDuration.reduce((sum, c) => sum + c.call_duration, 0);
+    const avgDuration = callsWithDuration.length > 0 ? totalDuration / callsWithDuration.length : 0;
 
-      const { data, error: analyticsError } = await supabase.rpc('get_call_statistics', {
-        p_user_id: user.id,
-        p_start_date: startDate.toISOString().split('T')[0],
-        p_end_date: endDate.toISOString().split('T')[0],
-        p_agent_id: null,
-      });
+    const totalCost = filteredCalls.reduce((sum, c) => sum + (c.call_cost || 0), 0);
+    const avgCost = totalCalls > 0 ? totalCost / totalCalls : 0;
 
-      if (analyticsError) {
-        console.error('Error fetching analytics:', analyticsError);
-        // Set default analytics if function doesn't exist or fails
-        setAnalytics({
-          total_calls: 0,
-          answered_calls: 0,
-          missed_calls: 0,
-          forwarded_calls: 0,
-          failed_calls: 0,
-          total_duration_seconds: 0,
-          average_duration_seconds: 0,
-          total_cost: 0,
-          average_cost: 0,
-        });
-        return;
-      }
-
-      if (data && data.length > 0) {
-        setAnalytics(data[0]);
-      } else {
-        // Set default analytics if no data
-        setAnalytics({
-          total_calls: 0,
-          answered_calls: 0,
-          missed_calls: 0,
-          forwarded_calls: 0,
-          failed_calls: 0,
-          total_duration_seconds: 0,
-          average_duration_seconds: 0,
-          total_cost: 0,
-          average_cost: 0,
-        });
-      }
-    } catch (err: any) {
-      console.error('Error fetching analytics:', err);
-      // Set default analytics on error
-      setAnalytics({
-        total_calls: 0,
-        answered_calls: 0,
-        missed_calls: 0,
-        forwarded_calls: 0,
-        failed_calls: 0,
-        total_duration_seconds: 0,
-        average_duration_seconds: 0,
-        total_cost: 0,
-        average_cost: 0,
-      });
-    }
+    return {
+      total_calls: totalCalls,
+      answered_calls: answeredCalls,
+      missed_calls: missedCalls,
+      forwarded_calls: forwardedCalls,
+      failed_calls: failedCalls,
+      total_duration_seconds: totalDuration,
+      average_duration_seconds: avgDuration,
+      total_cost: totalCost,
+      average_cost: avgCost,
+    };
   };
 
   const formatDuration = (seconds: number): string => {
@@ -304,6 +277,7 @@ const CallHistory: React.FC = () => {
       [key: string]: { label: string; color: 'success' | 'error' | 'info' | 'warning' | 'default'; icon?: React.ReactElement };
     } = {
       answered: { label: 'Answered', color: 'success' as const, icon: <CheckCircleIcon /> },
+      completed: { label: 'Completed', color: 'success' as const, icon: <CheckCircleIcon /> },
       missed: { label: 'Missed', color: 'error' as const, icon: <CancelIcon /> },
       forwarded: { label: 'Forwarded', color: 'info' as const, icon: <ForwardIcon /> },
       busy: { label: 'Busy', color: 'warning' as const },

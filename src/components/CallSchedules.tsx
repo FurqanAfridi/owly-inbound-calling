@@ -343,7 +343,7 @@ const CallSchedules: React.FC = () => {
                       <Tab icon={<EventIcon />} iconPosition="start" label="Holidays" />
                       <Tab icon={<TimeIcon />} iconPosition="start" label="After Hours" />
                       <Tab icon={<ScheduleIcon />} iconPosition="start" label="Overrides" />
-                      <Tab icon={<CalendarIcon />} iconPosition="start" label="Calendar Preview" />
+                      <Tab icon={<CalendarIcon />} iconPosition="start" label="Schedule Preview" />
                     </Tabs>
                   </Box>
 

@@ -187,7 +187,7 @@ const CalendarPreview: React.FC<CalendarPreviewProps> = ({ scheduleId, timezone 
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h6">Call Availability Calendar Preview</Typography>
+        <Typography variant="h6">Call Availability Schedule Preview</Typography>
         <Box display="flex" gap={2} alignItems="center">
           <Button onClick={() => handleMonthChange('prev')} size="small">
             ← Prev

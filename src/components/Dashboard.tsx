@@ -275,7 +275,9 @@ const Dashboard: React.FC = () => {
         .from('call_history')
         .select('id, caller_number, called_number, call_status, call_duration, call_start_time, call_end_time, call_answered_time, call_forwarded_to, call_cost, recording_url, transcript, notes, is_lead, agent_id, inbound_number_id, metadata')
         .eq('user_id', user.id)
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .not('caller_number', 'is', null)
+        .neq('caller_number', '');
 
       // Apply agent filter
       if (selectedAgentId !== 'all') {
@@ -347,7 +349,7 @@ const Dashboard: React.FC = () => {
       const currentTotalCalls = filteredCalls.length;
 
       const currentAnsweredCalls = filteredCalls.filter(
-        c => c.call_status === 'answered'
+        c => c.call_status === 'answered' || c.call_status === 'completed'
       ).length;
 
       const currentMissedCalls = filteredCalls.filter(
@@ -421,7 +423,7 @@ const Dashboard: React.FC = () => {
 
       // ── Previous period stats for comparison ──
       const prevTotalCalls = prevPeriodCalls.length;
-      const prevAnsweredCalls = prevPeriodCalls.filter(c => c.call_status === 'answered').length;
+      const prevAnsweredCalls = prevPeriodCalls.filter(c => c.call_status === 'answered' || c.call_status === 'completed').length;
       const prevMissedCalls = prevPeriodCalls.filter(
         c => c.call_status === 'missed' || c.call_status === 'failed' || c.call_status === 'no-answer'
       ).length;
@@ -477,7 +479,9 @@ const Dashboard: React.FC = () => {
         .from('call_history')
         .select('id, caller_number, called_number, call_duration, call_status, call_start_time, call_end_time, call_answered_time, call_forwarded_to, call_cost, recording_url, transcript, notes, is_lead, agent_id, inbound_number_id')
         .eq('user_id', user.id)
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .not('caller_number', 'is', null)
+        .neq('caller_number', '');
 
       if (selectedAgentId !== 'all') {
         query = query.eq('agent_id', selectedAgentId);
@@ -505,7 +509,7 @@ const Dashboard: React.FC = () => {
             calledNumber: call.called_number || '-',
             duration: formatDurationStr(call.call_duration),
             status: call.call_forwarded_to ? 'forwarded' :
-              call.call_status === 'answered' ? 'answered' : 'missed',
+              (call.call_status === 'answered' || call.call_status === 'completed') ? 'answered' : 'missed',
             time: formatRelativeTime(call.call_start_time),
             cost: call.call_cost ? `$${Number(call.call_cost).toFixed(4)}` : '$0.00',
             isLead: call.is_lead === true || call.is_lead === 'true' || call.is_lead === 1,
@@ -592,7 +596,7 @@ const Dashboard: React.FC = () => {
         // Determine status (use is_lead or call_status)
         const status = latestCall.is_lead === true || latestCall.is_lead === 'true' || latestCall.is_lead === 1
           ? 'Lead'
-          : latestCall.call_status === 'answered'
+          : (latestCall.call_status === 'answered' || latestCall.call_status === 'completed')
             ? 'Answered'
             : 'Missed';
 

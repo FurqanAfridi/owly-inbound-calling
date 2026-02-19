@@ -367,7 +367,7 @@ export default function AIPrompt() {
                     <div className="grid md:grid-cols-2 gap-4">
                       <div className="space-y-2"><Label>Pricing Info</Label><Textarea value={formData.pricingInfo || ""} onChange={(e) => setFormData(prev => ({ ...prev, pricingInfo: e.target.value }))} placeholder="Pricing details" className="min-h-[80px]" /></div>
                       <div className="space-y-2"><Label>Business Hours</Label><Input value={formData.businessHours || ""} onChange={(e) => setFormData(prev => ({ ...prev, businessHours: e.target.value }))} placeholder="e.g., Mon-Fri 9AM-5PM" /></div>
-                      <div className="space-y-2"><Label>Booking Method</Label><Input value={formData.bookingMethod || ""} onChange={(e) => setFormData(prev => ({ ...prev, bookingMethod: e.target.value }))} placeholder="e.g., Calendar link or manual" /></div>
+                      <div className="space-y-2"><Label>Booking Method</Label><Input value={formData.bookingMethod || ""} onChange={(e) => setFormData(prev => ({ ...prev, bookingMethod: e.target.value }))} placeholder="e.g., Schedule link or manual" /></div>
                       <div className="space-y-2"><Label>Appointment Rules</Label><Textarea value={formData.appointmentRules || ""} onChange={(e) => setFormData(prev => ({ ...prev, appointmentRules: e.target.value }))} placeholder="How booking works" className="min-h-[80px]" /></div>
                       <div className="space-y-2 md:col-span-2"><Label>Escalation Process</Label><Textarea value={formData.escalationProcess || ""} onChange={(e) => setFormData(prev => ({ ...prev, escalationProcess: e.target.value }))} placeholder="What to do if issue cannot be resolved" className="min-h-[80px]" /></div>
                     </div>
